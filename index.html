@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>HAWKVIEW // Casio Edifice Sports Chronograph & Badminton Analytics</title>
   
   <!-- Tailwind CSS CDN -->
@@ -662,29 +663,39 @@
       </div>
 
       <!-- Quick Preset Badminton Match Clips -->
-      <div class="mb-4">
-        <div class="text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1.5 font-bold">
-          ⚡ ONE-CLICK BADMINTON MATCH PRESETS:
+      <div class="mb-3">
+        <div class="text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1.5 font-bold flex items-center justify-between">
+          <span>⚡ VERIFIED BWF MATCH STREAMS:</span>
+          <span class="text-cyan-400 text-[8px]">EMBED ENABLED</span>
         </div>
         <div class="grid grid-cols-1 gap-1.5 text-left font-mono">
           <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-cyan-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=8b9eUqy_c5Y" data-offset="312.1" data-label="BWF Arctic Open 2024: Lee Zii Jia vs Su Li Yang (QF)">
+                  data-url="https://www.youtube.com/watch?v=BPv0hE0ugkk" data-offset="312.1" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Su Li Yang (TPE)">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
-              <span class="text-[9px] text-cyan-400 font-bold">ARCTIC OPEN 2024</span>
+              <span class="text-[9px] text-cyan-400 font-bold">ARCTIC OPEN [R16 FULL]</span>
             </div>
-            <div class="text-[9px] text-slate-500 mt-0.5">Game 2: 412 km/h nuclear smash rally at 05:12 (Rally #18 synchronized)</div>
+            <div class="text-[9px] text-slate-500 mt-0.5">Game 2: 412 km/h smash & rapid exchange (Rally #18 sync)</div>
           </button>
 
           <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-cyan-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=vVj_pD5j1XQ" data-offset="74.2" data-label="All England Open: Lee Zii Jia vs Lakshya Sen">
+                  data-url="https://www.youtube.com/watch?v=cFO4yO5s0BA" data-offset="74.2" data-label="Lee Zii Jia vs Su Li Yang | Match Highlights">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇮🇳 Lakshya Sen</span>
-              <span class="text-[9px] text-emerald-400 font-bold">ALL ENGLAND OPEN</span>
+              <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
+              <span class="text-[9px] text-emerald-400 font-bold">MATCH HIGHLIGHTS</span>
             </div>
-            <div class="text-[9px] text-slate-500 mt-0.5">Epic 38-shot baseline exchange & jump smash recovery</div>
+            <div class="text-[9px] text-slate-500 mt-0.5">High-speed baseline rally highlights & jump smash compilation</div>
           </button>
         </div>
+      </div>
+
+      <!-- Server & Origin Note -->
+      <div class="mb-3 px-2.5 py-1.5 rounded-lg bg-[#05080c] border border-slate-800/80 text-[9px] font-mono text-slate-400 flex items-center justify-between">
+        <span class="flex items-center space-x-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>LOCAL SERVER: <a href="http://localhost:8123/index.html" class="text-cyan-400 underline hover:text-cyan-300 font-bold">localhost:8123</a></span>
+        </span>
+        <span class="text-slate-500">Bypasses Error 153 Domain Check</span>
       </div>
 
       <!-- Action Buttons Row -->

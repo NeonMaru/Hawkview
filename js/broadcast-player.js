@@ -381,7 +381,7 @@ class BroadcastPlayer {
     if (/^[a-zA-Z0-9_-]{11}$/.test(cleanUrl)) {
       return cleanUrl;
     }
-    const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?|shorts|live)\/|\S*?[?&]v=)|youtu\.be\/|youtube-nocookie\.com\/embed\/)([a-zA-Z0-9_-]{11})/i;
     const match = cleanUrl.match(regExp);
     return match ? match[1] : null;
   }
@@ -394,6 +394,57 @@ class BroadcastPlayer {
     const m = parseInt(match[1] || '0', 10);
     const s = parseInt(match[2] || '0', 10);
     return m * 60 + s;
+  }
+
+  renderDirectYouTubeIframe(container, videoId, startSec, pageOrigin) {
+    container.innerHTML = `
+      <iframe id="yt-fallback-iframe" class="w-full h-full border-0" 
+              src="https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&enablejsapi=1&origin=${encodeURIComponent(pageOrigin)}&widget_referrer=${encodeURIComponent(pageOrigin)}&start=${Math.floor(startSec)}&rel=0" 
+              referrerpolicy="strict-origin-when-cross-origin" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+              allowfullscreen></iframe>
+    `;
+  }
+
+  handleYouTubeError(videoId, errorCode, container) {
+    if (!container) container = document.getElementById('youtube-iframe-player');
+    if (!container) return;
+
+    const isFileProto = window.location.protocol === 'file:';
+    container.innerHTML = `
+      <div class="w-full h-full bg-[#080c12] p-4 flex flex-col items-center justify-center text-center font-mono border border-red-500/40 rounded-lg">
+        <div class="w-8 h-8 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-400 mb-2 text-base">
+          ⚠️
+        </div>
+        <div class="text-xs font-bold text-red-300 uppercase tracking-wider mb-1">
+          YOUTUBE EMBED RESTRICTION (ERROR ${errorCode})
+        </div>
+        <p class="text-[10px] text-slate-400 max-w-sm mb-3">
+          ${isFileProto 
+            ? "YouTube blocks embedding when opened directly from disk (file:// protocol) due to missing referrer headers." 
+            : "The video publisher restricted external embedding or requires playback directly on YouTube."}
+        </p>
+
+        <div class="flex flex-wrap items-center justify-center gap-2">
+          ${isFileProto ? `
+          <a href="http://localhost:8123/index.html" class="px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 hover:border-cyan-400 text-[10px] font-bold tracking-wider transition-all">
+            🚀 OPEN VIA LOCAL SERVER (PORT 8123)
+          </a>` : ''}
+          <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener noreferrer" 
+             class="px-3 py-1.5 rounded bg-red-950/80 border border-red-500/50 text-red-300 hover:border-red-400 text-[10px] font-bold tracking-wider transition-all flex items-center space-x-1">
+            <span>WATCH ON YOUTUBE ↗</span>
+          </a>
+          <button id="btn-fallback-sample" class="px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:border-slate-500 text-[10px] font-bold tracking-wider transition-all">
+            ▶ LOAD SAMPLE RALLY
+          </button>
+        </div>
+      </div>
+    `;
+
+    const sampleBtn = document.getElementById('btn-fallback-sample');
+    if (sampleBtn) {
+      sampleBtn.addEventListener('click', () => this.loadSampleVideo());
+    }
   }
 
   loadYouTubeVideo(urlOrId, offsetSec = 0, customLabel = null) {
@@ -429,36 +480,38 @@ class BroadcastPlayer {
       labelEl.textContent = labelText;
     }
 
-    // Embed via YouTube IFrame API if available
+    // Embed via YouTube IFrame API or direct nocookie embed
     const initOrLoadYT = () => {
       const targetDiv = document.getElementById('youtube-iframe-player');
       if (!targetDiv) return;
 
-      if (window.YT && window.YT.Player) {
-        if (this.ytPlayer && typeof this.ytPlayer.loadVideoById === 'function') {
-          this.ytPlayer.loadVideoById({
-            videoId: videoId,
-            startSeconds: Math.floor(startSec)
-          });
-        } else {
-          // Clear container for fresh instance
-          targetDiv.innerHTML = '';
-          const playerHost = document.createElement('div');
-          playerHost.id = 'yt-player-host';
-          playerHost.className = 'w-full h-full';
-          targetDiv.appendChild(playerHost);
+      const pageOrigin = (window.location.protocol === 'http:' || window.location.protocol === 'https:') 
+        ? window.location.origin 
+        : 'https://www.youtube-nocookie.com';
 
+      // Reset target div for clean embed
+      targetDiv.innerHTML = '';
+      const playerHost = document.createElement('div');
+      playerHost.id = 'yt-player-host';
+      playerHost.className = 'w-full h-full';
+      targetDiv.appendChild(playerHost);
+
+      if (window.YT && window.YT.Player) {
+        try {
           this.ytPlayer = new window.YT.Player('yt-player-host', {
             width: '100%',
             height: '100%',
             videoId: videoId,
+            host: 'https://www.youtube-nocookie.com',
             playerVars: {
               autoplay: 1,
               controls: 1,
               modestbranding: 1,
               rel: 0,
               playsinline: 1,
-              start: Math.floor(startSec)
+              start: Math.floor(startSec),
+              origin: pageOrigin,
+              enablejsapi: 1
             },
             events: {
               onReady: () => {
@@ -476,18 +529,19 @@ class BroadcastPlayer {
                     this.updatePlayBtnIcon();
                   }
                 }
+              },
+              onError: (event) => {
+                console.warn("YouTube Player error:", event.data);
+                this.handleYouTubeError(videoId, event.data, targetDiv);
               }
             }
           });
+        } catch (err) {
+          console.warn("Failed to instantiate YT.Player, falling back to direct iframe:", err);
+          this.renderDirectYouTubeIframe(targetDiv, videoId, startSec, pageOrigin);
         }
       } else {
-        // Fallback standard iframe embed if YouTube API hasn't loaded yet
-        targetDiv.innerHTML = `
-          <iframe id="yt-fallback-iframe" class="w-full h-full border-0" 
-                  src="https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1&start=${Math.floor(startSec)}" 
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                  allowfullscreen></iframe>
-        `;
+        this.renderDirectYouTubeIframe(targetDiv, videoId, startSec, pageOrigin);
       }
     };
 
