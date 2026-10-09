@@ -2,6 +2,9 @@
  * Broadcast Video Player & Synchronized Match Engine (Hawkview)
  * Orchestrates:
  * - Real Three.js 3D Court Viewport integration with free tilt/orbit
+ * - Dual-View Modes: Pure 3D Twin, Split Dual-View (50/50), Picture-in-Picture (PiP), Full Video
+ * - Direct YouTube Stream Loading & IFrame Player API bi-directional timecode lockstep
+ * - Local HTML5 <video> drag-and-drop & native file picker (.mp4 / .mov)
  * - Web Audio API synthesized mechanical watch clicks and supersonic smash cracks
  * - Frame-accurate timecode scrubbing synchronized with dials & court
  * - Real-time BWF TV Scorebug and Speed Radar Banner overlays
@@ -12,6 +15,16 @@ class BroadcastPlayer {
     this.timelineSlider = document.getElementById('rally-timeline-slider');
     this.playBtn = document.getElementById('btn-play-pause');
     this.videoElement = document.getElementById('real-video-player');
+    this.videoWrapper = document.getElementById('video-viewport-wrapper');
+    this.threeContainer = document.getElementById('three-viewport-container');
+    this.dropZone = document.getElementById('video-viewport-container');
+    this.dropOverlay = document.getElementById('video-dropzone-overlay');
+    this.fileInput = document.getElementById('video-file-input');
+
+    // YouTube DOM Elements
+    this.ytContainer = document.getElementById('youtube-player-container');
+    this.ytModal = document.getElementById('youtube-url-modal');
+    this.ytUrlInput = document.getElementById('yt-url-input');
 
     this.onTimeUpdate = options.onTimeUpdate || (() => {});
     this.onRallyChange = options.onRallyChange || (() => {});
@@ -25,6 +38,17 @@ class BroadcastPlayer {
     this.rallies = window.HAWKVIEW_TELEMETRY ? window.HAWKVIEW_TELEMETRY.rallies : [];
     this.currentRally = this.rallies[this.currentRallyIndex] || null;
 
+    // Dual-View State
+    this.currentViewMode = '3d'; // '3d', 'split', 'pip', 'full'
+    this.hasVideo = false;
+    this.videoOffset = 312.1; // Match timestamp corresponding to video time 0.0s
+    this.isSampleVideoLoaded = false;
+
+    // YouTube Player State
+    this.isYouTubeActive = false;
+    this.ytPlayer = null;
+    this.ytVideoId = null;
+
     this.radarTimer = null;
     this.audioCtx = null;
 
@@ -32,6 +56,14 @@ class BroadcastPlayer {
     this.initThreeViewer();
 
     this.bindEvents();
+    this.bindDualViewControls();
+    this.bindYouTubeModalEvents();
+
+    // Prime sample video if present in DOM
+    if (this.videoElement && this.videoElement.getAttribute('src')) {
+      this.loadVideoSource(this.videoElement.getAttribute('src'), 'BWF ARCTIC OPEN // QF (MAS vs TPE)', true);
+    }
+
     this.startPlaybackLoop();
 
     window.broadcastPlayerInstance = this;
@@ -77,7 +109,6 @@ class BroadcastPlayer {
     this.initAudio();
     if (!this.audioCtx) return;
     try {
-      // Thunder crack noise burst
       const bufferSize = this.audioCtx.sampleRate * 0.12;
       const buffer = this.audioCtx.createBuffer(1, bufferSize, this.audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -115,48 +146,509 @@ class BroadcastPlayer {
         if (this.currentRally) {
           const duration = this.currentRally.seconds_end - this.currentRally.seconds_start;
           this.currentTime = this.currentRally.seconds_start + duration * pct;
-          this.syncRallyState();
+
+          // Sync YouTube time
+          if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+            const targetYtTime = Math.max(0, this.currentTime - this.videoOffset);
+            this.ytPlayer.seekTo(targetYtTime, true);
+          }
+          // Sync local video time
+          else if (this.hasVideo && this.videoElement) {
+            const videoDuration = this.videoElement.duration || duration;
+            const targetVidTime = Math.max(0, Math.min(videoDuration, this.currentTime - this.videoOffset));
+            this.videoElement.currentTime = targetVidTime;
+          }
+
+          this.syncRallyState(true);
         }
       });
     }
 
-    // Video file drag & drop handler for custom files
-    const dropZone = document.getElementById('video-viewport-container');
-    if (dropZone) {
-      dropZone.addEventListener('dragover', (e) => {
+    // Video Drag & Drop on Viewport Frame
+    if (this.dropZone) {
+      this.dropZone.addEventListener('dragenter', (e) => {
         e.preventDefault();
-        dropZone.classList.add('ring-2', 'ring-cyan-400');
+        if (this.dropOverlay) {
+          this.dropOverlay.classList.remove('opacity-0', 'pointer-events-none');
+          this.dropOverlay.classList.add('opacity-100');
+        }
       });
-      dropZone.addEventListener('dragleave', () => {
-        dropZone.classList.remove('ring-2', 'ring-cyan-400');
-      });
-      dropZone.addEventListener('drop', (e) => {
+      this.dropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        dropZone.classList.remove('ring-2', 'ring-cyan-400');
+      });
+      this.dropZone.addEventListener('dragleave', (e) => {
+        if (e.relatedTarget && this.dropZone.contains(e.relatedTarget)) return;
+        if (this.dropOverlay) {
+          this.dropOverlay.classList.remove('opacity-100');
+          this.dropOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+      });
+      this.dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        if (this.dropOverlay) {
+          this.dropOverlay.classList.remove('opacity-100');
+          this.dropOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // Check if user dropped text/URL (e.g. dragged YouTube URL)
+        const droppedText = e.dataTransfer.getData('text/plain');
+        if (droppedText && (droppedText.includes('youtube.com') || droppedText.includes('youtu.be'))) {
+          this.loadYouTubeVideo(droppedText);
+          return;
+        }
+
         const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('video/')) {
+        if (file && (file.type.startsWith('video/') || file.name.match(/\.(mp4|mov|webm)$/i))) {
           this.loadCustomVideoFile(file);
+        }
+      });
+    }
+
+    // Video Element synchronization events
+    if (this.videoElement) {
+      this.videoElement.addEventListener('ended', () => {
+        if (this.hasVideo && !this.isYouTubeActive) {
+          this.videoElement.currentTime = 0;
+          if (this.isPlaying) {
+            this.videoElement.play();
+          }
+        }
+      });
+
+      this.videoElement.addEventListener('play', () => {
+        this.isPlaying = true;
+        this.updatePlayBtnIcon();
+      });
+
+      this.videoElement.addEventListener('pause', () => {
+        this.isPlaying = false;
+        this.updatePlayBtnIcon();
+      });
+    }
+  }
+
+  bindDualViewControls() {
+    // Mode Buttons
+    const btn3D = document.getElementById('view-mode-3d');
+    const btnSplit = document.getElementById('view-mode-split');
+    const btnPiP = document.getElementById('view-mode-pip');
+    const btnFull = document.getElementById('view-mode-full');
+
+    if (btn3D) btn3D.addEventListener('click', () => this.setDualViewMode('3d'));
+    if (btnSplit) btnSplit.addEventListener('click', () => this.setDualViewMode('split'));
+    if (btnPiP) btnPiP.addEventListener('click', () => this.setDualViewMode('pip'));
+    if (btnFull) btnFull.addEventListener('click', () => this.setDualViewMode('full'));
+
+    // Video Ingestion Buttons
+    const btnYouTube = document.getElementById('btn-load-youtube-video');
+    const btnSample = document.getElementById('btn-load-sample-video');
+    const btnCustom = document.getElementById('btn-load-custom-video');
+
+    if (btnYouTube) {
+      btnYouTube.addEventListener('click', () => this.openYouTubeModal());
+    }
+
+    if (btnSample) {
+      btnSample.addEventListener('click', () => this.loadSampleVideo());
+    }
+
+    if (btnCustom && this.fileInput) {
+      btnCustom.addEventListener('click', () => {
+        this.playMechanicalClick();
+        this.fileInput.click();
+      });
+
+      this.fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          this.loadCustomVideoFile(file);
+        }
+      });
+    }
+
+    // PiP Expand & Close Buttons
+    const btnPipExpand = document.getElementById('btn-pip-expand');
+    const btnPipClose = document.getElementById('btn-pip-close');
+
+    if (btnPipExpand) {
+      btnPipExpand.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setDualViewMode('split');
+      });
+    }
+
+    if (btnPipClose) {
+      btnPipClose.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setDualViewMode('3d');
+      });
+    }
+
+    // Clicking PiP window expands to split view
+    if (this.videoWrapper) {
+      this.videoWrapper.addEventListener('click', (e) => {
+        if (this.currentViewMode === 'pip' && e.target.closest('#pip-controls-bar') === null) {
+          this.setDualViewMode('split');
         }
       });
     }
   }
 
+  // =========================================================================
+  // YOUTUBE STREAM SYNC & MODAL HANDLING
+  // =========================================================================
+
+  bindYouTubeModalEvents() {
+    const btnClose = document.getElementById('btn-close-yt-modal');
+    const btnCancel = document.getElementById('btn-cancel-yt-modal');
+    const btnSubmit = document.getElementById('btn-submit-yt-url');
+    const btnPaste = document.getElementById('btn-paste-clipboard');
+
+    if (btnClose) btnClose.addEventListener('click', () => this.closeYouTubeModal());
+    if (btnCancel) btnCancel.addEventListener('click', () => this.closeYouTubeModal());
+
+    if (btnPaste && this.ytUrlInput) {
+      btnPaste.addEventListener('click', async () => {
+        this.playMechanicalClick();
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            this.ytUrlInput.value = text;
+          }
+        } catch (err) {
+          console.warn("Clipboard access denied or unavailable", err);
+        }
+      });
+    }
+
+    if (btnSubmit) {
+      btnSubmit.addEventListener('click', () => {
+        const url = this.ytUrlInput ? this.ytUrlInput.value.trim() : '';
+        if (url) {
+          this.loadYouTubeVideo(url);
+          this.closeYouTubeModal();
+        }
+      });
+    }
+
+    if (this.ytUrlInput) {
+      this.ytUrlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          if (btnSubmit) btnSubmit.click();
+        } else if (e.key === 'Escape') {
+          this.closeYouTubeModal();
+        }
+      });
+    }
+
+    // Preset buttons inside modal
+    const presetBtns = document.querySelectorAll('.yt-preset-btn');
+    presetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const url = btn.getAttribute('data-url');
+        const offset = parseFloat(btn.getAttribute('data-offset') || '0');
+        const label = btn.getAttribute('data-label') || 'YOUTUBE MATCH STREAM';
+        if (url) {
+          this.loadYouTubeVideo(url, offset, label);
+          this.closeYouTubeModal();
+        }
+      });
+    });
+  }
+
+  openYouTubeModal() {
+    this.playMechanicalClick();
+    if (!this.ytModal) return;
+    this.ytModal.classList.remove('hidden');
+    setTimeout(() => {
+      if (this.ytUrlInput) {
+        this.ytUrlInput.focus();
+        this.ytUrlInput.select();
+      }
+    }, 50);
+  }
+
+  closeYouTubeModal() {
+    this.playMechanicalClick();
+    if (!this.ytModal) return;
+    this.ytModal.classList.add('hidden');
+  }
+
+  extractYouTubeVideoId(url) {
+    if (!url) return null;
+    const cleanUrl = url.trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(cleanUrl)) {
+      return cleanUrl;
+    }
+    const regExp = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const match = cleanUrl.match(regExp);
+    return match ? match[1] : null;
+  }
+
+  extractYouTubeTimestamp(url) {
+    if (!url) return 0;
+    const match = url.match(/[?&]t=(?:(\d+)m)?(?:(\d+)s)?(?:(\d+))?/);
+    if (!match) return 0;
+    if (match[3]) return parseInt(match[3], 10);
+    const m = parseInt(match[1] || '0', 10);
+    const s = parseInt(match[2] || '0', 10);
+    return m * 60 + s;
+  }
+
+  loadYouTubeVideo(urlOrId, offsetSec = 0, customLabel = null) {
+    this.playMechanicalClick();
+    const videoId = this.extractYouTubeVideoId(urlOrId);
+    if (!videoId) {
+      alert("Invalid YouTube URL or ID. Please check the URL format.");
+      return;
+    }
+
+    this.ytVideoId = videoId;
+    this.isYouTubeActive = true;
+    this.hasVideo = true;
+
+    const timeInUrl = this.extractYouTubeTimestamp(urlOrId);
+    const startSec = timeInUrl > 0 ? timeInUrl : (offsetSec > 0 ? offsetSec : (this.currentRally ? this.currentRally.seconds_start : 0));
+    this.videoOffset = startSec;
+
+    // Pause and hide local HTML5 video
+    if (this.videoElement) {
+      this.videoElement.pause();
+      this.videoElement.classList.add('hidden');
+    }
+
+    // Show YouTube container
+    if (this.ytContainer) {
+      this.ytContainer.classList.remove('hidden');
+    }
+
+    const labelText = customLabel || `YOUTUBE: ${videoId} // BWF MATCH STREAM`;
+    const labelEl = document.getElementById('video-feed-label');
+    if (labelEl) {
+      labelEl.textContent = labelText;
+    }
+
+    // Embed via YouTube IFrame API if available
+    const initOrLoadYT = () => {
+      const targetDiv = document.getElementById('youtube-iframe-player');
+      if (!targetDiv) return;
+
+      if (window.YT && window.YT.Player) {
+        if (this.ytPlayer && typeof this.ytPlayer.loadVideoById === 'function') {
+          this.ytPlayer.loadVideoById({
+            videoId: videoId,
+            startSeconds: Math.floor(startSec)
+          });
+        } else {
+          // Clear container for fresh instance
+          targetDiv.innerHTML = '';
+          const playerHost = document.createElement('div');
+          playerHost.id = 'yt-player-host';
+          playerHost.className = 'w-full h-full';
+          targetDiv.appendChild(playerHost);
+
+          this.ytPlayer = new window.YT.Player('yt-player-host', {
+            width: '100%',
+            height: '100%',
+            videoId: videoId,
+            playerVars: {
+              autoplay: 1,
+              controls: 1,
+              modestbranding: 1,
+              rel: 0,
+              playsinline: 1,
+              start: Math.floor(startSec)
+            },
+            events: {
+              onReady: () => {
+                try {
+                  this.ytPlayer.playVideo();
+                } catch (e) {}
+              },
+              onStateChange: (event) => {
+                if (window.YT) {
+                  if (event.data === window.YT.PlayerState.PLAYING) {
+                    this.isPlaying = true;
+                    this.updatePlayBtnIcon();
+                  } else if (event.data === window.YT.PlayerState.PAUSED) {
+                    this.isPlaying = false;
+                    this.updatePlayBtnIcon();
+                  }
+                }
+              }
+            }
+          });
+        }
+      } else {
+        // Fallback standard iframe embed if YouTube API hasn't loaded yet
+        targetDiv.innerHTML = `
+          <iframe id="yt-fallback-iframe" class="w-full h-full border-0" 
+                  src="https://www.youtube.com/embed/${videoId}?autoplay=1&enablejsapi=1&start=${Math.floor(startSec)}" 
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                  allowfullscreen></iframe>
+        `;
+      }
+    };
+
+    initOrLoadYT();
+
+    // Set to Split Dual View
+    this.setDualViewMode('split');
+  }
+
+  // =========================================================================
+  // DUAL-VIEW LAYOUT & LOCAL VIDEO HANDLING
+  // =========================================================================
+
+  setDualViewMode(mode) {
+    this.playMechanicalClick();
+    this.currentViewMode = mode;
+
+    // Update Mode Buttons UI
+    const modes = ['3d', 'split', 'pip', 'full'];
+    modes.forEach(m => {
+      const btn = document.getElementById(`view-mode-${m}`);
+      if (btn) {
+        if (m === mode) {
+          btn.classList.add('active');
+        } else {
+          btn.classList.remove('active');
+        }
+      }
+    });
+
+    if (!this.threeContainer || !this.videoWrapper) return;
+
+    // If switching to video view but no video is loaded yet, auto-load sample rally!
+    if (mode !== '3d' && !this.hasVideo) {
+      this.loadSampleVideo(false);
+    }
+
+    const pipControls = document.getElementById('pip-controls-bar');
+
+    // Reset base classes
+    this.threeContainer.className = 'relative transition-all duration-200';
+    this.videoWrapper.className = 'relative transition-all duration-200';
+
+    if (mode === '3d') {
+      this.threeContainer.classList.add('w-full', 'h-full', 'block');
+      this.videoWrapper.classList.add('hidden');
+      if (pipControls) pipControls.classList.add('hidden');
+    } else if (mode === 'split') {
+      this.threeContainer.classList.add('view-split-3d');
+      this.videoWrapper.classList.add('view-split-video');
+      if (pipControls) pipControls.classList.add('hidden');
+    } else if (mode === 'pip') {
+      this.threeContainer.classList.add('w-full', 'h-full', 'block');
+      this.videoWrapper.classList.add('view-pip-video');
+      if (pipControls) pipControls.classList.remove('hidden');
+    } else if (mode === 'full') {
+      this.threeContainer.classList.add('hidden');
+      this.videoWrapper.classList.add('view-full-video');
+      if (pipControls) pipControls.classList.add('hidden');
+    }
+
+    // Trigger Three.js Camera Resizing to match split/full aspect ratio
+    setTimeout(() => {
+      if (this.threeViewer) {
+        this.threeViewer.onResize();
+      }
+    }, 60);
+  }
+
+  loadSampleVideo(switchToSplit = true) {
+    this.playMechanicalClick();
+    this.isYouTubeActive = false;
+
+    // Hide YouTube, show HTML5 video
+    if (this.ytContainer) this.ytContainer.classList.add('hidden');
+    if (this.videoElement) this.videoElement.classList.remove('hidden');
+
+    const samplePath = 'assets/sample_rally.mp4';
+    this.loadVideoSource(samplePath, 'BWF ARCTIC OPEN // QF (MAS vs TPE)', true);
+
+    // Jump to Rally #18 (LZJ 412km/h smash)
+    const r18Idx = this.rallies.findIndex(r => r.rally_id === 18);
+    if (r18Idx !== -1) {
+      this.selectRally(r18Idx);
+    }
+
+    if (switchToSplit && this.currentViewMode === '3d') {
+      this.setDualViewMode('split');
+    }
+  }
+
   loadCustomVideoFile(file) {
+    this.playMechanicalClick();
     if (!this.videoElement) return;
+
+    this.isYouTubeActive = false;
+    if (this.ytContainer) this.ytContainer.classList.add('hidden');
+    if (this.videoElement) this.videoElement.classList.remove('hidden');
+
     const url = URL.createObjectURL(file);
-    this.videoElement.src = url;
-    this.videoElement.classList.remove('hidden');
-    const threeContainer = document.getElementById('three-viewport-container');
-    if (threeContainer) threeContainer.classList.add('hidden');
-    this.videoElement.play();
-    this.isPlaying = true;
-    this.updatePlayBtnIcon();
+    const label = `USER FEED: ${file.name.toUpperCase()} (${(file.size / (1024 * 1024)).toFixed(1)}MB)`;
+    this.loadVideoSource(url, label, false);
+
+    if (this.currentViewMode === '3d') {
+      this.setDualViewMode('split');
+    }
+  }
+
+  loadVideoSource(src, labelText, isSample = false) {
+    if (!this.videoElement) return;
+
+    this.isSampleVideoLoaded = isSample;
+    this.videoElement.src = src;
+    this.videoElement.load();
+
+    const labelEl = document.getElementById('video-feed-label');
+    if (labelEl) {
+      labelEl.textContent = labelText;
+    }
+
+    this.videoElement.onloadedmetadata = () => {
+      this.hasVideo = true;
+      if (isSample) {
+        this.videoOffset = 312.1;
+      } else {
+        this.videoOffset = this.currentRally ? this.currentRally.seconds_start : 0;
+      }
+
+      // Seek video to current match time
+      const targetTime = Math.max(0, Math.min(this.videoElement.duration, this.currentTime - this.videoOffset));
+      this.videoElement.currentTime = targetTime;
+
+      if (this.isPlaying) {
+        this.videoElement.play().catch(() => {});
+      }
+    };
   }
 
   togglePlay() {
     this.playMechanicalClick();
     this.isPlaying = !this.isPlaying;
     this.updatePlayBtnIcon();
+
+    // YouTube playback control
+    if (this.isYouTubeActive && this.ytPlayer) {
+      try {
+        if (this.isPlaying && typeof this.ytPlayer.playVideo === 'function') {
+          this.ytPlayer.playVideo();
+        } else if (!this.isPlaying && typeof this.ytPlayer.pauseVideo === 'function') {
+          this.ytPlayer.pauseVideo();
+        }
+      } catch (e) {}
+    }
+    // Local video playback control
+    else if (this.hasVideo && this.videoElement) {
+      if (this.isPlaying) {
+        this.videoElement.play().catch(() => {});
+      } else {
+        this.videoElement.pause();
+      }
+    }
   }
 
   updatePlayBtnIcon() {
@@ -177,6 +669,25 @@ class BroadcastPlayer {
     this.currentRally = this.rallies[index];
     this.currentTime = this.currentRally.seconds_start;
     this.activeShotIndex = 0;
+
+    // YouTube sync on rally selection
+    if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+      this.ytPlayer.seekTo(this.currentRally.seconds_start, true);
+    }
+    // Local video sync on rally selection
+    else if (this.hasVideo && this.videoElement) {
+      if (this.isSampleVideoLoaded && this.currentRally.rally_id === 18) {
+        this.videoOffset = 312.1;
+        this.videoElement.currentTime = 0;
+      } else {
+        this.videoOffset = this.currentRally.seconds_start;
+        this.videoElement.currentTime = 0;
+      }
+
+      if (this.isPlaying) {
+        this.videoElement.play().catch(() => {});
+      }
+    }
 
     if (this.threeViewer) {
       this.threeViewer.clearTrail();
@@ -230,6 +741,11 @@ class BroadcastPlayer {
     // Check if time passed rally end
     if (this.currentTime > this.currentRally.seconds_end) {
       this.currentTime = this.currentRally.seconds_start;
+      if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+        this.ytPlayer.seekTo(this.currentRally.seconds_start, true);
+      } else if (this.hasVideo && this.videoElement) {
+        this.videoElement.currentTime = 0;
+      }
       if (this.threeViewer) {
         this.threeViewer.clearTrail();
       }
@@ -288,7 +804,28 @@ class BroadcastPlayer {
       lastTimestamp = timestamp;
 
       if (this.isPlaying && this.currentRally) {
-        this.currentTime += deltaSec * this.playbackRate;
+        // 1. YouTube active synchronization
+        if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
+          try {
+            const ytSec = this.ytPlayer.getCurrentTime();
+            if (ytSec > 0) {
+              this.currentTime = this.videoOffset + ytSec;
+            } else {
+              this.currentTime += deltaSec * this.playbackRate;
+            }
+          } catch (e) {
+            this.currentTime += deltaSec * this.playbackRate;
+          }
+        }
+        // 2. HTML5 video active synchronization
+        else if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
+          this.currentTime = this.videoOffset + this.videoElement.currentTime;
+        }
+        // 3. Pure telemetry synthetic progression
+        else {
+          this.currentTime += deltaSec * this.playbackRate;
+        }
+
         this.syncRallyState();
       }
 

@@ -338,3 +338,62 @@ input[type=range].edifice-slider::-moz-range-thumb {
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.7);
   border: 2px solid #05080c;
 }
+
+/* ==========================================================================
+   DUAL-VIEW & PICTURE-IN-PICTURE (PIP) SYNCHRONIZATION STYLES
+   ========================================================================== */
+.view-split-3d {
+  width: 50% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+.view-split-video {
+  width: 50% !important;
+  height: 100% !important;
+  display: flex !important;
+  border-left: 1px solid #1e293b;
+}
+
+@media (max-width: 767px) {
+  .view-split-3d {
+    width: 100% !important;
+    height: 50% !important;
+  }
+  .view-split-video {
+    width: 100% !important;
+    height: 50% !important;
+    border-left: none !important;
+    border-top: 1px solid #1e293b;
+  }
+}
+
+.view-pip-video {
+  position: absolute !important;
+  bottom: 12px !important;
+  right: 12px !important;
+  width: 260px !important;
+  aspect-ratio: 16 / 9 !important;
+  height: auto !important;
+  z-index: 35 !important;
+  border-radius: 8px !important;
+  border: 1px solid rgba(0, 240, 255, 0.6) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9) !important;
+  background-color: #000000 !important;
+  display: block !important;
+  overflow: hidden !important;
+  cursor: pointer !important;
+  transition: transform 0.2s ease, border-color 0.2s ease;
+}
+
+.view-pip-video:hover {
+  transform: scale(1.03);
+  border-color: #00f0ff !important;
+}
+
+.view-full-video {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+}
+

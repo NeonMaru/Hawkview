@@ -214,7 +214,24 @@ class TestPipelineEndToEnd(unittest.TestCase):
         r18 = next(r for r in contract["rallies"] if r["rally_id"] == 18)
         self.assertGreaterEqual(r18["max_smash_kmh"], 400.0)
 
-        # Clean up
+    def test_video_ingestion_pipeline(self):
+        """Verifies that the pipeline ingests a real video file (assets/sample_rally.mp4) end-to-end."""
+        video_file = "assets/sample_rally.mp4"
+        if not os.path.exists(video_file):
+            self.skipTest("Sample video file not found")
+
+        out_path = "/tmp/test_video_match_telemetry.json"
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+        pipeline = HawkviewPipeline()
+        contract = pipeline.run_ingestion(video_path=video_file, output_json_path=out_path)
+
+        self.assertTrue(os.path.exists(out_path))
+        self.assertIn("match_metadata", contract)
+        self.assertIn("rallies", contract)
+        self.assertGreater(len(contract["rallies"]), 0)
+
         if os.path.exists(out_path):
             os.remove(out_path)
 

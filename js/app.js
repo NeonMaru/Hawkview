@@ -260,6 +260,12 @@ document.addEventListener('DOMContentLoaded', () => {
       if (broadcastPlayer.threeViewer) {
         broadcastPlayer.threeViewer.cyclePreset();
       }
+    } else if (e.code === 'KeyV') {
+      // Cycle dual-view modes: 3d -> split -> pip -> full -> 3d
+      const viewModes = ['3d', 'split', 'pip', 'full'];
+      const curIdx = viewModes.indexOf(broadcastPlayer.currentViewMode);
+      const nextMode = viewModes[(curIdx + 1) % viewModes.length];
+      broadcastPlayer.setDualViewMode(nextMode);
     } else if (e.code === 'KeyA') {
       antiLagModal.open();
     } else if (e.code === 'Digit1') {
@@ -295,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   broadcastPlayer.selectRally(1);
   courtView.loadRally(broadcastPlayer.currentRally);
   updateRallyLCD(broadcastPlayer.currentRally);
+  broadcastPlayer.setDualViewMode('pip');
 
   // Initialize Lucide icons if available
   if (window.lucide) {
