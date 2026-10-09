@@ -612,6 +612,13 @@ class ThreeCourtViewer {
     this.setPreset('broadcast');
   }
 
+  cyclePreset() {
+    const presetKeys = ['broadcast', 'server', 'side', 'top'];
+    const currIdx = presetKeys.indexOf(this.activePreset);
+    const nextIdx = (currIdx + 1) % presetKeys.length;
+    this.setPreset(presetKeys[nextIdx]);
+  }
+
   updatePresetButtonsUI(activeName) {
     const btns = [
       { id: 'cam-preset-broadcast', name: 'broadcast' },
@@ -624,9 +631,9 @@ class ThreeCourtViewer {
       const el = document.getElementById(b.id);
       if (el) {
         if (b.name === activeName) {
-          el.className = "cam-preset-btn px-2.5 py-1 rounded text-[11px] font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 transition-all";
+          el.classList.add('active');
         } else {
-          el.className = "cam-preset-btn px-2.5 py-1 rounded text-[11px] font-semibold bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800 transition-all";
+          el.classList.remove('active');
         }
       }
     });

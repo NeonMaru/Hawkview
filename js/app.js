@@ -73,8 +73,14 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. Update LCD Scoreboard & Banner
   function updateRallyLCD(rally) {
     if (!rally) return;
-    if (lcdScoreMAS) lcdScoreMAS.textContent = rally.score_after.player_1.toString().padStart(2, '0');
-    if (lcdScoreTPE) lcdScoreTPE.textContent = rally.score_after.player_2.toString().padStart(2, '0');
+    const masScore = rally.score_after.player_1.toString().padStart(2, '0');
+    const tpeScore = rally.score_after.player_2.toString().padStart(2, '0');
+    if (lcdScoreMAS) lcdScoreMAS.textContent = masScore;
+    if (lcdScoreTPE) lcdScoreTPE.textContent = tpeScore;
+    const p1Overlay = document.getElementById('overlay-p1-score');
+    const p2Overlay = document.getElementById('overlay-p2-score');
+    if (p1Overlay) p1Overlay.textContent = masScore;
+    if (p2Overlay) p2Overlay.textContent = tpeScore;
     if (lcdRallyBadge) lcdRallyBadge.textContent = `${rally.badge} [${rally.shot_count} SHOTS]`;
     if (lcdKeyMoment) lcdKeyMoment.textContent = rally.key_moment.toUpperCase();
 
@@ -100,19 +106,96 @@ document.addEventListener('DOMContentLoaded', () => {
     chips.forEach(chip => {
       const id = parseInt(chip.getAttribute('data-rally-id'), 10);
       if (id === rallyId) {
-        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs transition-all";
+        chip.className = "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all";
       } else {
-        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs transition-all";
+        chip.className = "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all";
       }
     });
   }
 
-  // 5. Knurled Pusher Buttons
+  // 5. Mobile Tab Switcher (3D Court vs 2D Telemetry & Gauges)
+  const tab3D = document.getElementById('mobile-tab-3d');
+  const tab2D = document.getElementById('mobile-tab-2d');
+  const col3D = document.getElementById('view-column-3d');
+  const col2D = document.getElementById('view-column-2d');
+  let currentMobileTab = '3d';
+
+  function setMobileTab(active) {
+    if (!tab3D || !tab2D || !col3D || !col2D) return;
+    currentMobileTab = active;
+    broadcastPlayer.playMechanicalClick();
+    if (active === '3d') {
+      tab3D.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-chronograph font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 flex items-center justify-center space-x-1.5 transition-all";
+      tab2D.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-chronograph font-bold bg-slate-900/90 border border-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center space-x-1.5 transition-all";
+      col3D.classList.remove('hidden');
+      col3D.classList.add('flex');
+      col2D.classList.remove('flex');
+      col2D.classList.add('hidden', 'lg:flex');
+      setTimeout(() => {
+        if (broadcastPlayer.threeViewer) {
+          broadcastPlayer.threeViewer.onResize();
+        }
+      }, 50);
+    } else {
+      tab2D.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-chronograph font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 flex items-center justify-center space-x-1.5 transition-all";
+      tab3D.className = "flex-1 py-1.5 px-3 rounded-lg text-xs font-chronograph font-bold bg-slate-900/90 border border-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center space-x-1.5 transition-all";
+      col2D.classList.remove('hidden');
+      col2D.classList.add('flex');
+      col3D.classList.remove('flex');
+      col3D.classList.add('hidden', 'lg:flex');
+      setTimeout(() => {
+        courtView.initCanvas();
+        subDials.initCanvases();
+      }, 50);
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (window.innerWidth >= 1024) {
+      if (col3D) {
+        col3D.classList.remove('hidden');
+        col3D.classList.add('flex');
+      }
+      if (col2D) {
+        col2D.classList.remove('hidden');
+        col2D.classList.add('flex');
+      }
+    } else {
+      if (col3D && col2D) {
+        if (currentMobileTab === '3d') {
+          col3D.classList.remove('hidden');
+          col3D.classList.add('flex');
+          col2D.classList.add('hidden');
+          col2D.classList.remove('flex');
+        } else {
+          col2D.classList.remove('hidden');
+          col2D.classList.add('flex');
+          col3D.classList.add('hidden');
+          col3D.classList.remove('flex');
+        }
+      }
+    }
+  });
+
+  if (tab3D) tab3D.addEventListener('click', () => setMobileTab('3d'));
+  if (tab2D) tab2D.addEventListener('click', () => setMobileTab('2d'));
+
+  // 6. Knurled Pusher Buttons
   const btnStartStop = document.getElementById('btn-play-pause');
   const btnLapSplit = document.getElementById('btn-lap-split');
+  const btnCamCycle = document.getElementById('btn-cam-cycle');
   const btnMode = document.getElementById('btn-mode-switch');
   const btnHeatmapToggle = document.getElementById('btn-toggle-heatmap');
   const btnTrailsToggle = document.getElementById('btn-toggle-trails');
+
+  if (btnCamCycle) {
+    btnCamCycle.addEventListener('click', () => {
+      broadcastPlayer.playMechanicalClick();
+      if (broadcastPlayer.threeViewer) {
+        broadcastPlayer.threeViewer.cyclePreset();
+      }
+    });
+  }
 
   if (btnLapSplit) {
     btnLapSplit.addEventListener('click', () => {
@@ -174,9 +257,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (btnHeatmapToggle) btnHeatmapToggle.click();
     } else if (e.code === 'KeyC') {
       // Cycle camera preset
-      currentCamIdx = (currentCamIdx + 1) % cameraPresets.length;
       if (broadcastPlayer.threeViewer) {
-        broadcastPlayer.threeViewer.setPreset(cameraPresets[currentCamIdx]);
+        broadcastPlayer.threeViewer.cyclePreset();
       }
     } else if (e.code === 'KeyA') {
       antiLagModal.open();

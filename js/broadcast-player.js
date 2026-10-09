@@ -220,8 +220,8 @@ class BroadcastPlayer {
     if (!this.currentRally) return;
     const p1ScoreEl = document.getElementById('overlay-p1-score');
     const p2ScoreEl = document.getElementById('overlay-p2-score');
-    if (p1ScoreEl) p1ScoreEl.textContent = this.currentRally.score_after.player_1;
-    if (p2ScoreEl) p2ScoreEl.textContent = this.currentRally.score_after.player_2;
+    if (p1ScoreEl) p1ScoreEl.textContent = this.currentRally.score_after.player_1.toString().padStart(2, '0');
+    if (p2ScoreEl) p2ScoreEl.textContent = this.currentRally.score_after.player_2.toString().padStart(2, '0');
   }
 
   syncRallyState() {
