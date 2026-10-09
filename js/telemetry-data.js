@@ -2863,8 +2863,8 @@ window.HAWKVIEW_MATCHES = {
 }
 };
 
-window.HAWKVIEW_ACTIVE_MATCH_KEY = "sly";
-window.HAWKVIEW_TELEMETRY = window.HAWKVIEW_MATCHES["sly"];
+window.HAWKVIEW_ACTIVE_MATCH_KEY = "popov";
+window.HAWKVIEW_TELEMETRY = window.HAWKVIEW_MATCHES["popov"];
 
 /**
  * Programmatic helper to switch active match dataset
