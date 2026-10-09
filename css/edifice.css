@@ -1,29 +1,33 @@
 /* ==========================================================================
    CASIO EDIFICE SPORTS CHRONOGRAPH DESIGN SYSTEM (HAWKVIEW)
-   Precision Titanium, Carbon Fiber Weave, Dual Negative LCD, Knurled Pushers
+   Flat Technical Instrument Style: Dark Flat Surfaces, Crisp 1px Borders,
+   Subtle Carbon Texture, Zero Pillow Bevels
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Orbitron:wght@500;700;800;900&family=Rajdhani:wght@500;600;700&family=Share+Tech+Mono&display=swap');
 
 :root {
-  --edifice-bg: #07090e;
-  --edifice-titanium: #1a1e27;
-  --edifice-titanium-light: #2b3240;
-  --edifice-titanium-rim: #3b465a;
-  --edifice-carbon-base: #0a0c12;
-  --edifice-carbon-light: #131722;
+  --edifice-bg: #05070a;
+  --edifice-surface-0: #080b0f;
+  --edifice-surface-1: #0a0e14;
+  --edifice-surface-2: #0f1722;
+  --edifice-surface-3: #141f2e;
+  --edifice-border-dark: #1e293b;
+  --edifice-border-light: #334155;
+  --edifice-border-accent: rgba(0, 240, 255, 0.25);
+
+  --edifice-carbon-base: #0a0e14;
+  --edifice-carbon-light: #121824;
+
   --edifice-cyan: #00f0ff;
-  --edifice-cyan-glow: rgba(0, 240, 255, 0.45);
+  --edifice-cyan-dim: #00bcd4;
   --edifice-emerald: #00e5a3;
-  --edifice-emerald-glow: rgba(0, 229, 163, 0.4);
   --edifice-redline: #ff2a55;
-  --edifice-redline-glow: rgba(255, 42, 85, 0.5);
   --edifice-amber: #ffb703;
-  --edifice-lcd-bg: #040608;
-  --edifice-lcd-ghost: rgba(0, 240, 255, 0.07);
+  --edifice-lcd-bg: #05080c;
 }
 
-/* Carbon Fiber Micro-Weave Pattern (Crisp 45-degree sports weave) */
+/* Subtle Carbon Fiber Micro-Weave Pattern (Flat Technical Texture) */
 .carbon-fiber-dial {
   background-color: var(--edifice-carbon-base);
   background-image: 
@@ -33,179 +37,109 @@
     linear-gradient(-45deg, transparent 75%, var(--edifice-carbon-light) 75%);
   background-size: 8px 8px;
   background-position: 0 0, 0 4px, 4px -4px, -4px 0px;
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.85);
 }
 
-/* Secondary Carbon Weave (Subtle) */
+/* Secondary Subtle Weave for Panels */
 .carbon-fiber-subtle {
-  background-color: #0b0e14;
+  background-color: #0a0e14;
   background-image: 
-    linear-gradient(45deg, rgba(30, 38, 54, 0.5) 25%, transparent 25%),
-    linear-gradient(-45deg, rgba(30, 38, 54, 0.5) 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, rgba(30, 38, 54, 0.5) 75%),
-    linear-gradient(-45deg, transparent 75%, rgba(30, 38, 54, 0.5) 75%);
+    linear-gradient(45deg, rgba(22, 30, 44, 0.5) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(22, 30, 44, 0.5) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(22, 30, 44, 0.5) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(22, 30, 44, 0.5) 75%);
   background-size: 6px 6px;
   background-position: 0 0, 0 3px, 3px -3px, -3px 0px;
 }
 
-/* Brushed Titanium Chassis & Chamfered Bezel */
+/* Flat Technical Chassis & Outer Frame (Eliminates Puffy Radial Gradients) */
 .titanium-chassis {
-  background: radial-gradient(circle at 50% 10%, #252b38 0%, #151821 70%, #0d0f15 100%);
-  border: 1px solid #363f52;
-  box-shadow: 
-    0 16px 40px -10px rgba(0, 0, 0, 0.9),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.8);
+  background: #0a0e14;
+  border: 1px solid #1e293b;
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.85);
 }
 
+/* Flat Bezel Ring Band */
 .titanium-bezel-ring {
-  background: conic-gradient(
-    from 45deg,
-    #2a3242 0deg,
-    #1b202c 45deg,
-    #3f4b62 90deg,
-    #161922 135deg,
-    #2d3647 180deg,
-    #1b202c 225deg,
-    #3f4b62 270deg,
-    #181c25 315deg,
-    #2a3242 360deg
-  );
-  border: 1px solid #4a5670;
-  box-shadow: 
-    inset 0 2px 4px rgba(255, 255, 255, 0.25),
-    inset 0 -2px 6px rgba(0, 0, 0, 0.9),
-    0 4px 14px rgba(0, 0, 0, 0.6);
+  background: #0f1722;
+  border: 1px solid #1e293b;
+  box-shadow: none;
 }
 
-/* Guilloché / Concentric Dial Grooves (like sports chronograph registers) */
-.dial-guilloche {
-  background: repeating-radial-gradient(
-    circle at center,
-    #0c0f16 0px,
-    #0c0f16 1.5px,
-    #141924 2px,
-    #141924 3px
-  );
-}
-
-/* Dual Negative LCD Display */
+/* Flat Negative LCD Display (No Glare, Crisp Contrast) */
 .negative-lcd {
   background-color: var(--edifice-lcd-bg);
-  background-image: 
-    linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
-  background-size: 3px 3px;
-  border: 1px solid #1c2636;
-  box-shadow: 
-    inset 0 3px 8px rgba(0, 0, 0, 0.95),
-    inset 0 0 16px rgba(0, 0, 0, 0.8),
-    0 1px 0 rgba(255, 255, 255, 0.08);
+  border: 1px solid #1e293b;
   position: relative;
   overflow: hidden;
 }
 
-.negative-lcd::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, transparent 40%, rgba(0, 240, 255, 0.02) 100%);
-  pointer-events: none;
-}
-
-/* LCD Glow Readouts */
+/* LCD Glow Readouts (Crisp & High Contrast) */
 .lcd-cyan {
   color: var(--edifice-cyan);
-  text-shadow: 0 0 6px var(--edifice-cyan-glow), 0 0 14px rgba(0, 240, 255, 0.35);
+  text-shadow: 0 0 4px rgba(0, 240, 255, 0.4);
   font-family: 'Share Tech Mono', 'Orbitron', monospace;
 }
 
 .lcd-emerald {
   color: var(--edifice-emerald);
-  text-shadow: 0 0 6px var(--edifice-emerald-glow), 0 0 14px rgba(0, 229, 163, 0.35);
+  text-shadow: 0 0 4px rgba(0, 229, 163, 0.4);
   font-family: 'Share Tech Mono', 'Orbitron', monospace;
 }
 
 .lcd-amber {
   color: var(--edifice-amber);
-  text-shadow: 0 0 6px rgba(255, 183, 3, 0.5), 0 0 14px rgba(255, 183, 3, 0.25);
+  text-shadow: 0 0 4px rgba(255, 183, 3, 0.4);
   font-family: 'Share Tech Mono', 'Orbitron', monospace;
 }
 
 .lcd-redline {
   color: var(--edifice-redline);
-  text-shadow: 0 0 8px var(--edifice-redline-glow), 0 0 16px rgba(255, 42, 85, 0.35);
+  text-shadow: 0 0 6px rgba(255, 42, 85, 0.4);
   font-family: 'Share Tech Mono', 'Orbitron', monospace;
 }
 
-/* Inactive Ghost Segment Layer */
-.lcd-ghost {
-  color: var(--edifice-lcd-ghost);
-  user-select: none;
-  font-family: 'Share Tech Mono', 'Orbitron', monospace;
-}
-
-/* Knurled Tactile Pusher Buttons */
+/* Flat Technical Pusher Buttons (Zero Pillow Bevels, Clean Sharp Hover) */
 .knurled-pusher {
-  background: linear-gradient(180deg, #374151 0%, #1f2937 60%, #111827 100%);
-  border: 1px solid #4b5563;
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.3),
-    0 4px 6px rgba(0, 0, 0, 0.7),
-    0 1px 2px rgba(0, 0, 0, 0.5);
-  transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #0f1722;
+  border: 1px solid #1e293b;
+  color: #e2e8f0;
+  box-shadow: none;
+  border-radius: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   position: relative;
   user-select: none;
 }
 
-.knurled-pusher::before {
-  content: "";
-  position: absolute;
-  inset: -2px;
-  border-radius: inherit;
-  background: repeating-linear-gradient(
-    45deg,
-    #2c3442,
-    #2c3442 2px,
-    #131822 2px,
-    #131822 4px
-  );
-  z-index: -1;
-  opacity: 0.8;
-}
-
 .knurled-pusher:hover {
-  background: linear-gradient(180deg, #4b5563 0%, #2b3648 60%, #161f2e 100%);
-  border-color: #64748b;
-  box-shadow: 
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    0 6px 12px rgba(0, 0, 0, 0.8),
-    0 0 12px rgba(0, 240, 255, 0.2);
+  background: #172232;
+  border-color: #38bdf8;
+  color: #ffffff;
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.15);
 }
 
 .knurled-pusher:active {
-  transform: translateY(2px) scale(0.98);
-  box-shadow: 
-    inset 0 2px 4px rgba(0, 0, 0, 0.8),
-    0 1px 2px rgba(0, 0, 0, 0.5);
+  background: #0c1624;
+  border-color: #00f0ff;
+  color: #00f0ff;
+  transform: none;
+  box-shadow: none;
 }
 
 .knurled-pusher.active-pusher {
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  border-color: var(--edifice-cyan);
-  box-shadow: 
-    inset 0 0 10px rgba(0, 240, 255, 0.3),
-    0 0 15px rgba(0, 240, 255, 0.4);
+  background: #09131f;
+  border-color: #00f0ff;
+  color: #00f0ff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.2);
 }
 
-/* Chronograph Screw Bolt Heads */
+/* Technical Precision Screws (Flat Hex Accents) */
 .screw-head {
-  width: 14px;
-  height: 14px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 30%, #526079 0%, #27303f 60%, #151a24 100%);
-  border: 1px solid #1a202c;
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3), 0 1px 3px rgba(0, 0, 0, 0.8);
+  background: #111824;
+  border: 1px solid #283548;
+  box-shadow: none;
   position: relative;
   display: inline-block;
 }
@@ -216,19 +150,18 @@
   top: 50%;
   left: 2px;
   right: 2px;
-  height: 1.5px;
-  background: #090c12;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15);
-  transform: translateY(-50%) rotate(38deg);
+  height: 1px;
+  background: #384860;
+  transform: translateY(-50%) rotate(45deg);
 }
 
 /* Redline Warning Accent */
 .redline-badge {
-  background: linear-gradient(90deg, rgba(255, 42, 85, 0.25) 0%, rgba(255, 42, 85, 0.05) 100%);
-  border-left: 3px solid var(--edifice-redline);
+  background: rgba(255, 42, 85, 0.08);
+  border-left: 2px solid var(--edifice-redline);
 }
 
-/* Tachymeter Font & Styling */
+/* Typography Classes */
 .font-tachymeter {
   font-family: 'Rajdhani', 'Chakra Petch', sans-serif;
   letter-spacing: 0.08em;
@@ -243,56 +176,51 @@
   font-family: 'Share Tech Mono', 'Courier New', monospace;
 }
 
-/* Glowing Pulsing Status LED */
+/* Crisp Status LED Indicator */
 .status-led {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
 }
 
 .status-led-cyan {
   background-color: var(--edifice-cyan);
-  box-shadow: 0 0 8px var(--edifice-cyan), 0 0 16px var(--edifice-cyan-glow);
-  animation: led-pulse 2s infinite ease-in-out;
+  box-shadow: 0 0 6px var(--edifice-cyan);
 }
 
 .status-led-red {
   background-color: var(--edifice-redline);
-  box-shadow: 0 0 8px var(--edifice-redline), 0 0 16px var(--edifice-redline-glow);
-  animation: led-pulse 1s infinite ease-in-out;
+  box-shadow: 0 0 6px var(--edifice-redline);
+  animation: led-pulse 1.2s infinite ease-in-out;
 }
 
 .status-led-emerald {
   background-color: var(--edifice-emerald);
-  box-shadow: 0 0 8px var(--edifice-emerald), 0 0 16px var(--edifice-emerald-glow);
+  box-shadow: 0 0 6px var(--edifice-emerald);
 }
 
 @keyframes led-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.45; transform: scale(0.85); }
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
 }
 
-/* Multi-Stage Live Ingestion Progress Bar Styles */
-.progress-stage-step {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+/* Camera Preset Toolbar Buttons */
+.cam-preset-btn {
+  transition: all 0.15s ease;
+  user-select: none;
 }
 
-.progress-stage-step.active {
-  border-color: var(--edifice-cyan);
-  background: rgba(0, 240, 255, 0.06);
-  box-shadow: 0 0 12px rgba(0, 240, 255, 0.15);
-}
-
-.progress-stage-step.completed {
-  border-color: var(--edifice-emerald);
-  background: rgba(0, 229, 163, 0.04);
+.cam-preset-btn.active {
+  background-color: rgba(0, 240, 255, 0.15) !important;
+  border-color: #00f0ff !important;
+  color: #00f0ff !important;
 }
 
 /* Custom Sports Chronograph Scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -301,26 +229,25 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #252e3d;
-  border-radius: 3px;
+  background: #1e293b;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--edifice-cyan);
+  background: #38bdf8;
 }
 
-/* Scanline Effect Overlay */
+/* Clean Scanline Effect (Ultra Subtle) */
 .scanline-overlay {
   position: absolute;
   inset: 0;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    rgba(255,255,255,0),
-    rgba(255,255,255,0) 50%,
-    rgba(0, 0, 0, 0.3) 50%,
-    rgba(0, 0, 0, 0.3)
+    transparent 50%,
+    rgba(0, 0, 0, 0.15) 50%
   );
   background-size: 100% 4px;
   z-index: 10;
+  opacity: 0.4;
 }

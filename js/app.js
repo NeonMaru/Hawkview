@@ -1,7 +1,7 @@
 /**
  * Master Hawkview Application Coordinator
  * Binds the Casio Edifice Chronograph bezel, dual negative LCDs,
- * 3 sub-dials, 2D court canvas, and broadcast player together.
+ * 3 sub-dials, 2D BWF court canvas, and real Three.js 3D Viewport together.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -23,7 +23,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let currentMode = 0;
   const modes = ['FULL CHRONOGRAPH', 'COURT HEATMAP FOCUS', 'SMASH RADAR FOCUS'];
 
-  // 2. Initialize Broadcast Player with Sync Hooks
+  // 2. Initialize Broadcast Player with 3D & 2D Sync Hooks
   const broadcastPlayer = new BroadcastPlayer({
     onRallyChange: (rally) => {
       courtView.loadRally(rally);
@@ -100,9 +100,9 @@ document.addEventListener('DOMContentLoaded', () => {
     chips.forEach(chip => {
       const id = parseInt(chip.getAttribute('data-rally-id'), 10);
       if (id === rallyId) {
-        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold text-xs shadow-[0_0_10px_rgba(0,240,255,0.3)] transition-all";
+        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs transition-all";
       } else {
-        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:border-slate-500 text-xs transition-all";
+        chip.className = "rally-chip-btn px-3 py-1.5 rounded bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs transition-all";
       }
     });
   }
@@ -143,8 +143,9 @@ document.addEventListener('DOMContentLoaded', () => {
     btnHeatmapToggle.addEventListener('click', () => {
       broadcastPlayer.playMechanicalClick();
       const isActive = courtView.toggleHeatmap();
-      btnHeatmapToggle.classList.toggle('bg-emerald-500/30', isActive);
-      btnHeatmapToggle.classList.toggle('border-emerald-400', isActive);
+      btnHeatmapToggle.classList.toggle('bg-emerald-950/60', isActive);
+      btnHeatmapToggle.classList.toggle('border-emerald-500/60', isActive);
+      btnHeatmapToggle.classList.toggle('text-emerald-300', isActive);
     });
   }
 
@@ -152,11 +153,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btnTrailsToggle.addEventListener('click', () => {
       broadcastPlayer.playMechanicalClick();
       const isActive = courtView.toggleTrails();
-      btnTrailsToggle.classList.toggle('opacity-50', !isActive);
+      btnTrailsToggle.classList.toggle('opacity-40', !isActive);
     });
   }
 
   // 6. Keyboard Shortcuts
+  const cameraPresets = ['broadcast', 'server', 'side', 'top'];
+  let currentCamIdx = 0;
+
   window.addEventListener('keydown', (e) => {
     // Avoid interfering if user is typing in an input
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -165,9 +169,15 @@ document.addEventListener('DOMContentLoaded', () => {
       e.preventDefault();
       broadcastPlayer.togglePlay();
     } else if (e.code === 'KeyM') {
-      btnMode.click();
+      if (btnMode) btnMode.click();
     } else if (e.code === 'KeyH') {
-      btnHeatmapToggle.click();
+      if (btnHeatmapToggle) btnHeatmapToggle.click();
+    } else if (e.code === 'KeyC') {
+      // Cycle camera preset
+      currentCamIdx = (currentCamIdx + 1) % cameraPresets.length;
+      if (broadcastPlayer.threeViewer) {
+        broadcastPlayer.threeViewer.setPreset(cameraPresets[currentCamIdx]);
+      }
     } else if (e.code === 'KeyA') {
       antiLagModal.open();
     } else if (e.code === 'Digit1') {
