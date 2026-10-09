@@ -48,7 +48,7 @@ class ThreeCourtViewer {
         fov: 45
       },
       top: {
-        pos: new THREE.Vector3(0.001, 18.5, 0),
+        pos: new THREE.Vector3(0, 18.5, -0.001),
         target: new THREE.Vector3(0, 0, 0),
         fov: 40
       }
@@ -512,14 +512,14 @@ class ThreeCourtViewer {
     rightShoe.position.set(0.13, 0.05, 0.04);
     group.add(rightShoe);
 
-    // Racket Arm & Badminton Racket
+    // Racket Arm & Badminton Racket (Right arm holding racket)
     const armGroup = new THREE.Group();
-    armGroup.position.set(0.24, 1.45, 0);
+    armGroup.position.set(-0.24, 1.45, 0);
 
     const armGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.55, 12);
     const arm = new THREE.Mesh(armGeo, legMat);
-    arm.rotation.z = -Math.PI / 4;
-    arm.position.set(0.15, -0.15, 0);
+    arm.rotation.z = Math.PI / 4;
+    arm.position.set(-0.15, -0.15, 0);
     armGroup.add(arm);
 
     // Racket Shaft & Head
@@ -530,13 +530,13 @@ class ThreeCourtViewer {
       roughness: 0.2
     });
     const shaft = new THREE.Mesh(shaftGeo, racketMat);
-    shaft.position.set(0.40, 0.15, 0);
-    shaft.rotation.z = -Math.PI / 3;
+    shaft.position.set(-0.40, 0.15, 0);
+    shaft.rotation.z = Math.PI / 3;
     armGroup.add(shaft);
 
     const headFrameGeo = new THREE.TorusGeometry(0.13, 0.008, 8, 24);
     const headFrame = new THREE.Mesh(headFrameGeo, racketMat);
-    headFrame.position.set(0.64, 0.35, 0);
+    headFrame.position.set(-0.64, 0.35, 0);
     headFrame.rotation.y = Math.PI / 2;
     armGroup.add(headFrame);
 
@@ -652,10 +652,10 @@ class ThreeCourtViewer {
 
   // Convert telemetry 2D/3D court coordinates (0..6.1m, 0..13.4m, z) to Three.js coordinates
   courtToWorld(cx, cy, cz = 0) {
-    // cx: 0..6.1 -> X: -3.05 to +3.05
+    // cx: 0..6.1 -> X: +3.05 to -3.05 (Inverted so court-left cx=0 maps to screen-left from TV camera)
     // cy: 0..13.4 -> Z: -6.70 to +6.70 (0 is near baseline, 13.4 is far baseline)
     // cz: altitude -> Y: cz
-    const wx = cx - 3.05;
+    const wx = -(cx - 3.05);
     const wz = cy - 6.70;
     const wy = Math.max(0, cz);
     return new THREE.Vector3(wx, wy, wz);
@@ -664,7 +664,7 @@ class ThreeCourtViewer {
   /**
    * Updates state on each playback frame from telemetry engine
    */
-  updateTelemetryState(data) {
+  updateTelemetryState(data, instant = false) {
     if (!data) return;
 
     const { rally, shot, shotIndex, time, elapsed } = data;
@@ -730,15 +730,15 @@ class ThreeCourtViewer {
       }
 
       // 2. Animate Player Positions & Smash Mechanics
-      this.updatePlayerPositions(currentShot, progress);
+      this.updatePlayerPositions(currentShot, progress, instant);
     }
   }
 
-  updatePlayerPositions(currentShot, progress) {
+  updatePlayerPositions(currentShot, progress, instant = false) {
     if (!currentShot) return;
 
     const isLZJ = currentShot.hitter === 'LZJ';
-    const isSmash = currentShot.stroke.includes('Smash');
+    const isSmash = currentShot.stroke && currentShot.stroke.includes('Smash');
 
     // Player 1 (Lee Zii Jia - Near side)
     let p1Target = new THREE.Vector3(0, 0, -4.6);
@@ -749,7 +749,23 @@ class ThreeCourtViewer {
       p1Target = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
       p1Target.z = Math.min(-1.5, p1Target.z); // Stay on near court
     }
-    this.player1.group.position.lerp(p1Target, 0.12);
+
+    // Player 2 (Su Li Yang - Far side)
+    let p2Target = new THREE.Vector3(0, 0, 4.6);
+    if (!isLZJ) {
+      p2Target = this.courtToWorld(currentShot.hit_coord[0], currentShot.hit_coord[1], 0);
+    } else {
+      p2Target = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
+      p2Target.z = Math.max(1.5, p2Target.z); // Stay on far court
+    }
+
+    if (instant) {
+      this.player1.group.position.copy(p1Target);
+      this.player2.group.position.copy(p2Target);
+    } else {
+      this.player1.group.position.lerp(p1Target, 0.18);
+      this.player2.group.position.lerp(p2Target, 0.18);
+    }
 
     // Jump smash animation for LZJ
     if (isLZJ && isSmash && progress < 0.6) {
@@ -762,16 +778,6 @@ class ThreeCourtViewer {
       this.player1.armGroup.rotation.x = 0;
       this.player1.shadow.scale.set(1, 1, 1);
     }
-
-    // Player 2 (Su Li Yang - Far side)
-    let p2Target = new THREE.Vector3(0, 0, 4.6);
-    if (!isLZJ) {
-      p2Target = this.courtToWorld(currentShot.hit_coord[0], currentShot.hit_coord[1], 0);
-    } else {
-      p2Target = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
-      p2Target.z = Math.max(1.5, p2Target.z); // Stay on far court
-    }
-    this.player2.group.position.lerp(p2Target, 0.12);
   }
 
   addTrailPoint(pt) {

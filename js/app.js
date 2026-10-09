@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (data.shot) {
         subDials.setSpeed(data.shot.speed_kmh, data.shot.stroke.includes('Smash'));
         subDials.setShotCount(data.shot.shot_num, data.rally ? data.rally.shot_count : 24);
-        courtView.setShot(data.shotIndex);
+        courtView.updateTelemetry(data);
 
         // Shot frequency
         if (lcdShotFreq && elapsed > 0) {

@@ -188,7 +188,7 @@ class BroadcastPlayer {
     }
 
     this.updateScorebugUI();
-    this.syncRallyState();
+    this.syncRallyState(true);
     this.onRallyChange(this.currentRally);
   }
 
@@ -224,7 +224,7 @@ class BroadcastPlayer {
     if (p2ScoreEl) p2ScoreEl.textContent = this.currentRally.score_after.player_2.toString().padStart(2, '0');
   }
 
-  syncRallyState() {
+  syncRallyState(instant = false) {
     if (!this.currentRally) return;
 
     // Check if time passed rally end
@@ -267,12 +267,13 @@ class BroadcastPlayer {
       elapsed: elapsed,
       rally: this.currentRally,
       shotIndex: this.activeShotIndex,
-      shot: this.currentRally.shots ? this.currentRally.shots[this.activeShotIndex] : null
+      shot: this.currentRally.shots ? this.currentRally.shots[this.activeShotIndex] : null,
+      instant: instant
     };
 
     // Forward to Three.js 3D Viewer
     if (this.threeViewer) {
-      this.threeViewer.updateTelemetryState(telemetryPacket);
+      this.threeViewer.updateTelemetryState(telemetryPacket, instant);
     }
 
     // Callback to update sub-dials, LCD, and 2D court

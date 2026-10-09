@@ -110,7 +110,22 @@ class CourtViewManager {
     this.selectedShotIndex = null;
 
     if (rallyData && rallyData.shots && rallyData.shots.length > 0) {
-      this.setShot(0);
+      const shot0 = rallyData.shots[0];
+      const isLZJ = shot0.hitter === 'LZJ';
+      if (isLZJ) {
+        this.player1Pos = { x: shot0.hit_coord[0], y: shot0.hit_coord[1] };
+        this.player2Pos = { x: shot0.land_coord[0], y: Math.max(7.20, shot0.land_coord[1]) };
+      } else {
+        this.player2Pos = { x: shot0.hit_coord[0], y: shot0.hit_coord[1] };
+        this.player1Pos = { x: shot0.land_coord[0], y: Math.min(6.20, shot0.land_coord[1]) };
+      }
+      this.shuttlePos = {
+        x: shot0.hit_coord[0],
+        y: shot0.hit_coord[1],
+        z: shot0.hit_coord[2] || 1.5
+      };
+      this.selectedShotIndex = 0;
+      this.activeShot = shot0;
     }
   }
 
@@ -122,22 +137,78 @@ class CourtViewManager {
     this.selectedShotIndex = shotIndex;
     this.activeShot = shot;
 
-    // Update positions
+    // Both players positioned accurately
     if (shot.hitter === 'LZJ') {
       this.player1Pos = { x: shot.hit_coord[0], y: shot.hit_coord[1] };
-      this.player1Trail.push({ ...this.player1Pos, time: Date.now() });
-      if (this.player1Trail.length > 25) this.player1Trail.shift();
+      this.player2Pos = { x: shot.land_coord[0], y: Math.max(7.20, shot.land_coord[1]) };
     } else {
       this.player2Pos = { x: shot.hit_coord[0], y: shot.hit_coord[1] };
-      this.player2Trail.push({ ...this.player2Pos, time: Date.now() });
-      if (this.player2Trail.length > 25) this.player2Trail.shift();
+      this.player1Pos = { x: shot.land_coord[0], y: Math.min(6.20, shot.land_coord[1]) };
     }
+
+    this.player1Trail.push({ ...this.player1Pos, time: Date.now() });
+    if (this.player1Trail.length > 25) this.player1Trail.shift();
+    this.player2Trail.push({ ...this.player2Pos, time: Date.now() });
+    if (this.player2Trail.length > 25) this.player2Trail.shift();
 
     this.shuttlePos = {
       x: shot.land_coord[0],
       y: shot.land_coord[1],
       z: shot.trajectory_peak_z || 2.0
     };
+  }
+
+  updateTelemetry(data) {
+    if (!data || !data.rally) return;
+    const { rally, shot, shotIndex, time } = data;
+    this.currentRally = rally;
+    this.selectedShotIndex = shotIndex;
+    this.activeShot = shot;
+
+    if (!shot) return;
+
+    const currentShot = shot;
+    const nextShot = rally.shots ? rally.shots[shotIndex + 1] : null;
+
+    const shotStartTime = currentShot.time;
+    const shotEndTime = nextShot ? nextShot.time : shotStartTime + (currentShot.shuttle_transit_time_sec || 0.65);
+    const shotDuration = Math.max(0.15, shotEndTime - shotStartTime);
+    const progress = Math.min(1.0, Math.max(0.0, (time - shotStartTime) / shotDuration));
+
+    const isLZJ = currentShot.hitter === 'LZJ';
+
+    let p1Target = { x: 3.05, y: 1.80 };
+    let p2Target = { x: 3.05, y: 11.60 };
+
+    if (isLZJ) {
+      p1Target = { x: currentShot.hit_coord[0], y: currentShot.hit_coord[1] };
+      p2Target = { x: currentShot.land_coord[0], y: Math.max(7.20, currentShot.land_coord[1]) };
+    } else {
+      p2Target = { x: currentShot.hit_coord[0], y: currentShot.hit_coord[1] };
+      p1Target = { x: currentShot.land_coord[0], y: Math.min(6.20, currentShot.land_coord[1]) };
+    }
+
+    // Smooth lerp positions in 2D
+    this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.18;
+    this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.18;
+    this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.18;
+    this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.18;
+
+    // Record trails
+    if (this.showTrails) {
+      this.player1Trail.push({ ...this.player1Pos, time: Date.now() });
+      if (this.player1Trail.length > 25) this.player1Trail.shift();
+      this.player2Trail.push({ ...this.player2Pos, time: Date.now() });
+      if (this.player2Trail.length > 25) this.player2Trail.shift();
+    }
+
+    // Interpolate live shuttlecock position along trajectory arc
+    const sx = currentShot.hit_coord[0] + (currentShot.land_coord[0] - currentShot.hit_coord[0]) * progress;
+    const sy = currentShot.hit_coord[1] + (currentShot.land_coord[1] - currentShot.hit_coord[1]) * progress;
+    const peakZ = currentShot.trajectory_peak_z || 2.4;
+    const sz = Math.sin(progress * Math.PI) * peakZ;
+
+    this.shuttlePos = { x: sx, y: sy, z: sz };
   }
 
   // Exact BWF Proportion Calculation: Strictly preserves 6.10m : 13.40m ratio
