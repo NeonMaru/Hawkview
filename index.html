@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HAWKVIEW // Casio Edifice Sports Chronograph & Badminton Analytics</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Casio Edifice Chronograph Design System -->
+  <link rel="stylesheet" href="css/edifice.css">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyan: { 400: '#00f0ff', 500: '#00c8d7' },
+            emerald: { 400: '#00e5a3', 500: '#059669' },
+            redline: '#ff2a55'
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#05070a] text-slate-100 min-h-screen font-sans selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
+
+  <!-- ========================================================================
+       CASIO EDIFICE WATCH CHASSIS & TACHYMETER OUTER BEZEL
+       ======================================================================== -->
+  <div class="max-w-[1600px] mx-auto p-2 sm:p-4 lg:p-6">
+    
+    <!-- Outer Titanium Watch Case Frame -->
+    <div class="titanium-chassis rounded-3xl p-3 sm:p-5 relative overflow-hidden shadow-2xl border border-slate-700/80">
+      
+      <!-- Decorative Titanium Corner Screws -->
+      <div class="absolute top-4 left-4 screw-head"></div>
+      <div class="absolute top-4 right-4 screw-head"></div>
+      <div class="absolute bottom-4 left-4 screw-head"></div>
+      <div class="absolute bottom-4 right-4 screw-head"></div>
+
+      <!-- Tachymeter Bezel Ring Band -->
+      <div class="titanium-bezel-ring rounded-2xl px-4 py-2 mb-4 flex flex-wrap items-center justify-between gap-2 border border-slate-600/70 text-[11px] font-tachymeter text-slate-300">
+        <div class="flex items-center space-x-3">
+          <span class="text-cyan-400 font-bold tracking-widest text-xs">TACHYMÈTRE BASE 1000</span>
+          <span class="text-slate-500 hidden md:inline">|</span>
+          <span class="text-slate-400 font-mono tracking-wider hidden md:inline">500 • 400 • 350 • 300 • 250 • 200 • 180 • 160 • 140 • 120 • 100 • 80 • 60</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <div class="flex items-center space-x-1.5">
+            <span class="status-led status-led-cyan"></span>
+            <span class="text-[10px] text-cyan-300 font-mono tracking-wider font-semibold">ANE NEURAL ENGINE READY</span>
+          </div>
+          <span class="text-slate-500 hidden sm:inline">|</span>
+          <span class="text-amber-400 font-mono text-[10px] tracking-wider hidden sm:inline">100M WATER RESIST / SOLAR</span>
+        </div>
+      </div>
+
+      <!-- Dial Header & Tactile Pusher Row -->
+      <div class="flex flex-col lg:flex-row items-center justify-between pb-4 border-b border-slate-800 gap-4">
+        
+        <!-- Casio Edifice Brand & Tournament Identity -->
+        <div class="flex items-center space-x-4">
+          <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-slate-700 via-slate-800 to-black border border-slate-600 flex items-center justify-center shadow-lg">
+            <i data-lucide="watch" class="w-6 h-6 text-cyan-400"></i>
+          </div>
+          <div>
+            <div class="flex items-center space-x-2">
+              <span class="font-chronograph font-black text-xl tracking-wider text-slate-100">CASIO <span class="text-cyan-400">EDIFICE</span></span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-bold font-mono">EQB-HAWKVIEW</span>
+            </div>
+            <p class="text-xs text-slate-400 font-mono tracking-wide mt-0.5">
+              BWF ARCTIC OPEN SUPER 500 // QF MEN'S SINGLES TELEMETRY
+            </p>
+          </div>
+        </div>
+
+        <!-- Knurled Tactile Pusher Controls Row -->
+        <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+          
+          <!-- Pusher D: Mode Switch -->
+          <button id="btn-mode-switch" class="knurled-pusher px-3.5 py-2 rounded-lg text-xs font-chronograph font-bold text-slate-200 flex items-center space-x-1.5" title="Switch Display Mode (Key: M)">
+            <i data-lucide="sliders" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span>MODE</span>
+          </button>
+
+          <!-- Pusher C: Lap / Split (Next Rally) -->
+          <button id="btn-lap-split" class="knurled-pusher px-3.5 py-2 rounded-lg text-xs font-chronograph font-bold text-slate-200 flex items-center space-x-1.5" title="Lap / Split Rally (Next Point)">
+            <i data-lucide="flag" class="w-3.5 h-3.5 text-emerald-400"></i>
+            <span>LAP / SPLIT</span>
+          </button>
+
+          <!-- Pusher B: Start / Stop Playback -->
+          <button id="btn-play-pause" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-slate-100 flex items-center space-x-2 border-slate-500" title="Start / Stop Telemetry (SPACE)">
+            <i data-lucide="play" class="w-3.5 h-3.5 text-cyan-400"></i>
+            <span>START / STOP</span>
+          </button>
+
+          <!-- Pusher A: Analyze Clip (Anti-Lag Progress Bar) -->
+          <button id="btn-analyze-clip" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-black text-cyan-300 bg-cyan-950/30 border-cyan-500/50 flex items-center space-x-2 shadow-[0_0_15px_rgba(0,240,255,0.25)]" title="Open Multi-Stage Ingestion Pipeline (Key: A)">
+            <i data-lucide="cpu" class="w-4 h-4 text-cyan-400 animate-pulse"></i>
+            <span>ANALYZE CLIP (ANE)</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           DUAL NEGATIVE LCD DISPLAYS (SCOREBUG & RALLY STOPWATCH)
+           ==================================================================== -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 my-4">
+        
+        <!-- Negative LCD Display 1: Official Scorebug Readout -->
+        <div class="negative-lcd rounded-xl p-3 sm:p-4">
+          <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 border-b border-slate-800/80 pb-1 mb-2">
+            <span class="flex items-center space-x-1 text-cyan-400 font-bold">
+              <span class="status-led status-led-cyan"></span>
+              <span>MATCH SCOREBUG // GAME 2</span>
+            </span>
+            <span id="lcd-mode-indicator" class="text-slate-400 font-semibold">FULL CHRONOGRAPH</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3 items-center">
+            <!-- Player 1 (MAS) -->
+            <div class="flex items-center justify-between bg-black/40 p-2 rounded-lg border border-cyan-900/40">
+              <div>
+                <div class="flex items-center space-x-1">
+                  <span class="text-sm">🇲🇾</span>
+                  <span class="font-bold text-xs text-cyan-400 font-tachymeter tracking-wide">MAS</span>
+                </div>
+                <div class="font-bold text-xs text-slate-200 mt-0.5">LEE ZII JIA</div>
+              </div>
+              <div class="text-right">
+                <span id="lcd-score-mas" class="font-lcd text-3xl font-black lcd-cyan tracking-wider">08</span>
+              </div>
+            </div>
+
+            <!-- Player 2 (TPE) -->
+            <div class="flex items-center justify-between bg-black/40 p-2 rounded-lg border border-slate-800">
+              <div>
+                <div class="flex items-center space-x-1">
+                  <span class="text-sm">🇹🇼</span>
+                  <span class="font-bold text-xs text-orange-400 font-tachymeter tracking-wide">TPE</span>
+                </div>
+                <div class="font-bold text-xs text-slate-200 mt-0.5">SU LI YANG</div>
+              </div>
+              <div class="text-right">
+                <span id="lcd-score-tpe" class="font-lcd text-3xl font-black text-orange-400 drop-shadow-[0_0_8px_rgba(255,87,34,0.5)] tracking-wider">08</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- LCD Sub-Banner -->
+          <div class="mt-2.5 flex items-center justify-between text-[11px] font-mono">
+            <span id="lcd-rally-badge" class="lcd-emerald font-bold">RALLY #18 🔥 [16 SHOTS]</span>
+            <span class="text-slate-500">SERVER: <span class="text-slate-300">SU L.Y.</span></span>
+          </div>
+        </div>
+
+        <!-- Negative LCD Display 2: High-Precision Rally Stopwatch Timer -->
+        <div class="negative-lcd rounded-xl p-3 sm:p-4">
+          <div class="flex items-center justify-between text-[10px] font-mono text-slate-500 border-b border-slate-800/80 pb-1 mb-2">
+            <span class="flex items-center space-x-1 text-emerald-400 font-bold">
+              <span class="status-led status-led-emerald"></span>
+              <span>RALLY STOPWATCH // 1/100 SEC</span>
+            </span>
+            <span class="text-slate-400 font-mono">TIMECODE: <span id="lcd-split-timer" class="text-cyan-400 font-bold">05:25</span></span>
+          </div>
+
+          <div class="flex items-baseline justify-between py-1">
+            <div>
+              <div class="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Rally Duration</div>
+              <div class="flex items-baseline space-x-2">
+                <span id="lcd-stopwatch-timer" class="font-lcd text-3xl sm:text-4xl font-black lcd-emerald tracking-wider">00:19.10</span>
+                <span class="text-xs text-emerald-500/70 font-mono font-bold">SEC</span>
+              </div>
+            </div>
+
+            <div class="text-right">
+              <div class="text-[10px] text-slate-400 font-mono uppercase tracking-wider">Shot Cadence</div>
+              <div class="flex items-baseline justify-end space-x-1">
+                <span id="lcd-shot-freq" class="font-lcd text-2xl font-black lcd-cyan">1.42</span>
+                <span class="text-[10px] text-cyan-500/70 font-mono">SHOT/S</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- LCD Key Moment Ticker -->
+          <div class="mt-2 text-[10px] font-mono truncate border-t border-slate-800/80 pt-1.5">
+            <span class="text-slate-500">EVENT: </span>
+            <span id="lcd-key-moment" class="text-red-400 font-bold tracking-wide">⚡ 412 KM/H NUCLEAR SMASH DOWN THE LINE! UNRETURNABLE.</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           MAIN TELEMETRY DECK: BROADCAST PLAYER & 2D BWF COURT
+           ==================================================================== -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        
+        <!-- Left Column: Video Broadcast Viewport & Rally Scrubber (7 Cols) -->
+        <div class="lg:col-span-7 flex flex-col space-y-3">
+          
+          <!-- Video Container Frame -->
+          <div id="video-viewport-container" class="relative rounded-2xl bg-black border border-slate-700/80 overflow-hidden shadow-xl aspect-[16/10] sm:aspect-[16/9.5] flex items-center justify-center">
+            
+            <!-- Synthetic 3D Broadcast Canvas -->
+            <canvas id="broadcast-canvas" class="w-full h-full block cursor-pointer"></canvas>
+
+            <!-- Fallback Real Video Player (Hidden by default, used if user drops MP4) -->
+            <video id="real-video-player" class="w-full h-full object-cover hidden" playsinline></video>
+
+            <!-- Scanline Texture Overlay for CRT/Broadcast Monitor Feel -->
+            <div class="scanline-overlay"></div>
+
+            <!-- Broadcast Watermark & Live Rec Indicator -->
+            <div class="absolute top-3 right-3 flex items-center space-x-2 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-slate-700/70 z-20">
+              <span class="status-led status-led-red"></span>
+              <span class="text-[10px] font-mono font-bold text-slate-200 tracking-wider">BWF FEED // LIVE 60FPS</span>
+            </div>
+          </div>
+
+          <!-- Chronograph Rally Bookmark Chips -->
+          <div class="flex items-center space-x-2 overflow-x-auto pb-1 text-xs">
+            <span class="text-[11px] font-mono text-slate-400 whitespace-nowrap mr-1 flex items-center">
+              <i data-lucide="bookmark" class="w-3.5 h-3.5 text-cyan-400 mr-1"></i> RALLIES:
+            </span>
+            <button data-rally-id="12" class="rally-chip-btn px-3 py-1.5 rounded bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:border-slate-500 whitespace-nowrap transition-all">
+              Rally #12 🔥 (24s)
+            </button>
+            <button data-rally-id="18" class="rally-chip-btn px-3 py-1.5 rounded bg-cyan-500/20 border border-cyan-400 text-cyan-300 font-bold whitespace-nowrap shadow-[0_0_10px_rgba(0,240,255,0.3)] transition-all">
+              LZJ 412km/h Smash ⚡
+            </button>
+            <button data-rally-id="21" class="rally-chip-btn px-3 py-1.5 rounded bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:border-slate-500 whitespace-nowrap transition-all">
+              Rally #21 🔄 (Net Tumble)
+            </button>
+            <button data-rally-id="34" class="rally-chip-btn px-3 py-1.5 rounded bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:border-slate-500 whitespace-nowrap transition-all">
+              Rally #34 🏃 (38 Shots)
+            </button>
+            <button data-rally-id="45" class="rally-chip-btn px-3 py-1.5 rounded bg-slate-900/80 border border-slate-700/80 text-slate-300 hover:border-slate-500 whitespace-nowrap transition-all">
+              Rally #45 🏆 (Match Point)
+            </button>
+          </div>
+
+          <!-- Timeline Scrubber & Frame Counter -->
+          <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col space-y-2">
+            <div class="flex items-center justify-between text-xs font-mono text-slate-400">
+              <span class="flex items-center space-x-1.5">
+                <i data-lucide="timer" class="w-3.5 h-3.5 text-cyan-400"></i>
+                <span class="text-slate-300 font-semibold">RALLY SCRUBBER</span>
+              </span>
+              <span class="text-[11px] text-cyan-400">DRAG TO SCRUB SHOTS & TELEMETRY</span>
+            </div>
+            
+            <input id="rally-timeline-slider" type="range" min="0" max="100" value="0" step="0.1" 
+                   class="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400 focus:outline-none">
+            
+            <div class="flex items-center justify-between text-[11px] font-mono text-slate-500">
+              <span>00:00.00</span>
+              <span class="text-slate-400">SPACE: PLAY/PAUSE • ARROWS: STEP SHOT • 1-5: RALLIES</span>
+              <span>END OF RALLY</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Column: 2D BWF Court Canvas & Telemetry Overlay (5 Cols) -->
+        <div class="lg:col-span-5 flex flex-col space-y-3">
+          
+          <div class="rounded-2xl carbon-fiber-subtle p-3 border border-slate-700/80 flex flex-col h-full shadow-xl">
+            
+            <!-- Court Header & Controls -->
+            <div class="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 text-xs">
+              <div class="flex items-center space-x-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_#00e5a3]"></span>
+                <span class="font-chronograph font-bold text-slate-200">2D BWF COURT TELEMETRY</span>
+              </div>
+              
+              <div class="flex items-center space-x-1.5">
+                <button id="btn-toggle-heatmap" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-emerald-400 border border-emerald-500/30 transition-all" title="Toggle Kernel Density Estimation (KDE) Coverage">
+                  HEATMAP
+                </button>
+                <button id="btn-toggle-trails" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] font-mono text-cyan-400 border border-cyan-500/30 transition-all" title="Toggle Player Movement Trails">
+                  TRAILS
+                </button>
+              </div>
+            </div>
+
+            <!-- Court Canvas Container -->
+            <div class="relative flex-1 min-h-[380px] sm:min-h-[440px] rounded-xl overflow-hidden bg-black/60 border border-slate-800/80 flex items-center justify-center">
+              <canvas id="court-canvas" class="w-full h-full block cursor-crosshair"></canvas>
+            </div>
+
+            <!-- Court Coordinate Badge & Zone Indicator -->
+            <div class="mt-2.5 flex items-center justify-between text-[11px] font-mono px-1">
+              <span id="court-coord-badge" class="text-cyan-400 font-semibold truncate">
+                COURT: 13.4m × 6.1m (YONEX PRO MAT)
+              </span>
+              <span class="text-slate-400 hidden sm:inline">
+                HOVER TO MEASURE
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           CHRONOGRAPH SUB-DIALS (BOTTOM DECK)
+           3 High-Precision Mechanical Registers with Carbon Weave Backing
+           ==================================================================== -->
+      <div class="mt-5 pt-4 border-t border-slate-800">
+        
+        <div class="flex items-center justify-between mb-3 px-1">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="gauge" class="w-4 h-4 text-cyan-400"></i>
+            <span class="font-chronograph font-bold text-xs tracking-wider text-slate-300">PRECISION CHRONOGRAPH SUB-REGISTERS</span>
+          </div>
+          <span class="text-[11px] font-mono text-slate-500">60FPS HARDWARE ACCELERATED CANVASES</span>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          
+          <!-- Sub-Dial 1: Smash Speedometer (0 - 500 km/h) -->
+          <div class="carbon-fiber-dial rounded-2xl p-4 border border-slate-700/80 flex flex-col items-center shadow-lg relative group">
+            <div class="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span class="text-red-400 font-bold">SUB-REG. 01</span>
+              <span id="subdial-speed-peak" class="lcd-cyan font-bold">PEAK 412</span>
+            </div>
+
+            <div class="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center cursor-pointer" title="Click to test speed pulses">
+              <canvas id="speedometer-canvas" class="w-full h-full"></canvas>
+            </div>
+
+            <!-- Embedded LCD Readout -->
+            <div class="negative-lcd mt-2 px-4 py-1.5 rounded-lg w-full text-center">
+              <div class="text-[9px] text-slate-400 font-mono">MEASURED SMASH SPEED</div>
+              <div id="subdial-speed-lcd" class="font-lcd text-xl font-black lcd-redline">412 KM/H</div>
+            </div>
+          </div>
+
+          <!-- Sub-Dial 2: Rally Shot Counter (0 - 60 Shots) -->
+          <div class="carbon-fiber-dial rounded-2xl p-4 border border-slate-700/80 flex flex-col items-center shadow-lg relative group">
+            <div class="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span class="text-cyan-400 font-bold">SUB-REG. 02</span>
+              <span class="text-slate-400 font-mono">60-SHOT REGISTER</span>
+            </div>
+
+            <div class="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center">
+              <canvas id="shotcounter-canvas" class="w-full h-full"></canvas>
+            </div>
+
+            <!-- Embedded LCD Readout -->
+            <div class="negative-lcd mt-2 px-4 py-1.5 rounded-lg w-full text-center">
+              <div class="text-[9px] text-slate-400 font-mono">ACTIVE SHOT NUMBER</div>
+              <div id="subdial-shots-lcd" class="font-lcd text-xl font-black lcd-cyan">16 / 16</div>
+            </div>
+          </div>
+
+          <!-- Sub-Dial 3: Sprint & Court Coverage Meter -->
+          <div class="carbon-fiber-dial rounded-2xl p-4 border border-slate-700/80 flex flex-col items-center shadow-lg relative group sm:col-span-2 md:col-span-1">
+            <div class="w-full flex items-center justify-between text-[10px] font-mono text-slate-400 mb-1">
+              <span class="text-emerald-400 font-bold">SUB-REG. 03</span>
+              <span class="text-emerald-400 font-mono">BURST & DISTANCE</span>
+            </div>
+
+            <div class="relative w-48 h-48 sm:w-52 sm:h-52 flex items-center justify-center">
+              <canvas id="coverage-canvas" class="w-full h-full"></canvas>
+            </div>
+
+            <!-- Embedded LCD Readout -->
+            <div class="negative-lcd mt-2 px-4 py-1.5 rounded-lg w-full text-center">
+              <div class="text-[9px] text-slate-400 font-mono">TOTAL DISTANCE COVERED</div>
+              <div id="subdial-coverage-lcd" class="font-lcd text-xl font-black lcd-emerald">2.84 KM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer Specs Bar -->
+      <div class="mt-5 pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between text-[11px] font-mono text-slate-500 gap-2">
+        <div>
+          HAWKVIEW SPORTS VISION // PHASE 1 CHRONOGRAPH ENGINE
+        </div>
+        <div class="flex items-center space-x-3 text-slate-400">
+          <span>ON-DEVICE CV</span>
+          <span>•</span>
+          <span>$0.00/MO SERVER OVERHEAD</span>
+          <span>•</span>
+          <span class="text-cyan-400 font-semibold">100% OFFLINE CAPABLE</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       THE "IS THIS SHIT LAGGING?" MULTI-STAGE PROGRESS MODAL
+       Simulates on-device Neural Engine video ingestion with live frame ticker,
+       stage progress, and real-time teaser alerts!
+       ======================================================================== -->
+  <div id="anti-lag-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden items-center justify-center p-3 sm:p-6 overflow-y-auto">
+    <div class="titanium-chassis w-full max-w-3xl rounded-3xl p-5 sm:p-7 border border-slate-600 shadow-2xl relative">
+      
+      <!-- Close Button -->
+      <button id="btn-close-modal" class="absolute top-5 right-5 w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 flex items-center justify-center transition-all">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+
+      <!-- Modal Header -->
+      <div class="flex items-center space-x-3 mb-4">
+        <div class="w-10 h-10 rounded-xl bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center">
+          <i data-lucide="cpu" class="w-5 h-5 text-cyan-400 animate-pulse"></i>
+        </div>
+        <div>
+          <h2 class="text-lg font-chronograph font-bold text-slate-100 flex items-center space-x-2">
+            <span>ON-DEVICE VIDEO INGESTION PIPELINE</span>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300">148 FPS</span>
+          </h2>
+          <p class="text-xs text-slate-400 font-mono">
+            Apple Neural Engine (16-Core ANE) CoreML Hardware Acceleration
+          </p>
+        </div>
+      </div>
+
+      <!-- Hardware Telemetry Dashboard Grid -->
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+          <div class="text-[10px] text-slate-500 font-mono">SERVER COST</div>
+          <div class="text-sm font-bold text-emerald-400 font-mono">$0.00 / MO</div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+          <div class="text-[10px] text-slate-500 font-mono">INFERENCE RATE</div>
+          <div id="pipeline-fps-counter" class="text-sm font-bold text-cyan-400 font-mono">148 FPS</div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+          <div class="text-[10px] text-slate-500 font-mono">PEAK MEMORY</div>
+          <div class="text-sm font-bold text-slate-200 font-mono">38.4 MB RAM</div>
+        </div>
+        <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800 text-center">
+          <div class="text-[10px] text-slate-500 font-mono">EXPORT PAYLOAD</div>
+          <div class="text-sm font-bold text-amber-400 font-mono">1.2 MB JSON</div>
+        </div>
+      </div>
+
+      <!-- Master Multi-Stage Progress Bar -->
+      <div class="p-4 rounded-2xl bg-black/60 border border-slate-800 mb-4">
+        <div class="flex items-center justify-between text-xs font-mono mb-2">
+          <span id="pipeline-stage-name" class="text-cyan-300 font-bold">Stage 1: Court Line Calibration & Homography</span>
+          <span id="pipeline-progress-pct" class="text-lg font-black text-cyan-400 font-lcd">0%</span>
+        </div>
+
+        <!-- Animated Progress Track -->
+        <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+          <div id="pipeline-progress-bar" class="h-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-cyan-400 rounded-full w-0 transition-all duration-150 shadow-[0_0_12px_rgba(0,240,255,0.6)]"></div>
+        </div>
+
+        <!-- Frame Ticker Bar -->
+        <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
+          <span id="pipeline-frame-ticker">0 / 28,800 FRAMES</span>
+          <span class="text-emerald-400 font-semibold">1080P60 H.264 FEED</span>
+        </div>
+      </div>
+
+      <!-- Real-Time Teaser Callout (Discovered Breakthroughs!) -->
+      <div class="p-3 rounded-xl bg-gradient-to-r from-red-950/40 via-slate-900 to-black border border-red-500/30 flex items-center space-x-3 mb-4">
+        <span class="text-lg">⚡</span>
+        <div class="flex-1">
+          <div class="text-[10px] text-red-400 font-mono font-bold tracking-wider">LIVE TELEMETRY TEASER</div>
+          <div id="pipeline-teaser-ticker" class="text-xs text-slate-200 font-mono font-semibold truncate">
+            Initializing neural model weights on Apple Neural Engine...
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 Pipeline Stage Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 text-xs">
+        
+        <!-- Stage 1 -->
+        <div id="stage-card-1" class="p-3 rounded-lg border border-slate-800 bg-slate-900/40">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200">1. Court Calibration</span>
+            <span id="stage-badge-1" class="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded">QUEUED</span>
+          </div>
+          <p class="text-[11px] text-slate-400">CourtKeyNet + RANSAC: Solves 3x3 homography matrix & camera projection.</p>
+        </div>
+
+        <!-- Stage 2 -->
+        <div id="stage-card-2" class="p-3 rounded-lg border border-slate-800 bg-slate-900/40">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200">2. Rally Segmentation</span>
+            <span id="stage-badge-2" class="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded">QUEUED</span>
+          </div>
+          <p class="text-[11px] text-slate-400">PaddleOCR: Reads scorebug ROI and filters 62% downtime/replays.</p>
+        </div>
+
+        <!-- Stage 3 -->
+        <div id="stage-card-3" class="p-3 rounded-lg border border-slate-800 bg-slate-900/40">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200">3. Shuttle & Pose Track</span>
+            <span id="stage-badge-3" class="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded">QUEUED</span>
+          </div>
+          <p class="text-[11px] text-slate-400">TrackNetV3 (9-ch bundle) + YOLO11-Pose: 17 keypoints with 0 ID swaps.</p>
+        </div>
+
+        <!-- Stage 4 -->
+        <div id="stage-card-4" class="p-3 rounded-lg border border-slate-800 bg-slate-900/40">
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-slate-200">4. 3D Aerodynamics</span>
+            <span id="stage-badge-4" class="text-[10px] font-bold text-slate-500 bg-slate-950 px-2 py-0.5 rounded">QUEUED</span>
+          </div>
+          <p class="text-[11px] text-slate-400">MonoTrack ODE Drag Engine: Resolves true 3D smash velocity (412 km/h).</p>
+        </div>
+      </div>
+
+      <!-- Live CV Terminal Console -->
+      <div class="mb-4">
+        <div class="text-[10px] font-mono text-slate-500 mb-1 flex items-center justify-between">
+          <span>CONSOLE TELEMETRY STREAM</span>
+          <span>STDOUT / STDERR</span>
+        </div>
+        <div id="pipeline-terminal-output" class="h-28 rounded-xl bg-black p-3 border border-slate-800 overflow-y-auto font-mono text-xs">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+
+      <!-- Action Buttons Row -->
+      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
+        <div class="flex items-center space-x-2">
+          <button id="btn-start-ingestion" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-cyan-300 border-cyan-500/40">
+            RE-RUN FULL INGESTION
+          </button>
+          <button id="btn-fast-demo" class="knurled-pusher px-3 py-2 rounded-lg text-xs font-chronograph font-bold text-slate-300">
+            FAST DEMO (4s)
+          </button>
+        </div>
+
+        <button id="btn-export-telemetry" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-emerald-300 border-emerald-500/40 flex items-center space-x-1.5">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>EXPORT MATCH_TELEMETRY.JSON (1.2MB)</span>
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Scripts: Telemetry Data -> Sub-Dials -> Court -> Player -> Modal -> App -->
+  <script src="js/telemetry-data.js"></script>
+  <script src="js/subdials.js"></script>
+  <script src="js/court-view.js"></script>
+  <script src="js/broadcast-player.js"></script>
+  <script src="js/anti-lag-modal.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
