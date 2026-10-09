@@ -182,9 +182,12 @@
               </div>
               
               <!-- Broadcast Watermark & Status Tag -->
-              <div class="absolute top-2 left-2 z-10 bg-black/85 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] font-mono text-slate-300 pointer-events-none flex items-center space-x-1.5 shadow">
+              <div class="absolute top-2 left-2 z-10 bg-black/85 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] font-mono text-slate-300 flex items-center space-x-1.5 shadow">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                <span id="video-feed-label">BWF BROADCAST CAM 01 // 60FPS</span>
+                <span id="video-feed-label" class="pointer-events-none">BWF BROADCAST CAM 01 // 60FPS</span>
+                <button id="btn-toggle-video-mute" class="ml-1 px-1.5 py-0.5 rounded bg-slate-800/90 hover:bg-slate-700 text-cyan-300 text-[8px] font-bold border border-slate-700 transition-all pointer-events-auto active:scale-95" title="Toggle Match Audio (Mute / Unmute)">
+                  <span id="mute-icon-label">🔇 UNMUTE</span>
+                </button>
               </div>
 
               <!-- Mini PiP Controls Header -->

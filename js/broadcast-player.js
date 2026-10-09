@@ -48,6 +48,8 @@ class BroadcastPlayer {
     this.isYouTubeActive = false;
     this.ytPlayer = null;
     this.ytVideoId = null;
+    this.isLoopingRally = false;
+    this._ytSeekDebounce = null;
 
     this.radarTimer = null;
     this.audioCtx = null;
@@ -147,10 +149,15 @@ class BroadcastPlayer {
           const duration = this.currentRally.seconds_end - this.currentRally.seconds_start;
           this.currentTime = this.currentRally.seconds_start + duration * pct;
 
-          // Sync YouTube time
+          // Sync YouTube time with debounce
           if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
-            const targetYtTime = Math.max(0, this.currentTime - this.videoOffset);
+            this.isLoopingRally = true;
+            const targetYtTime = (this.videoOffset > 0 && this.currentTime < this.videoOffset) 
+              ? Math.max(0, this.currentTime - this.videoOffset)
+              : this.currentTime;
             this.ytPlayer.seekTo(targetYtTime, true);
+            clearTimeout(this._ytSeekDebounce);
+            this._ytSeekDebounce = setTimeout(() => { this.isLoopingRally = false; }, 300);
           }
           // Sync local video time
           else if (this.hasVideo && this.videoElement) {
@@ -284,11 +291,31 @@ class BroadcastPlayer {
       });
     }
 
-    // Clicking PiP window expands to split view
-    if (this.videoWrapper) {
-      this.videoWrapper.addEventListener('click', (e) => {
-        if (this.currentViewMode === 'pip' && e.target.closest('#pip-controls-bar') === null) {
-          this.setDualViewMode('split');
+    // Video Mute / Audio Toggle Button
+    const btnMute = document.getElementById('btn-toggle-video-mute');
+    const muteLabel = document.getElementById('mute-icon-label');
+    if (btnMute) {
+      btnMute.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.playMechanicalClick();
+        if (this.isYouTubeActive && this.ytPlayer) {
+          try {
+            if (this.ytPlayer.isMuted()) {
+              this.ytPlayer.unMute();
+              this.ytPlayer.setVolume(80);
+              if (muteLabel) muteLabel.textContent = "🔊 AUDIO ON";
+              btnMute.classList.replace('text-cyan-300', 'text-emerald-400');
+            } else {
+              this.ytPlayer.mute();
+              if (muteLabel) muteLabel.textContent = "🔇 MUTED";
+              btnMute.classList.replace('text-emerald-400', 'text-cyan-300');
+            }
+          } catch (err) {}
+        } else if (this.hasVideo && this.videoElement) {
+          this.videoElement.muted = !this.videoElement.muted;
+          if (muteLabel) muteLabel.textContent = this.videoElement.muted ? "🔇 MUTED" : "🔊 AUDIO ON";
+          btnMute.classList.toggle('text-emerald-400', !this.videoElement.muted);
+          btnMute.classList.toggle('text-cyan-300', this.videoElement.muted);
         }
       });
     }
@@ -411,35 +438,54 @@ class BroadcastPlayer {
     if (!container) return;
 
     const isFileProto = window.location.protocol === 'file:';
+    const isBufferTimeout = errorCode === 'BUFFER_TIMEOUT';
+    const isRightsRestricted = (errorCode === 150 || errorCode === 101);
+
     container.innerHTML = `
-      <div class="w-full h-full bg-[#080c12] p-4 flex flex-col items-center justify-center text-center font-mono border border-red-500/40 rounded-lg">
-        <div class="w-8 h-8 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-400 mb-2 text-base">
-          ⚠️
+      <div class="w-full h-full bg-[#080c12] p-4 flex flex-col items-center justify-center text-center font-mono border border-red-500/40 rounded-lg relative overflow-hidden">
+        <div class="w-9 h-9 rounded-full bg-red-950/80 border border-red-500/50 flex items-center justify-center text-red-400 mb-2 text-base shadow-lg">
+          ${isBufferTimeout ? '⏱️' : isRightsRestricted ? '🔒' : '⚠️'}
         </div>
         <div class="text-xs font-bold text-red-300 uppercase tracking-wider mb-1">
-          YOUTUBE EMBED RESTRICTION (ERROR ${errorCode})
+          ${isBufferTimeout 
+            ? 'STREAM BUFFER TIMEOUT (HOST THROTTLED)' 
+            : isRightsRestricted 
+            ? 'BROADCASTER GEO-BLOCK / EMBED RESTRICTED' 
+            : `YOUTUBE EMBED ERROR (${errorCode})`}
         </div>
         <p class="text-[10px] text-slate-400 max-w-sm mb-3">
-          ${isFileProto 
-            ? "YouTube blocks embedding when opened directly from disk (file:// protocol) due to missing referrer headers." 
-            : "The video publisher restricted external embedding or requires playback directly on YouTube."}
+          ${isBufferTimeout 
+            ? "YouTube's media stream took too long to deliver chunks or was paused by regional network throttling." 
+            : isRightsRestricted 
+            ? "Official BWF tournament streams are licensed to exclusive regional TV networks (Astro / SPOTV / ELTA) and disallow external embeds." 
+            : isFileProto 
+            ? "YouTube blocks embeds from local disk (file:// protocol). Please use the local server link below." 
+            : "The video publisher restricted embedding on third-party sites."}
         </p>
 
         <div class="flex flex-wrap items-center justify-center gap-2">
           ${isFileProto ? `
           <a href="http://localhost:8123/index.html" class="px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 hover:border-cyan-400 text-[10px] font-bold tracking-wider transition-all">
-            🚀 OPEN VIA LOCAL SERVER (PORT 8123)
+            🚀 OPEN VIA LOCALHOST:8123
           </a>` : ''}
-          <a href="https://www.youtube.com/watch?v=${videoId}" target="_blank" rel="noopener noreferrer" 
+          <a href="https://www.youtube.com/watch?v=${videoId}&t=${Math.floor(this.currentTime || 0)}" target="_blank" rel="noopener noreferrer" 
              class="px-3 py-1.5 rounded bg-red-950/80 border border-red-500/50 text-red-300 hover:border-red-400 text-[10px] font-bold tracking-wider transition-all flex items-center space-x-1">
             <span>WATCH ON YOUTUBE ↗</span>
           </a>
+          <button id="btn-fallback-twin" class="px-3 py-1.5 rounded bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 hover:border-cyan-400 text-[10px] font-bold tracking-wider transition-all">
+            🏸 3D TWIN ONLY
+          </button>
           <button id="btn-fallback-sample" class="px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-slate-300 hover:border-slate-500 text-[10px] font-bold tracking-wider transition-all">
             ▶ LOAD SAMPLE RALLY
           </button>
         </div>
       </div>
     `;
+
+    const twinBtn = document.getElementById('btn-fallback-twin');
+    if (twinBtn) {
+      twinBtn.addEventListener('click', () => this.setDualViewMode('3d'));
+    }
 
     const sampleBtn = document.getElementById('btn-fallback-sample');
     if (sampleBtn) {
@@ -458,6 +504,7 @@ class BroadcastPlayer {
     this.ytVideoId = videoId;
     this.isYouTubeActive = true;
     this.hasVideo = true;
+    this.isLoopingRally = false;
 
     const timeInUrl = this.extractYouTubeTimestamp(urlOrId);
     const startSec = timeInUrl > 0 ? timeInUrl : (offsetSec > 0 ? offsetSec : (this.currentRally ? this.currentRally.seconds_start : 0));
@@ -496,6 +543,8 @@ class BroadcastPlayer {
       playerHost.className = 'w-full h-full';
       targetDiv.appendChild(playerHost);
 
+      let bufferWatchdogTimer = null;
+
       if (window.YT && window.YT.Player) {
         try {
           this.ytPlayer = new window.YT.Player('yt-player-host', {
@@ -511,7 +560,8 @@ class BroadcastPlayer {
               playsinline: 1,
               start: Math.floor(startSec),
               origin: pageOrigin,
-              enablejsapi: 1
+              enablejsapi: 1,
+              mute: 1 // CRITICAL: Muted autoplay satisfies Chrome Autoplay Policy to eliminate infinite buffer lock
             },
             events: {
               onReady: () => {
@@ -521,6 +571,17 @@ class BroadcastPlayer {
               },
               onStateChange: (event) => {
                 if (window.YT) {
+                  // Buffer watchdog: catch infinite loading spinner (>5s)
+                  if (event.data === window.YT.PlayerState.BUFFERING) {
+                    clearTimeout(bufferWatchdogTimer);
+                    bufferWatchdogTimer = setTimeout(() => {
+                      console.warn("YouTube stream buffer watchdog timed out after 5s.");
+                      this.handleYouTubeError(videoId, 'BUFFER_TIMEOUT', targetDiv);
+                    }, 5500);
+                  } else {
+                    clearTimeout(bufferWatchdogTimer);
+                  }
+
                   if (event.data === window.YT.PlayerState.PLAYING) {
                     this.isPlaying = true;
                     this.updatePlayBtnIcon();
@@ -531,6 +592,7 @@ class BroadcastPlayer {
                 }
               },
               onError: (event) => {
+                clearTimeout(bufferWatchdogTimer);
                 console.warn("YouTube Player error:", event.data);
                 this.handleYouTubeError(videoId, event.data, targetDiv);
               }
@@ -792,16 +854,25 @@ class BroadcastPlayer {
   syncRallyState(instant = false) {
     if (!this.currentRally) return;
 
-    // Check if time passed rally end
+    // Check if time passed rally end (with loop cooldown guard to prevent seek spam)
     if (this.currentTime > this.currentRally.seconds_end) {
-      this.currentTime = this.currentRally.seconds_start;
-      if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
-        this.ytPlayer.seekTo(this.currentRally.seconds_start, true);
-      } else if (this.hasVideo && this.videoElement) {
-        this.videoElement.currentTime = 0;
-      }
-      if (this.threeViewer) {
-        this.threeViewer.clearTrail();
+      if (!this.isLoopingRally) {
+        this.isLoopingRally = true;
+        this.currentTime = this.currentRally.seconds_start;
+        if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+          const targetYtTime = (this.videoOffset > 0 && this.currentRally.seconds_start < this.videoOffset)
+            ? 0
+            : this.currentRally.seconds_start;
+          this.ytPlayer.seekTo(targetYtTime, true);
+        } else if (this.hasVideo && this.videoElement) {
+          this.videoElement.currentTime = 0;
+        }
+        if (this.threeViewer) {
+          this.threeViewer.clearTrail();
+        }
+        setTimeout(() => {
+          this.isLoopingRally = false;
+        }, 1500);
       }
     }
 
@@ -858,29 +929,44 @@ class BroadcastPlayer {
       lastTimestamp = timestamp;
 
       if (this.isPlaying && this.currentRally) {
-        // 1. YouTube active synchronization
-        if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.getCurrentTime === 'function') {
-          try {
-            const ytSec = this.ytPlayer.getCurrentTime();
-            if (ytSec > 0) {
-              this.currentTime = this.videoOffset + ytSec;
-            } else {
-              this.currentTime += deltaSec * this.playbackRate;
+        // 1. YouTube active synchronization (Master-Slave Clock)
+        if (this.isYouTubeActive && this.ytPlayer) {
+          const ytState = (typeof this.ytPlayer.getPlayerState === 'function') 
+            ? this.ytPlayer.getPlayerState() 
+            : -1;
+
+          // Only sync time when YouTube is actively PLAYING (state === 1)
+          if (ytState === 1 && typeof this.ytPlayer.getCurrentTime === 'function') {
+            try {
+              const ytSec = this.ytPlayer.getCurrentTime();
+              if (ytSec > 0) {
+                // If YouTube is playing a full match video at/near match time,
+                // ytSec directly represents the match timestamp (e.g. ~312s).
+                // Do not double-add videoOffset!
+                if (this.videoOffset > 0 && ytSec < this.videoOffset - 10) {
+                  this.currentTime = this.videoOffset + ytSec;
+                } else {
+                  this.currentTime = ytSec;
+                }
+                this.syncRallyState();
+              }
+            } catch (e) {
+              // Ignore cross-origin transient read errors
             }
-          } catch (e) {
-            this.currentTime += deltaSec * this.playbackRate;
           }
+          // If BUFFERING (state === 3) or UNSTARTED, FREEZE CLOCK!
+          // DO NOT advance synthetic time and DO NOT thrash seekTo!
         }
         // 2. HTML5 video active synchronization
         else if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
           this.currentTime = this.videoOffset + this.videoElement.currentTime;
+          this.syncRallyState();
         }
-        // 3. Pure telemetry synthetic progression
-        else {
+        // 3. Pure telemetry synthetic progression (no video or paused video)
+        else if (!this.isYouTubeActive && !this.hasVideo) {
           this.currentTime += deltaSec * this.playbackRate;
+          this.syncRallyState();
         }
-
-        this.syncRallyState();
       }
 
       requestAnimationFrame(loop);
