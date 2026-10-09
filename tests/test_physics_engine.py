@@ -214,6 +214,31 @@ class TestPipelineEndToEnd(unittest.TestCase):
         r18 = next(r for r in contract["rallies"] if r["rally_id"] == 18)
         self.assertGreaterEqual(r18["max_smash_kmh"], 400.0)
 
+    def test_popov_pipeline_run(self):
+        """Verifies that the pipeline ingests the Lee Zii Jia vs Christo Popov dataset."""
+        out_path = "/tmp/test_popov_telemetry.json"
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
+        pipeline = HawkviewPipeline()
+        contract = pipeline.run_ingestion(output_json_path=out_path, match_target="popov")
+
+        self.assertTrue(os.path.exists(out_path))
+        self.assertIn("match_metadata", contract)
+        self.assertIn("players", contract)
+        self.assertEqual(contract["players"]["player_2"]["id"], "POPOV")
+        self.assertEqual(contract["players"]["player_2"]["dominant_hand"], "Left")
+        self.assertEqual(contract["players"]["player_2"]["jersey_color"], "#ff2a55")
+        self.assertIn("rallies", contract)
+        self.assertEqual(len(contract["rallies"]), 6)
+
+        # Check landmark rally 4 (LZJ 408 km/h jump smash)
+        r4 = next(r for r in contract["rallies"] if r["rally_id"] == 4)
+        self.assertGreaterEqual(r4["max_smash_kmh"], 400.0)
+
+        if os.path.exists(out_path):
+            os.remove(out_path)
+
     def test_video_ingestion_pipeline(self):
         """Verifies that the pipeline ingests a real video file (assets/sample_rally.mp4) end-to-end."""
         video_file = "assets/sample_rally.mp4"

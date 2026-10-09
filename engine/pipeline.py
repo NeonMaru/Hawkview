@@ -339,7 +339,7 @@ class HawkviewPipeline:
         # Dynamically align physical smash speed and angle if calculated
         dataset["players"]["player_1"]["stats_summary"]["max_smash_speed_kmh"] = round(smash_speed_kmh, 1)
         for rally in dataset.get("rallies", []):
-            if rally.get("rally_id") == 19:
+            if rally.get("rally_id") == 4:
                 rally["max_smash_kmh"] = round(smash_speed_kmh, 1)
                 for shot in rally.get("shots", []):
                     if shot.get("stroke") == "Steep Jump Smash Winner":
@@ -574,17 +574,36 @@ class HawkviewPipeline:
             ]
         }
 
+    def _build_telemetry_payload(
+        self,
+        smash_speed_kmh: float,
+        smash_angle_deg: float,
+        transit_time_sec: float = 0.252,
+        match_target: str = "popov"
+    ) -> Dict:
+        """Constructs match_telemetry contract for either Popov or Su Li Yang."""
+        if match_target == "sly":
+            return self._build_sly_payload(smash_speed_kmh, smash_angle_deg, transit_time_sec)
+        return self._build_popov_payload(smash_speed_kmh, smash_angle_deg, transit_time_sec)
+
 
 def main():
     parser = argparse.ArgumentParser(description="Hawkview Computer Vision & Physics Telemetry Ingestion Pipeline")
     parser.add_argument("--video", type=str, default=None, help="Path to input badminton match video file")
     parser.add_argument("--youtube", type=str, default=None, help="Direct YouTube match video or highlight URL")
     parser.add_argument("--output", type=str, default="data/match_telemetry.json", help="Output telemetry JSON path")
+    parser.add_argument("--match", type=str, default=None, choices=["popov", "sly"], help="Match target dataset (popov or sly)")
     args = parser.parse_args()
 
+    match_target = args.match
     video_input = args.video
 
     if args.youtube:
+        if not match_target:
+            if "ehn9" in args.youtube.lower() or "popov" in args.youtube.lower():
+                match_target = "popov"
+            elif "bpv0" in args.youtube.lower() or "sly" in args.youtube.lower():
+                match_target = "sly"
         print(f"📥 Downloading match stream via yt-dlp from: {args.youtube}")
         try:
             import yt_dlp
@@ -614,7 +633,7 @@ def main():
     print("🏸 HAWKVIEW SPORTS VISION: PHASE 2 INGESTION PIPELINE")
     print("=================================================================")
     pipeline = HawkviewPipeline(progress_callback=print_progress)
-    pipeline.run_ingestion(video_path=video_input, output_json_path=args.output)
+    pipeline.run_ingestion(video_path=video_input, output_json_path=args.output, match_target=match_target)
     print("=================================================================")
     print(f"✅ Ingestion successfully completed! Telemetry saved to: {args.output}")
 
