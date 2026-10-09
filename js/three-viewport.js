@@ -447,16 +447,49 @@ class ThreeCourtViewer {
   }
 
   buildPlayers() {
-    // Player 1: Lee Zii Jia (MAS - Cyan Jersey #00f0ff)
-    this.player1 = this.createPlayerFigure(0x00f0ff, 0x111827, 'LEE ZII JIA (MAS)', true);
+    const p1Data = window.HAWKVIEW_TELEMETRY?.players?.player_1;
+    const p2Data = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+    const p1Left = (p1Data?.dominant_hand || 'Right').toLowerCase() === 'left';
+    const p2Left = (p2Data?.dominant_hand || 'Left').toLowerCase() === 'left';
+
+    const p1Jersey = p1Data?.jersey_color ? parseInt(p1Data.jersey_color.replace('#', '0x'), 16) : 0x00f0ff;
+    const p2Jersey = p2Data?.jersey_color ? parseInt(p2Data.jersey_color.replace('#', '0x'), 16) : 0xff2a55;
+
+    // Player 1: Lee Zii Jia (MAS - Cyan Jersey #00f0ff, Right handed)
+    this.player1 = this.createPlayerFigure(p1Jersey, 0x111827, p1Data?.name || 'LEE ZII JIA (MAS)', true, p1Left);
     this.scene.add(this.player1.group);
 
-    // Player 2: Su Li Yang (TPE - Orange Jersey #ff5722)
-    this.player2 = this.createPlayerFigure(0xff5722, 0x0f172a, 'SU LI YANG (TPE)', false);
+    // Player 2: Christo Popov / Su Li Yang
+    this.player2 = this.createPlayerFigure(p2Jersey, 0x0f172a, p2Data?.name || 'CHRISTO POPOV (FRA)', false, p2Left);
     this.scene.add(this.player2.group);
   }
 
-  createPlayerFigure(jerseyHex, shortsHex, name, isNearSide) {
+  updatePlayersFromTelemetry(telemetry) {
+    if (!telemetry || !telemetry.players) return;
+    const p1Data = telemetry.players.player_1;
+    const p2Data = telemetry.players.player_2;
+
+    if (this.player1 && this.player1.group) {
+      this.scene.remove(this.player1.group);
+    }
+    if (this.player2 && this.player2.group) {
+      this.scene.remove(this.player2.group);
+    }
+
+    const p1Left = (p1Data?.dominant_hand || 'Right').toLowerCase() === 'left';
+    const p2Left = (p2Data?.dominant_hand || 'Left').toLowerCase() === 'left';
+
+    const p1Jersey = p1Data?.jersey_color ? parseInt(p1Data.jersey_color.replace('#', '0x'), 16) : 0x00f0ff;
+    const p2Jersey = p2Data?.jersey_color ? parseInt(p2Data.jersey_color.replace('#', '0x'), 16) : 0xff2a55;
+
+    this.player1 = this.createPlayerFigure(p1Jersey, 0x111827, p1Data?.name || 'LEE ZII JIA (MAS)', true, p1Left);
+    this.scene.add(this.player1.group);
+
+    this.player2 = this.createPlayerFigure(p2Jersey, 0x0f172a, p2Data?.name || 'CHRISTO POPOV (FRA)', false, p2Left);
+    this.scene.add(this.player2.group);
+  }
+
+  createPlayerFigure(jerseyHex, shortsHex, name, isNearSide, isLeftHanded = false) {
     const group = new THREE.Group();
 
     // Torso (Jersey)
@@ -512,35 +545,57 @@ class ThreeCourtViewer {
     rightShoe.position.set(0.13, 0.05, 0.04);
     group.add(rightShoe);
 
-    // Racket Arm & Badminton Racket (Right arm holding racket)
-    const armGroup = new THREE.Group();
-    armGroup.position.set(-0.24, 1.45, 0);
-
+    // Arms & Badminton Racket
     const armGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.55, 12);
-    const arm = new THREE.Mesh(armGeo, legMat);
-    arm.rotation.z = Math.PI / 4;
-    arm.position.set(-0.15, -0.15, 0);
-    armGroup.add(arm);
-
-    // Racket Shaft & Head
-    const shaftGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.65, 8);
     const racketMat = new THREE.MeshStandardMaterial({
       color: 0xe2e8f0,
       metalness: 0.8,
       roughness: 0.2
     });
+
+    // 1. Racket Arm:
+    // In local coords, -X is player's right side, +X is player's left side
+    // Right handed: racket on right (-X). Left handed (e.g. Christo Popov): racket on left (+X).
+    const racketSign = isLeftHanded ? 1 : -1;
+    const racketArm = new THREE.Group();
+    racketArm.position.set(racketSign * 0.24, 1.45, 0);
+
+    const rArm = new THREE.Mesh(armGeo, legMat);
+    rArm.rotation.z = racketSign * (Math.PI / 4);
+    rArm.position.set(racketSign * 0.15, -0.15, 0);
+    rArm.castShadow = true;
+    racketArm.add(rArm);
+
+    // Racket Shaft & Head
+    const shaftGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.65, 8);
     const shaft = new THREE.Mesh(shaftGeo, racketMat);
-    shaft.position.set(-0.40, 0.15, 0);
-    shaft.rotation.z = Math.PI / 3;
-    armGroup.add(shaft);
+    shaft.position.set(racketSign * 0.40, 0.15, 0);
+    shaft.rotation.z = racketSign * (Math.PI / 3);
+    shaft.castShadow = true;
+    racketArm.add(shaft);
 
     const headFrameGeo = new THREE.TorusGeometry(0.13, 0.008, 8, 24);
     const headFrame = new THREE.Mesh(headFrameGeo, racketMat);
-    headFrame.position.set(-0.64, 0.35, 0);
+    headFrame.position.set(racketSign * 0.64, 0.35, 0);
     headFrame.rotation.y = Math.PI / 2;
-    armGroup.add(headFrame);
+    headFrame.castShadow = true;
+    racketArm.add(headFrame);
 
-    group.add(armGroup);
+    group.add(racketArm);
+
+    // 2. Free Balance Arm (Opposite shoulder, athletic badminton ready pose)
+    const balanceSign = -racketSign;
+    const balanceArm = new THREE.Group();
+    balanceArm.position.set(balanceSign * 0.24, 1.45, 0);
+
+    const bArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.50, 12), legMat);
+    bArm.rotation.z = balanceSign * (Math.PI / 5);
+    bArm.rotation.x = -0.3; // Pointed slightly forward for balance
+    bArm.position.set(balanceSign * 0.13, -0.13, 0.08);
+    bArm.castShadow = true;
+    balanceArm.add(bArm);
+
+    group.add(balanceArm);
 
     // Player Ground Shadow
     const shadowGeo = new THREE.PlaneGeometry(0.85, 0.55);
@@ -563,11 +618,75 @@ class ThreeCourtViewer {
     return {
       group,
       torso,
-      armGroup,
+      racketArm,
+      armGroup: racketArm, // Compatibility alias
+      balanceArm,
       shadow,
       baseY: 0,
+      isNearSide,
+      isLeftHanded,
+      name,
       targetPos: group.position.clone()
     };
+  }
+
+  setPlayerHandedness(playerIndex, isLeftHanded) {
+    const player = playerIndex === 1 ? this.player1 : this.player2;
+    if (!player) return;
+    if (player.isLeftHanded === isLeftHanded) return;
+
+    player.group.remove(player.racketArm);
+    player.group.remove(player.balanceArm);
+
+    const legMat = new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.8 });
+    const armGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.55, 12);
+    const racketMat = new THREE.MeshStandardMaterial({
+      color: 0xe2e8f0,
+      metalness: 0.8,
+      roughness: 0.2
+    });
+
+    const racketSign = isLeftHanded ? 1 : -1;
+    const racketArm = new THREE.Group();
+    racketArm.position.set(racketSign * 0.24, 1.45, 0);
+
+    const rArm = new THREE.Mesh(armGeo, legMat);
+    rArm.rotation.z = racketSign * (Math.PI / 4);
+    rArm.position.set(racketSign * 0.15, -0.15, 0);
+    rArm.castShadow = true;
+    racketArm.add(rArm);
+
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.65, 8), racketMat);
+    shaft.position.set(racketSign * 0.40, 0.15, 0);
+    shaft.rotation.z = racketSign * (Math.PI / 3);
+    shaft.castShadow = true;
+    racketArm.add(shaft);
+
+    const headFrame = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.008, 8, 24), racketMat);
+    headFrame.position.set(racketSign * 0.64, 0.35, 0);
+    headFrame.rotation.y = Math.PI / 2;
+    headFrame.castShadow = true;
+    racketArm.add(headFrame);
+
+    player.group.add(racketArm);
+
+    const balanceSign = -racketSign;
+    const balanceArm = new THREE.Group();
+    balanceArm.position.set(balanceSign * 0.24, 1.45, 0);
+
+    const bArm = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.04, 0.50, 12), legMat);
+    bArm.rotation.z = balanceSign * (Math.PI / 5);
+    bArm.rotation.x = -0.3;
+    bArm.position.set(balanceSign * 0.13, -0.13, 0.08);
+    bArm.castShadow = true;
+    balanceArm.add(bArm);
+
+    player.group.add(balanceArm);
+
+    player.racketArm = racketArm;
+    player.armGroup = racketArm;
+    player.balanceArm = balanceArm;
+    player.isLeftHanded = isLeftHanded;
   }
 
   setupEvents() {
@@ -661,11 +780,54 @@ class ThreeCourtViewer {
     return new THREE.Vector3(wx, wy, wz);
   }
 
+  setDowntimeState(rally, instant = false) {
+    // In downtime between rallies (or before/after points), place players in ready/service stance at baseline/service line
+    const p1Ready = new THREE.Vector3(0, 0, -4.8);
+    const p2Ready = new THREE.Vector3(0, 0, 4.8);
+
+    if (instant) {
+      this.player1.group.position.copy(p1Ready);
+      this.player2.group.position.copy(p2Ready);
+    } else {
+      this.player1.group.position.lerp(p1Ready, 0.15);
+      this.player2.group.position.lerp(p2Ready, 0.15);
+    }
+
+    // Reset jump & arm swing to athletic ready stance
+    this.player1.torso.position.y = 1.25;
+    this.player2.torso.position.y = 1.25;
+    if (this.player1.racketArm) this.player1.racketArm.rotation.x = 0;
+    if (this.player2.racketArm) this.player2.racketArm.rotation.x = 0;
+    this.player1.shadow.scale.set(1, 1, 1);
+    this.player2.shadow.scale.set(1, 1, 1);
+
+    // Shuttlecock placed with server in ready position
+    const isLZJServer = !rally || rally.server === 'LZJ' || (rally.score_after && rally.winner === 'LZJ');
+    const shuttleReady = isLZJServer 
+      ? new THREE.Vector3(0, 1.15, -4.2)
+      : new THREE.Vector3(0, 1.15, 4.2);
+
+    if (instant) {
+      this.shuttleGroup.position.copy(shuttleReady);
+    } else {
+      this.shuttleGroup.position.lerp(shuttleReady, 0.18);
+    }
+    this.shuttleShadow.position.set(shuttleReady.x, 0.003, shuttleReady.z);
+    this.shuttleGlowMat.color.setHex(0x00f0ff);
+    this.trailMat.color.setHex(0x00f0ff);
+    this.clearTrail();
+  }
+
   /**
    * Updates state on each playback frame from telemetry engine
    */
   updateTelemetryState(data, instant = false) {
     if (!data) return;
+
+    if (data.isDowntime) {
+      this.setDowntimeState(data.rally, instant);
+      return;
+    }
 
     const { rally, shot, shotIndex, time, elapsed } = data;
     this.isSmashActive = shot && shot.speed_kmh >= 350;
@@ -730,54 +892,64 @@ class ThreeCourtViewer {
       }
 
       // 2. Animate Player Positions & Smash Mechanics
-      this.updatePlayerPositions(currentShot, progress, instant);
+      this.updatePlayerPositions(currentShot, nextShot, progress, instant);
     }
   }
 
-  updatePlayerPositions(currentShot, progress, instant = false) {
+  updatePlayerPositions(currentShot, nextShot, progress, instant = false) {
     if (!currentShot) return;
 
     const isLZJ = currentShot.hitter === 'LZJ';
     const isSmash = currentShot.stroke && currentShot.stroke.includes('Smash');
 
-    // Player 1 (Lee Zii Jia - Near side)
-    let p1Target = new THREE.Vector3(0, 0, -4.6);
-    if (isLZJ) {
-      p1Target = this.courtToWorld(currentShot.hit_coord[0], currentShot.hit_coord[1], 0);
-    } else {
-      // Counter positioning
-      p1Target = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
-      p1Target.z = Math.min(-1.5, p1Target.z); // Stay on near court
-    }
+    // Hitter position: at hit_coord initially, recovering towards base T
+    const hitterHitWorld = this.courtToWorld(currentShot.hit_coord[0], currentShot.hit_coord[1], 0);
+    const nearCourtBase = new THREE.Vector3(0, 0, -4.6);
+    const farCourtBase = new THREE.Vector3(0, 0, 4.6);
 
-    // Player 2 (Su Li Yang - Far side)
-    let p2Target = new THREE.Vector3(0, 0, 4.6);
-    if (!isLZJ) {
-      p2Target = this.courtToWorld(currentShot.hit_coord[0], currentShot.hit_coord[1], 0);
+    // Receiver position: moving smoothly towards land_coord to intercept shot
+    const receiverInterceptWorld = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
+
+    let p1Target, p2Target;
+    if (isLZJ) {
+      p1Target = new THREE.Vector3().lerpVectors(hitterHitWorld, nearCourtBase, Math.min(1.0, progress * 0.7));
+      p1Target.z = Math.min(-1.5, p1Target.z);
+
+      p2Target = new THREE.Vector3().lerpVectors(farCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
+      p2Target.z = Math.max(1.5, p2Target.z);
     } else {
-      p2Target = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
-      p2Target.z = Math.max(1.5, p2Target.z); // Stay on far court
+      p2Target = new THREE.Vector3().lerpVectors(hitterHitWorld, farCourtBase, Math.min(1.0, progress * 0.7));
+      p2Target.z = Math.max(1.5, p2Target.z);
+
+      p1Target = new THREE.Vector3().lerpVectors(nearCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
+      p1Target.z = Math.min(-1.5, p1Target.z);
     }
 
     if (instant) {
       this.player1.group.position.copy(p1Target);
       this.player2.group.position.copy(p2Target);
     } else {
-      this.player1.group.position.lerp(p1Target, 0.18);
-      this.player2.group.position.lerp(p2Target, 0.18);
+      this.player1.group.position.lerp(p1Target, 0.22);
+      this.player2.group.position.lerp(p2Target, 0.22);
     }
 
-    // Jump smash animation for LZJ
-    if (isLZJ && isSmash && progress < 0.6) {
-      const jumpProgress = Math.sin((progress / 0.6) * Math.PI);
-      this.player1.torso.position.y = 1.25 + jumpProgress * 0.85; // Elevate 0.85m in air
-      this.player1.armGroup.rotation.x = -jumpProgress * 0.6; // Cock racket overhead
-      this.player1.shadow.scale.set(1 - jumpProgress * 0.4, 1 - jumpProgress * 0.4, 1);
+    // Jump smash animation for hitter
+    const jumpPlayer = isLZJ ? this.player1 : this.player2;
+    const otherPlayer = isLZJ ? this.player2 : this.player1;
+
+    if (isSmash && progress < 0.65) {
+      const jumpProgress = Math.sin((progress / 0.65) * Math.PI);
+      jumpPlayer.torso.position.y = 1.25 + jumpProgress * 0.85; // Elevate 0.85m in air
+      if (jumpPlayer.racketArm) jumpPlayer.racketArm.rotation.x = -jumpProgress * 0.65; // Cock racket overhead
+      jumpPlayer.shadow.scale.set(1 - jumpProgress * 0.4, 1 - jumpProgress * 0.4, 1);
     } else {
-      this.player1.torso.position.y = 1.25;
-      this.player1.armGroup.rotation.x = 0;
-      this.player1.shadow.scale.set(1, 1, 1);
+      jumpPlayer.torso.position.y = 1.25;
+      if (jumpPlayer.racketArm) jumpPlayer.racketArm.rotation.x = 0;
+      jumpPlayer.shadow.scale.set(1, 1, 1);
     }
+    otherPlayer.torso.position.y = 1.25;
+    if (otherPlayer.racketArm) otherPlayer.racketArm.rotation.x = 0;
+    otherPlayer.shadow.scale.set(1, 1, 1);
   }
 
   addTrailPoint(pt) {

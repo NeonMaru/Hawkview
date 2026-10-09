@@ -342,14 +342,15 @@ input[type=range].edifice-slider::-moz-range-thumb {
 /* ==========================================================================
    DUAL-VIEW & PICTURE-IN-PICTURE (PIP) SYNCHRONIZATION STYLES
    ========================================================================== */
+/* Split Dual View: Dominant 62% 3D Court, 38% Video (Never cramped!) */
 .view-split-3d {
-  width: 50% !important;
+  width: 62% !important;
   height: 100% !important;
   display: block !important;
 }
 
 .view-split-video {
-  width: 50% !important;
+  width: 38% !important;
   height: 100% !important;
   display: flex !important;
   border-left: 1px solid #1e293b;
@@ -358,37 +359,54 @@ input[type=range].edifice-slider::-moz-range-thumb {
 @media (max-width: 767px) {
   .view-split-3d {
     width: 100% !important;
-    height: 50% !important;
+    height: 60% !important;
   }
   .view-split-video {
     width: 100% !important;
-    height: 50% !important;
+    height: 40% !important;
     border-left: none !important;
     border-top: 1px solid #1e293b;
   }
 }
 
+/* Picture-in-Picture (PiP) Floating Video: 100% 3D Court Canvas + Floating Overlay */
 .view-pip-video {
   position: absolute !important;
   bottom: 12px !important;
   right: 12px !important;
-  width: 260px !important;
+  width: clamp(280px, 28vw, 340px) !important;
   aspect-ratio: 16 / 9 !important;
   height: auto !important;
   z-index: 35 !important;
   border-radius: 8px !important;
-  border: 1px solid rgba(0, 240, 255, 0.6) !important;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.9) !important;
+  border: 1px solid rgba(0, 240, 255, 0.5) !important;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.92), 0 0 16px rgba(0, 240, 255, 0.22) !important;
   background-color: #000000 !important;
   display: block !important;
   overflow: hidden !important;
   cursor: pointer !important;
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .view-pip-video:hover {
-  transform: scale(1.03);
+  transform: scale(1.02);
   border-color: #00f0ff !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.95), 0 0 22px rgba(0, 240, 255, 0.35) !important;
+}
+
+.view-pip-video #pip-controls-bar {
+  opacity: 0.85;
+  transition: opacity 0.2s ease;
+}
+
+.view-pip-video:hover #pip-controls-bar {
+  opacity: 1;
+}
+
+/* When PiP is active, adjust speed radar overlay to not be obscured */
+.pip-active #speed-radar-overlay {
+  bottom: 12px !important;
+  right: clamp(300px, 30vw, 360px) !important;
 }
 
 .view-full-video {
@@ -396,4 +414,54 @@ input[type=range].edifice-slider::-moz-range-thumb {
   height: 100% !important;
   display: flex !important;
 }
+
+/* ==========================================================================
+   TIMELINE TRACK RALLY NOTCHES & TICKS
+   ========================================================================== */
+.timeline-track-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.rally-timeline-ticks {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 8px;
+  transform: translateY(-50%);
+  pointer-events: none;
+  z-index: 2;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.rally-tick-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(0, 240, 255, 0.28);
+  border-left: 2px solid #00f0ff;
+  border-right: 1px solid rgba(0, 240, 255, 0.4);
+  transition: background 0.15s ease, border-color 0.15s ease;
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.rally-tick-zone:hover {
+  background: rgba(0, 240, 255, 0.6);
+  border-color: #ffffff;
+}
+
+.rally-tick-zone.active-rally-tick {
+  background: rgba(0, 229, 163, 0.45);
+  border-left: 2px solid #00e5a3;
+  box-shadow: 0 0 8px rgba(0, 229, 163, 0.4);
+}
+
+.rally-tick-zone.smash-record-tick {
+  background: rgba(255, 42, 85, 0.35);
+  border-left: 2px solid #ff2a55;
+}
+
 

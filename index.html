@@ -76,8 +76,8 @@
             <span class="font-chronograph font-black text-xs sm:text-base tracking-wider text-slate-100 whitespace-nowrap">CASIO <span class="text-cyan-400">EDIFICE</span></span>
             <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-bold font-mono hidden sm:inline-block">EQB-HAWKVIEW</span>
             <span class="text-slate-600 hidden md:inline">|</span>
-            <span class="text-xs text-slate-400 font-mono tracking-wide hidden md:inline truncate max-w-[280px]">
-              BWF ARCTIC OPEN S500 // QF
+            <span id="header-match-title" class="text-xs text-slate-400 font-mono tracking-wide hidden md:inline truncate max-w-[320px]">
+              BWF ARCTIC OPEN S500 // QF - MAS vs FRA
             </span>
           </div>
         </div>
@@ -88,8 +88,17 @@
           <span>500 • 400 • 350 • 300 • 250 • 200 • 160 • 120 • 60</span>
         </div>
 
-        <!-- Right: Neural Ready + Status LED + Quick Action Buttons -->
+        <!-- Right: Match Selector + Neural Ready + Status LED + Quick Action Buttons -->
         <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
+          <!-- Match Selector Dropdown -->
+          <div class="flex items-center space-x-1 bg-[#080b0f] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded border border-slate-800 text-[9px] font-mono text-slate-300">
+            <span class="text-slate-500 font-bold hidden md:inline">MATCH:</span>
+            <select id="match-selector" class="bg-transparent text-cyan-300 font-mono text-[9px] sm:text-[10px] outline-none cursor-pointer font-bold">
+              <option value="popov" class="bg-[#0a0e14] text-cyan-300" selected>🇲🇾 LZJ vs 🇫🇷 Popov (QF)</option>
+              <option value="sly" class="bg-[#0a0e14] text-orange-400">🇲🇾 LZJ vs 🇹🇼 Su Li Yang (R16)</option>
+            </select>
+          </div>
+
           <div class="flex items-center space-x-1 sm:space-x-1.5 bg-[#080b0f] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded border border-slate-800">
             <span class="status-led status-led-cyan"></span>
             <span class="text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-wider font-semibold whitespace-nowrap">ANE READY</span>
@@ -141,9 +150,9 @@
             <!-- Left: View Mode Chips -->
             <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar min-w-0">
               <span class="text-slate-500 mr-1 text-[9px] uppercase font-bold tracking-wider hidden sm:inline shrink-0">VIEW:</span>
-              <button id="view-mode-3d" class="hud-cam-chip active" title="Pure 3D Digital Twin View">🏸 3D TWIN</button>
-              <button id="view-mode-split" class="hud-cam-chip" title="Synchronized Split View: Real Video & 3D Twin">📺 SPLIT DUAL</button>
-              <button id="view-mode-pip" class="hud-cam-chip" title="Picture-in-Picture Floating Video">🔲 PIP VIDEO</button>
+              <button id="view-mode-3d" class="hud-cam-chip" title="Pure 3D Digital Twin View">🏸 3D TWIN</button>
+              <button id="view-mode-pip" class="hud-cam-chip active" title="Picture-in-Picture Floating Video (Non-blocking)">🔲 PIP VIDEO</button>
+              <button id="view-mode-split" class="hud-cam-chip" title="Synchronized Split View: 62% 3D Court & 38% Real Video">📺 SPLIT DUAL</button>
               <button id="view-mode-full" class="hud-cam-chip" title="Full Broadcast Video Feed">🎥 FULL VIDEO</button>
             </div>
 
@@ -171,7 +180,7 @@
             <!-- Real Three.js 3D Viewport Canvas Container -->
             <div id="three-viewport-container" class="w-full h-full relative transition-all duration-300 block"></div>
 
-            <!-- Real Video Player Container Wrapper (Supports Split 50%, Floating PiP, Full Video) -->
+            <!-- Real Video Player Container Wrapper (Supports Split 62/38%, Floating PiP, Full Video) -->
             <div id="video-viewport-wrapper" class="hidden relative transition-all duration-300">
               <!-- Local HTML5 Video Player -->
               <video id="real-video-player" class="w-full h-full object-contain bg-black" src="assets/sample_rally.mp4" playsinline preload="auto"></video>
@@ -192,10 +201,13 @@
 
               <!-- Mini PiP Controls Header -->
               <div id="pip-controls-bar" class="absolute top-1.5 right-1.5 z-10 hidden items-center space-x-1">
-                <button id="btn-pip-expand" class="p-1 rounded bg-black/80 hover:bg-slate-800 text-slate-300 border border-slate-700 text-[9px]" title="Expand to Split View">
+                <button id="btn-pip-split" class="px-1.5 py-0.5 rounded bg-black/85 hover:bg-cyan-950/80 text-cyan-300 border border-slate-700 hover:border-cyan-500/50 text-[8px] font-mono font-bold" title="Switch to Split Dual View">
+                  <span>SPLIT</span>
+                </button>
+                <button id="btn-pip-expand" class="p-1 rounded bg-black/85 hover:bg-slate-800 text-slate-300 border border-slate-700 text-[9px]" title="Expand to Full Video">
                   <i data-lucide="maximize-2" class="w-2.5 h-2.5"></i>
                 </button>
-                <button id="btn-pip-close" class="p-1 rounded bg-black/80 hover:bg-slate-800 text-slate-300 border border-slate-700 text-[9px]" title="Close Video (Return to 3D)">
+                <button id="btn-pip-close" class="p-1 rounded bg-black/85 hover:bg-red-950/80 text-slate-300 hover:text-red-300 border border-slate-700 text-[9px]" title="Return to 3D Viewport">
                   <i data-lucide="x" class="w-2.5 h-2.5"></i>
                 </button>
               </div>
@@ -209,36 +221,36 @@
             </div>
 
             <!-- 1. TOP-LEFT OFFICIAL BWF TV SCOREBUG HUD OVERLAY (Non-blocking, compact) -->
-            <div id="bwf-tv-scorebug" class="absolute top-2 left-2 z-20 pointer-events-none w-[138px] sm:w-[150px] hud-glass-card rounded-lg p-1.5 shadow-xl">
+            <div id="bwf-tv-scorebug" class="absolute top-2 left-2 z-20 pointer-events-none w-[142px] sm:w-[155px] hud-glass-card rounded-lg p-1.5 shadow-xl">
               <div class="flex items-center space-x-1 text-[8px] sm:text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider border-b border-slate-800/80 pb-0.5 mb-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span class="truncate">BWF ARCTIC // G2</span>
+                <span id="overlay-match-label" class="truncate">BWF ARCTIC // QF</span>
               </div>
               <div class="flex items-center justify-between py-0.5">
                 <div class="flex items-center space-x-1 min-w-0">
-                  <span class="text-[11px] leading-none">🇲🇾</span>
-                  <span class="font-bold text-[10px] text-cyan-400 font-mono">MAS</span>
-                  <span class="text-slate-200 font-semibold text-[9px] truncate max-w-[48px]">LZJ</span>
+                  <span id="overlay-p1-flag" class="text-[11px] leading-none">🇲🇾</span>
+                  <span id="overlay-p1-country" class="font-bold text-[10px] text-cyan-400 font-mono">MAS</span>
+                  <span id="overlay-p1-name" class="text-slate-200 font-semibold text-[9px] truncate max-w-[50px]">LZJ</span>
                 </div>
                 <div class="flex items-center">
-                  <span id="overlay-p1-score" class="font-lcd text-cyan-400 font-black text-xs sm:text-sm tabular-nums leading-none">08</span>
-                  <span id="lcd-score-mas" class="hidden">08</span>
+                  <span id="overlay-p1-score" class="font-lcd text-cyan-400 font-black text-xs sm:text-sm tabular-nums leading-none">11</span>
+                  <span id="lcd-score-mas" class="hidden">11</span>
                 </div>
               </div>
               <div class="flex items-center justify-between py-0.5">
                 <div class="flex items-center space-x-1 min-w-0">
-                  <span class="text-[11px] leading-none">🇹🇼</span>
-                  <span class="font-bold text-orange-400 font-mono">TPE</span>
-                  <span class="text-slate-200 font-semibold text-[9px] truncate max-w-[48px]">SLY</span>
-                  <span class="text-[8px] text-amber-400 font-mono leading-none">●</span>
+                  <span id="overlay-p2-flag" class="text-[11px] leading-none">🇫🇷</span>
+                  <span id="overlay-p2-country" class="font-bold text-red-400 font-mono">FRA</span>
+                  <span id="overlay-p2-name" class="text-slate-200 font-semibold text-[9px] truncate max-w-[50px]">POPOV</span>
+                  <span id="overlay-p2-serve" class="text-[8px] text-amber-400 font-mono leading-none hidden">●</span>
                 </div>
                 <div class="flex items-center">
-                  <span id="overlay-p2-score" class="font-lcd text-orange-400 font-black text-xs sm:text-sm tabular-nums leading-none">08</span>
+                  <span id="overlay-p2-score" class="font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none">08</span>
                   <span id="lcd-score-tpe" class="hidden">08</span>
                 </div>
               </div>
               <div class="mt-1 pt-0.5 border-t border-slate-800/80">
-                <span id="lcd-rally-badge" class="lcd-emerald text-[8px] sm:text-[9px] font-bold truncate block">RALLY #18 🔥 [16 SHOTS]</span>
+                <span id="lcd-rally-badge" class="lcd-emerald text-[8px] sm:text-[9px] font-bold truncate block">RALLY #4 🔥 [20 SHOTS]</span>
               </div>
             </div>
 
@@ -286,16 +298,25 @@
             <!-- Tier 1: Timeline Scrubber with High-Density Timecode -->
             <div class="px-2 sm:px-2.5 py-1.5 bg-[#080b0f] rounded-xl border border-slate-800 flex flex-col space-y-1 w-full min-w-0">
               <div class="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                <span class="flex items-center space-x-1 text-slate-300 font-semibold truncate">
+                <span class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate">
                   <i data-lucide="timer" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                  <span>RALLY SCRUBBER</span>
+                  <span class="tracking-wide">MATCH TIMELINE</span>
                 </span>
-                <span class="text-slate-400 font-mono text-[9px] shrink-0">SPACE: PLAY • ARROWS: STEP</span>
+                
+                <!-- Unified Boomer-Proof Timecode Display (e.g. 05:14 / 08:18) -->
+                <div class="flex items-center space-x-1 font-mono text-xs">
+                  <span id="timeline-timecode-elapsed" class="text-cyan-400 font-bold tabular-nums">05:12</span>
+                  <span class="text-slate-500 font-bold">/</span>
+                  <span id="timeline-timecode-total" class="text-slate-400 font-semibold tabular-nums">08:18</span>
+                  <span class="text-slate-500 text-[9px] hidden sm:inline ml-1 font-sans">(SYNC)</span>
+                </div>
               </div>
               
-              <div class="py-1 flex items-center w-full">
-                <input id="rally-timeline-slider" type="range" min="0" max="100" value="0" step="0.1" 
-                       class="w-full edifice-slider cursor-pointer">
+              <!-- Timeline Track with Visual Rally Notches & Boomer-Proof Scrubber -->
+              <div class="timeline-track-wrapper py-1 flex items-center w-full relative">
+                <div id="rally-timeline-ticks" class="rally-timeline-ticks"></div>
+                <input id="rally-timeline-slider" type="range" min="0" max="498" value="312.1" step="0.1" 
+                       class="w-full edifice-slider cursor-pointer relative z-10" title="Scrub match video & 3D telemetry in lockstep">
               </div>
             </div>
 
@@ -332,21 +353,26 @@
               <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap mr-1 flex items-center shrink-0">
                 <i data-lucide="bookmark" class="w-3 h-3 text-cyan-400 mr-1"></i> RALLIES:
               </span>
-              <button data-rally-id="18" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all">
-                ⚡ LZJ 412km/h Smash
-              </button>
-              <button data-rally-id="12" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                🔥 Rally #12 (24s)
-              </button>
-              <button data-rally-id="21" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                🔄 Rally #21 (Net Tumble)
-              </button>
-              <button data-rally-id="34" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                🏃 Rally #34 (38 Shots)
-              </button>
-              <button data-rally-id="45" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                🏆 Rally #45 (Match Point)
-              </button>
+              <div id="rally-chips-container" class="flex items-center space-x-1.5 min-w-0">
+                <button data-rally-id="1" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
+                  🏸 Rally #1 (00:25)
+                </button>
+                <button data-rally-id="2" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
+                  💥 Rally #2 (01:18)
+                </button>
+                <button data-rally-id="3" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
+                  ⚡ Rally #3 (03:05)
+                </button>
+                <button data-rally-id="4" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all">
+                  🔥 LZJ 408km/h (05:12)
+                </button>
+                <button data-rally-id="5" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
+                  🏃 Rally #5 (06:40)
+                </button>
+                <button data-rally-id="6" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
+                  🏆 Rally #6 (08:00)
+                </button>
+              </div>
             </div>
 
           </div>
@@ -497,103 +523,183 @@
           <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
         </div>
         <div>
-          <h2 class="text-lg font-chronograph font-bold text-slate-100 flex items-center space-x-2">
-            <span>ON-DEVICE VIDEO INGESTION PIPELINE</span>
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 border border-emerald-500/40 text-emerald-300">148 FPS</span>
+          <h2 class="text-base sm:text-lg font-chronograph font-bold text-slate-100 flex items-center space-x-2">
+            <span>HAWKVIEW SPORTS VISION // INGESTION & ANALYSIS</span>
+            <span id="modal-status-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300">STANDBY</span>
           </h2>
-          <p class="text-xs text-slate-400 font-mono">
-            Apple Neural Engine (16-Core ANE) CoreML Hardware Acceleration
+          <p id="modal-subtitle" class="text-xs text-slate-400 font-mono">
+            TrackNetV3 Shuttle Tracking • YOLO11 Pose • MonoTrack 3D Aerodynamics
           </p>
         </div>
       </div>
 
-      <!-- Hardware Telemetry Dashboard Grid -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-          <div class="text-[10px] text-slate-500 font-mono">SERVER COST</div>
-          <div class="text-sm font-bold text-emerald-400 font-mono">$0.00 / MO</div>
-        </div>
-        <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-          <div class="text-[10px] text-slate-500 font-mono">INFERENCE RATE</div>
-          <div id="pipeline-fps-counter" class="text-sm font-bold text-cyan-400 font-mono">148 FPS</div>
-        </div>
-        <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-          <div class="text-[10px] text-slate-500 font-mono">PEAK MEMORY</div>
-          <div class="text-sm font-bold text-slate-200 font-mono">38.4 MB RAM</div>
-        </div>
-        <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-          <div class="text-[10px] text-slate-500 font-mono">EXPORT PAYLOAD</div>
-          <div class="text-sm font-bold text-amber-400 font-mono">1.2 MB JSON</div>
-        </div>
-      </div>
-
-      <!-- Master Multi-Stage Progress Bar -->
-      <div class="p-4 rounded-xl bg-[#080b0f] border border-slate-800 mb-4">
-        <div class="flex items-center justify-between text-xs font-mono mb-2">
-          <span id="pipeline-stage-name" class="text-cyan-300 font-bold">Stage 1: Court Line Calibration & Homography</span>
-          <span id="pipeline-progress-pct" class="text-lg font-black text-cyan-400 font-lcd">0%</span>
+      <!-- 1. YOUTUBE BROWSER SECURITY NOTICE & GENUINE ACTIONS CONTAINER -->
+      <div id="modal-youtube-mode" class="hidden mb-4">
+        <div class="p-4 rounded-xl bg-amber-950/40 border border-amber-500/50 mb-3.5 font-mono text-xs">
+          <div class="flex items-center space-x-2 text-amber-400 font-bold mb-1.5 text-xs tracking-wider">
+            <span class="text-base">⚠️</span>
+            <span>BROWSER SECURITY NOTICE</span>
+          </div>
+          <p class="text-slate-200 leading-relaxed mb-2">
+            Web browsers strictly prevent client-side JavaScript from reading video frame pixels out of cross-origin YouTube iframes (<span class="text-amber-300 font-bold">SecurityError: Cross-Origin Canvas Tainting</span>).
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Direct pixel extraction for TrackNet and YOLO11-Pose requires the local Python Vision Engine or a local video file (<span class="text-cyan-300 font-bold">.mp4</span>).
+          </p>
         </div>
 
-        <!-- Progress Track -->
-        <div class="w-full h-2.5 bg-slate-900 rounded-sm overflow-hidden border border-slate-800">
-          <div id="pipeline-progress-bar" class="h-full bg-cyan-400 rounded-sm w-0 transition-all duration-150"></div>
-        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-3.5">
+          <!-- Action 1: Bind Verified Match Telemetry -->
+          <div class="p-3 rounded-xl bg-[#0f1722] border border-cyan-500/40 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center space-x-1.5 text-cyan-300 font-bold text-xs mb-1">
+                <span>⚡</span>
+                <span>1. BIND VERIFIED TELEMETRY</span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-relaxed mb-2.5">
+                Link verified ground-truth 3D telemetry and 6-rally sequence to the active video:
+              </p>
+            </div>
+            <div class="space-y-1.5">
+              <button id="btn-bind-popov-telemetry" class="w-full px-2.5 py-1.5 rounded-lg bg-cyan-950 border border-cyan-500/50 text-cyan-300 hover:border-cyan-400 font-bold text-[10px] sm:text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95 text-left">
+                <span>🇲🇾 LZJ vs 🇫🇷 Popov (EhN9qzVe7_g)</span>
+              </button>
+              <button id="btn-bind-sly-telemetry" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 font-bold text-[10px] sm:text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95 text-left">
+                <span>🇲🇾 LZJ vs 🇹🇼 Su Li Yang</span>
+              </button>
+            </div>
+          </div>
 
-        <!-- Frame Ticker Bar -->
-        <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
-          <span id="pipeline-frame-ticker">0 / 28,800 FRAMES</span>
-          <span class="text-emerald-400 font-semibold">1080P60 H.264 FEED</span>
-        </div>
-      </div>
+          <!-- Action 2: Run Local Python Worker -->
+          <div class="p-3 rounded-xl bg-[#0f1722] border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center space-x-1.5 text-emerald-400 font-bold text-xs mb-1">
+                <span>💻</span>
+                <span>2. LOCAL PYTHON WORKER</span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-relaxed mb-2">
+                Execute the real TrackNet + YOLO11 + MonoTrack ODE pipeline via CLI:
+              </p>
+            </div>
+            <div>
+              <div class="relative bg-black rounded p-2 border border-slate-800 text-[10px] font-mono text-emerald-300 mb-2 truncate">
+                <span id="cmd-python-worker">python3 -m engine.pipeline --video &lt;file_or_stream&gt;</span>
+              </div>
+              <button id="btn-copy-python-cmd" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-emerald-500/40 text-emerald-300 hover:border-emerald-400 font-bold text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95">
+                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
+                <span id="btn-copy-text">COPY COMMAND</span>
+              </button>
+            </div>
+          </div>
 
-      <!-- Real-Time Teaser Callout -->
-      <div class="p-3 rounded-lg bg-[#140b0f] border border-red-500/30 flex items-center space-x-3 mb-4">
-        <span class="text-lg">⚡</span>
-        <div class="flex-1">
-          <div class="text-[10px] text-red-400 font-mono font-bold tracking-wider">LIVE TELEMETRY TEASER</div>
-          <div id="pipeline-teaser-ticker" class="text-xs text-slate-200 font-mono font-semibold truncate">
-            Initializing neural model weights on Apple Neural Engine...
+          <!-- Action 3: Export Telemetry -->
+          <div class="p-3 rounded-xl bg-[#0f1722] border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center space-x-1.5 text-amber-300 font-bold text-xs mb-1">
+                <span>💾</span>
+                <span>3. EXPORT JSON DATASET</span>
+              </div>
+              <p class="text-[11px] text-slate-400 leading-relaxed mb-2.5">
+                Download the complete active match telemetry dataset to local disk:
+              </p>
+            </div>
+            <button id="btn-export-yt-telemetry" class="w-full px-2.5 py-2 rounded-lg bg-amber-950/60 border border-amber-500/50 text-amber-300 hover:border-amber-400 font-bold text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95">
+              <i data-lucide="download" class="w-3.5 h-3.5"></i>
+              <span>EXPORT MATCH_TELEMETRY.JSON</span>
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- 4 Pipeline Stage Cards -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 text-xs">
-        
-        <!-- Stage 1 -->
-        <div id="stage-card-1" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-          <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-slate-200">1. Court Calibration</span>
-            <span id="stage-badge-1" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+      <!-- 2. LOCAL VIDEO ANALYSIS CONTAINER (For local HTML5 video or sample video) -->
+      <div id="modal-local-mode" class="mb-4">
+        <!-- Hardware Telemetry Dashboard Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
+            <div class="text-[10px] text-slate-500 font-mono">EXECUTION</div>
+            <div class="text-sm font-bold text-emerald-400 font-mono">ON-DEVICE</div>
           </div>
-          <p class="text-[11px] text-slate-400">CourtKeyNet + RANSAC: Solves 3x3 homography matrix & camera projection.</p>
+          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
+            <div class="text-[10px] text-slate-500 font-mono">FRAME DECODER</div>
+            <div id="pipeline-fps-counter" class="text-sm font-bold text-cyan-400 font-mono">DIRECT CANVAS</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
+            <div class="text-[10px] text-slate-500 font-mono">VIDEO DECODER</div>
+            <div id="pipeline-decoder-label" class="text-sm font-bold text-slate-200 font-mono">HTML5 VIDEO</div>
+          </div>
+          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
+            <div class="text-[10px] text-slate-500 font-mono">OUTPUT FORMAT</div>
+            <div class="text-sm font-bold text-amber-400 font-mono">1.2 MB JSON</div>
+          </div>
         </div>
 
-        <!-- Stage 2 -->
-        <div id="stage-card-2" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-          <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-slate-200">2. Rally Segmentation</span>
-            <span id="stage-badge-2" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+        <!-- Master Multi-Stage Progress Bar -->
+        <div class="p-4 rounded-xl bg-[#080b0f] border border-slate-800 mb-4">
+          <div class="flex items-center justify-between text-xs font-mono mb-2">
+            <span id="pipeline-stage-name" class="text-cyan-300 font-bold">Stage 1: Video Frame Decoding & Sampling</span>
+            <span id="pipeline-progress-pct" class="text-lg font-black text-cyan-400 font-lcd">0%</span>
           </div>
-          <p class="text-[11px] text-slate-400">PaddleOCR: Reads scorebug ROI and filters 62% downtime/replays.</p>
+
+          <!-- Progress Track -->
+          <div class="w-full h-2.5 bg-slate-900 rounded-sm overflow-hidden border border-slate-800">
+            <div id="pipeline-progress-bar" class="h-full bg-cyan-400 rounded-sm w-0 transition-all duration-150"></div>
+          </div>
+
+          <!-- Frame Ticker Bar -->
+          <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
+            <span id="pipeline-frame-ticker">0 / 0 FRAMES ANALYZED</span>
+            <span id="pipeline-meta-resolution" class="text-emerald-400 font-semibold">1080P PRO MAT</span>
+          </div>
         </div>
 
-        <!-- Stage 3 -->
-        <div id="stage-card-3" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-          <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-slate-200">3. Shuttle & Pose Track</span>
-            <span id="stage-badge-3" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+        <!-- Real-Time Teaser Callout -->
+        <div class="p-3 rounded-lg bg-[#140b0f] border border-red-500/30 flex items-center space-x-3 mb-4">
+          <span class="text-lg">⚡</span>
+          <div class="flex-1">
+            <div class="text-[10px] text-red-400 font-mono font-bold tracking-wider">PIPELINE STATUS & TEASER</div>
+            <div id="pipeline-teaser-ticker" class="text-xs text-slate-200 font-mono font-semibold truncate">
+              Ready to analyze local video frames using court geometry and physics formulas.
+            </div>
           </div>
-          <p class="text-[11px] text-slate-400">TrackNetV3 (9-ch bundle) + YOLO11-Pose: 17 keypoints with 0 ID swaps.</p>
         </div>
 
-        <!-- Stage 4 -->
-        <div id="stage-card-4" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-          <div class="flex items-center justify-between mb-1">
-            <span class="font-bold text-slate-200">4. 3D Aerodynamics</span>
-            <span id="stage-badge-4" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+        <!-- 4 Pipeline Stage Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 text-xs">
+          <!-- Stage 1 -->
+          <div id="stage-card-1" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-200">1. Frame Ingestion & Sampling</span>
+              <span id="stage-badge-1" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Extracts frame bitmaps via offscreen canvas; samples key intervals.</p>
           </div>
-          <p class="text-[11px] text-slate-400">MonoTrack ODE Drag Engine: Resolves true 3D smash velocity (412 km/h).</p>
+
+          <!-- Stage 2 -->
+          <div id="stage-card-2" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-200">2. Court Homography H</span>
+              <span id="stage-badge-2" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Solves 3x3 homography matrix H to map pixel coordinates to 13.4m x 6.1m.</p>
+          </div>
+
+          <!-- Stage 3 -->
+          <div id="stage-card-3" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-200">3. Ballistic Drag ODE</span>
+              <span id="stage-badge-3" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+            </div>
+            <p class="text-[11px] text-slate-400">MonoTrack aerodynamic drag ODE resolves true 3D launch velocity.</p>
+          </div>
+
+          <!-- Stage 4 -->
+          <div id="stage-card-4" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
+            <div class="flex items-center justify-between mb-1">
+              <span class="font-bold text-slate-200">4. Metric Telemetry Synthesis</span>
+              <span id="stage-badge-4" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
+            </div>
+            <p class="text-[11px] text-slate-400">Synthesizes shot landing coordinates, sprint distances, and court coverage.</p>
+          </div>
         </div>
       </div>
 
@@ -612,18 +718,18 @@
       <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
         <div class="flex items-center space-x-2">
           <button id="btn-start-ingestion" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-cyan-300 border-cyan-500/40">
-            RE-RUN FULL INGESTION
-          </button>
-          <button id="btn-fast-demo" class="knurled-pusher px-3 py-2 rounded-lg text-xs font-chronograph font-bold text-slate-300">
-            FAST DEMO (4s)
+            RUN LOCAL VIDEO ANALYSIS
           </button>
         </div>
 
         <button id="btn-export-telemetry" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-emerald-300 border-emerald-500/40 flex items-center space-x-1.5">
           <i data-lucide="download" class="w-3.5 h-3.5"></i>
-          <span>EXPORT MATCH_TELEMETRY.JSON (1.2MB)</span>
+          <span>EXPORT MATCH_TELEMETRY.JSON</span>
         </button>
       </div>
+
+    </div>
+  </div>
 
   <!-- ====================================================================
        YOUTUBE MATCH INGESTION & SYNC MODAL
@@ -672,20 +778,32 @@
           <span class="text-cyan-400 text-[8px]">EMBED ENABLED</span>
         </div>
         <div class="grid grid-cols-1 gap-1.5 text-left font-mono">
-          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-cyan-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=BPv0hE0ugkk" data-offset="312.1" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Su Li Yang (TPE)">
+          <!-- Preset 1: Lee Zii Jia vs Christo Popov -->
+          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-cyan-500/50 hover:border-cyan-400 text-left transition-all group"
+                  data-url="https://www.youtube.com/watch?v=EhN9qzVe7_g" data-offset="25.0" data-match="popov" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Christo Popov (FRA)">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
-              <span class="text-[9px] text-cyan-400 font-bold">ARCTIC OPEN [R16 FULL]</span>
+              <span class="text-xs font-semibold text-cyan-300 group-hover:text-cyan-200">🇲🇾 Lee Zii Jia vs 🇫🇷 Christo Popov</span>
+              <span class="text-[9px] text-cyan-400 font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-500/40">QF [EhN9qzVe7_g]</span>
+            </div>
+            <div class="text-[9px] text-slate-400 mt-0.5">8:18 match clip • 6 verified rallies • 408 km/h jump smash climax</div>
+          </button>
+
+          <!-- Preset 2: Lee Zii Jia vs Su Li Yang (Full Match) -->
+          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-orange-500/40 text-left transition-all group"
+                  data-url="https://www.youtube.com/watch?v=BPv0hE0ugkk" data-offset="312.1" data-match="sly" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Su Li Yang (TPE)">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-200 group-hover:text-orange-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
+              <span class="text-[9px] text-orange-400 font-bold bg-orange-950/60 px-1.5 py-0.5 rounded border border-orange-500/30">R16 FULL MATCH</span>
             </div>
             <div class="text-[9px] text-slate-500 mt-0.5">Game 2: 412 km/h smash & rapid exchange (Rally #18 sync)</div>
           </button>
 
-          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-cyan-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=cFO4yO5s0BA" data-offset="74.2" data-label="Lee Zii Jia vs Su Li Yang | Match Highlights">
+          <!-- Preset 3: Lee Zii Jia vs Su Li Yang (Highlights) -->
+          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-emerald-500/40 text-left transition-all group"
+                  data-url="https://www.youtube.com/watch?v=cFO4yO5s0BA" data-offset="74.2" data-match="sly" data-label="Lee Zii Jia vs Su Li Yang | Match Highlights">
             <div class="flex items-center justify-between">
               <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
-              <span class="text-[9px] text-emerald-400 font-bold">MATCH HIGHLIGHTS</span>
+              <span class="text-[9px] text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">HIGHLIGHTS</span>
             </div>
             <div class="text-[9px] text-slate-500 mt-0.5">High-speed baseline rally highlights & jump smash compilation</div>
           </button>

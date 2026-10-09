@@ -48,8 +48,13 @@ document.addEventListener('DOMContentLoaded', () => {
         lcdSplitTimer.textContent = `${tMins}:${tSecs}`;
       }
 
-      // Update Sub-Dials
-      if (data.shot) {
+      // Update Sub-Dials and Court View
+      if (data.isDowntime) {
+        courtView.updateTelemetry(data);
+        if (lcdRallyBadge) lcdRallyBadge.textContent = `⏱️ BETWEEN RALLIES // READY`;
+        if (lcdKeyMoment) lcdKeyMoment.textContent = `NEXT: ${data.rally ? data.rally.label.toUpperCase() : 'PREPARING SERVICE'}`;
+        subDials.setSpeed(0, false);
+      } else if (data.shot) {
         subDials.setSpeed(data.shot.speed_kmh, data.shot.stroke.includes('Smash'));
         subDials.setShotCount(data.shot.shot_num, data.rally ? data.rally.shot_count : 24);
         courtView.updateTelemetry(data);
@@ -63,7 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // Cumulative coverage sprint interpolation
       if (data.rally) {
-        const pct = Math.min(1, elapsed / data.rally.duration_sec);
+        const dur = data.rally.duration_sec || 20;
+        const pct = Math.min(1, elapsed / dur);
         const lzjDist = 2.84 + (data.rally.lzj_sprint_dist_m / 1000) * pct;
         subDials.setCoverage(lzjDist, 18.5 + Math.sin(totalSecs) * 6.5);
       }
@@ -74,13 +80,19 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateRallyLCD(rally) {
     if (!rally) return;
     const masScore = rally.score_after.player_1.toString().padStart(2, '0');
-    const tpeScore = rally.score_after.player_2.toString().padStart(2, '0');
+    const p2Score = rally.score_after.player_2.toString().padStart(2, '0');
     if (lcdScoreMAS) lcdScoreMAS.textContent = masScore;
-    if (lcdScoreTPE) lcdScoreTPE.textContent = tpeScore;
+    if (lcdScoreTPE) lcdScoreTPE.textContent = p2Score;
     const p1Overlay = document.getElementById('overlay-p1-score');
     const p2Overlay = document.getElementById('overlay-p2-score');
     if (p1Overlay) p1Overlay.textContent = masScore;
-    if (p2Overlay) p2Overlay.textContent = tpeScore;
+    if (p2Overlay) {
+      p2Overlay.textContent = p2Score;
+      const isRed = (window.HAWKVIEW_TELEMETRY?.players?.player_2?.jersey_color || '#ff2a55') === '#ff2a55';
+      p2Overlay.className = isRed 
+        ? "font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none"
+        : "font-lcd text-orange-400 font-black text-xs sm:text-sm tabular-nums leading-none";
+    }
     if (lcdRallyBadge) lcdRallyBadge.textContent = `${rally.badge} [${rally.shot_count} SHOTS]`;
     if (lcdKeyMoment) lcdKeyMoment.textContent = rally.key_moment.toUpperCase();
 
@@ -89,29 +101,76 @@ document.addEventListener('DOMContentLoaded', () => {
     subDials.setShotCount(rally.shot_count, rally.shot_count);
   }
 
-  // 4. Rally Bookmark Chips Binding
-  const chips = document.querySelectorAll('.rally-chip-btn');
-  chips.forEach((chip) => {
-    chip.addEventListener('click', (e) => {
-      const rallyId = parseInt(chip.getAttribute('data-rally-id'), 10);
-      const rallies = window.HAWKVIEW_TELEMETRY.rallies;
-      const index = rallies.findIndex(r => r.rally_id === rallyId);
-      if (index !== -1) {
+  // 4. Dynamic Rally Bookmark Chips
+  function renderRallyChips(rallies, activeRallyId) {
+    const container = document.getElementById('rally-chips-container');
+    if (!container || !rallies) return;
+    container.innerHTML = '';
+
+    rallies.forEach((rally, index) => {
+      const btn = document.createElement('button');
+      btn.setAttribute('data-rally-id', rally.rally_id);
+      const isActive = rally.rally_id === activeRallyId;
+      btn.className = isActive
+        ? "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all shadow-sm"
+        : "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all";
+
+      const timeLabel = rally.timestamp_start ? `(${rally.timestamp_start.substring(0, 5)})` : '';
+      btn.textContent = `${rally.badge} ${timeLabel}`;
+
+      btn.addEventListener('click', () => {
+        broadcastPlayer.playMechanicalClick();
         broadcastPlayer.selectRally(index);
-      }
+        highlightActiveRallyChip(rally.rally_id);
+      });
+
+      container.appendChild(btn);
     });
-  });
+  }
 
   function highlightActiveRallyChip(rallyId) {
+    const chips = document.querySelectorAll('.rally-chip-btn');
     chips.forEach(chip => {
       const id = parseInt(chip.getAttribute('data-rally-id'), 10);
       if (id === rallyId) {
-        chip.className = "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all";
+        chip.className = "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all shadow-sm";
       } else {
         chip.className = "rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all";
       }
     });
   }
+
+  // Match Selector Binding
+  const matchSelector = document.getElementById('match-selector');
+  if (matchSelector) {
+    matchSelector.value = window.HAWKVIEW_ACTIVE_MATCH_KEY || 'popov';
+    matchSelector.addEventListener('change', (e) => {
+      broadcastPlayer.playMechanicalClick();
+      if (window.setHawkviewMatch) {
+        window.setHawkviewMatch(e.target.value);
+      }
+    });
+  }
+
+  // Listen to match changes and update UI elements
+  window.addEventListener('hawkview:matchChanged', (e) => {
+    const telemetry = e.detail?.telemetry || window.HAWKVIEW_TELEMETRY;
+    const matchKey = e.detail?.matchKey || window.HAWKVIEW_ACTIVE_MATCH_KEY;
+    if (matchSelector) matchSelector.value = matchKey;
+
+    const titleEl = document.getElementById('header-match-title');
+    if (titleEl && telemetry?.players) {
+      const p1 = telemetry.players.player_1;
+      const p2 = telemetry.players.player_2;
+      const round = telemetry.match_metadata.round?.includes('Quarter') ? 'QF' : 'R16';
+      titleEl.textContent = `BWF ARCTIC OPEN S500 // ${round} - ${p1.country} vs ${p2.country}`;
+    }
+
+    renderRallyChips(telemetry.rallies, broadcastPlayer.currentRally?.rally_id);
+    if (broadcastPlayer.currentRally) {
+      updateRallyLCD(broadcastPlayer.currentRally);
+    }
+  });
 
   // 5. Mobile Tab Switcher (3D Court vs 2D Telemetry & Gauges)
   const tab3D = document.getElementById('mobile-tab-3d');
@@ -279,29 +338,38 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (e.code === 'Digit5') {
       broadcastPlayer.selectRally(4);
     } else if (e.code === 'ArrowRight') {
-      // Step forward shot
-      const r = broadcastPlayer.currentRally;
-      if (r && r.shots) {
-        const nextShot = Math.min(r.shots.length - 1, broadcastPlayer.activeShotIndex + 1);
-        broadcastPlayer.currentTime = r.shots[nextShot].time;
-        broadcastPlayer.syncRallyState();
-      }
+      // Step forward 3 seconds
+      broadcastPlayer.seekTo(broadcastPlayer.currentTime + 3, true);
     } else if (e.code === 'ArrowLeft') {
-      // Step backward shot
-      const r = broadcastPlayer.currentRally;
-      if (r && r.shots) {
-        const prevShot = Math.max(0, broadcastPlayer.activeShotIndex - 1);
-        broadcastPlayer.currentTime = r.shots[prevShot].time;
-        broadcastPlayer.syncRallyState();
-      }
+      // Step backward 3 seconds
+      broadcastPlayer.seekTo(broadcastPlayer.currentTime - 3, true);
     }
   });
 
-  // 7. Initial Select (Start on Rally #18 - LZJ 412 km/h Smash!)
-  broadcastPlayer.selectRally(1);
+  // 7. Initial Select & Rally Chips Setup
+  const initRallies = window.HAWKVIEW_TELEMETRY ? window.HAWKVIEW_TELEMETRY.rallies : [];
+  const defaultIdx = initRallies.findIndex(r => r.max_smash_kmh >= 400);
+  const startIdx = defaultIdx >= 0 ? defaultIdx : 0;
+  broadcastPlayer.selectRally(startIdx);
+  renderRallyChips(initRallies, broadcastPlayer.currentRally?.rally_id);
   courtView.loadRally(broadcastPlayer.currentRally);
-  updateRallyLCD(broadcastPlayer.currentRally);
-  broadcastPlayer.setDualViewMode('pip');
+  // Initial dual-view mode: support URL param/hash (e.g. ?view=split or #split), default to 'pip'
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const hash = window.location.hash ? window.location.hash.replace('#', '').toLowerCase() : null;
+    const requestedMatch = urlParams.get('match');
+    if (requestedMatch && window.setHawkviewMatch) {
+      window.setHawkviewMatch(requestedMatch);
+    }
+    const requestedView = urlParams.get('view') || hash;
+    if (['3d', 'split', 'pip', 'full'].includes(requestedView)) {
+      broadcastPlayer.setDualViewMode(requestedView);
+    } else {
+      broadcastPlayer.setDualViewMode('pip');
+    }
+  } catch (e) {
+    broadcastPlayer.setDualViewMode('pip');
+  }
 
   // Initialize Lucide icons if available
   if (window.lucide) {

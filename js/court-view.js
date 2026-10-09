@@ -88,7 +88,11 @@ class CourtViewManager {
       badge.textContent = 'COURT: 13.40m × 6.10m (BWF REGULATION)';
       return;
     }
-    const zone = coord.y < 6.70 ? 'LZJ HALF (MAS)' : 'SLY HALF (TPE)';
+    const p1 = window.HAWKVIEW_TELEMETRY?.players?.player_1;
+    const p2 = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+    const p1Label = `${p1?.id || 'LZJ'} HALF (${p1?.country || 'MAS'})`;
+    const p2Label = `${p2?.id || 'POPOV'} HALF (${p2?.country || 'FRA'})`;
+    const zone = coord.y < 6.70 ? p1Label : p2Label;
     badge.textContent = `X: ${coord.x.toFixed(2)}m | Y: ${coord.y.toFixed(2)}m [${zone}]`;
   }
 
@@ -159,16 +163,34 @@ class CourtViewManager {
   }
 
   updateTelemetry(data) {
-    if (!data || !data.rally) return;
-    const { rally, shot, shotIndex, time } = data;
+    if (!data) return;
+    const { rally, shot, shotIndex, time, isDowntime } = data;
     this.currentRally = rally;
     this.selectedShotIndex = shotIndex;
     this.activeShot = shot;
 
+    if (isDowntime) {
+      // In downtime between rallies, place players in ready service stance
+      const p1Target = { x: 3.05, y: 1.80 };
+      const p2Target = { x: 3.05, y: 11.60 };
+      this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.15;
+      this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.15;
+      this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.15;
+      this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.15;
+
+      const isLZJServer = !rally || rally.server === 'LZJ' || (rally.score_after && rally.winner === 'LZJ');
+      this.shuttlePos = {
+        x: 3.05,
+        y: isLZJServer ? 1.80 : 11.60,
+        z: 1.15
+      };
+      return;
+    }
+
     if (!shot) return;
 
     const currentShot = shot;
-    const nextShot = rally.shots ? rally.shots[shotIndex + 1] : null;
+    const nextShot = rally && rally.shots ? rally.shots[shotIndex + 1] : null;
 
     const shotStartTime = currentShot.time;
     const shotEndTime = nextShot ? nextShot.time : shotStartTime + (currentShot.shuttle_transit_time_sec || 0.65);
@@ -181,18 +203,32 @@ class CourtViewManager {
     let p2Target = { x: 3.05, y: 11.60 };
 
     if (isLZJ) {
-      p1Target = { x: currentShot.hit_coord[0], y: currentShot.hit_coord[1] };
-      p2Target = { x: currentShot.land_coord[0], y: Math.max(7.20, currentShot.land_coord[1]) };
+      // LZJ is hitter, recovering towards center; SLY anticipates landing
+      p1Target = { 
+        x: currentShot.hit_coord[0] + (3.05 - currentShot.hit_coord[0]) * Math.min(1.0, progress * 0.6), 
+        y: Math.min(6.20, currentShot.hit_coord[1] + (2.50 - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+      };
+      p2Target = { 
+        x: 3.05 + (currentShot.land_coord[0] - 3.05) * Math.min(1.0, progress * 1.1), 
+        y: Math.max(7.20, 11.0 + (currentShot.land_coord[1] - 11.0) * Math.min(1.0, progress * 1.1)) 
+      };
     } else {
-      p2Target = { x: currentShot.hit_coord[0], y: currentShot.hit_coord[1] };
-      p1Target = { x: currentShot.land_coord[0], y: Math.min(6.20, currentShot.land_coord[1]) };
+      // SLY is hitter, recovering towards center; LZJ anticipates landing
+      p2Target = { 
+        x: currentShot.hit_coord[0] + (3.05 - currentShot.hit_coord[0]) * Math.min(1.0, progress * 0.6), 
+        y: Math.max(7.20, currentShot.hit_coord[1] + (10.9 - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+      };
+      p1Target = { 
+        x: 3.05 + (currentShot.land_coord[0] - 3.05) * Math.min(1.0, progress * 1.1), 
+        y: Math.min(6.20, 2.50 + (currentShot.land_coord[1] - 2.50) * Math.min(1.0, progress * 1.1)) 
+      };
     }
 
     // Smooth lerp positions in 2D
-    this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.18;
-    this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.18;
-    this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.18;
-    this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.18;
+    this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.20;
+    this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.20;
+    this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.20;
+    this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.20;
 
     // Record trails
     if (this.showTrails) {
@@ -499,9 +535,10 @@ class CourtViewManager {
       ctx.stroke();
     }
 
-    // SLY Trail (Orange)
+    // Player 2 Trail (Dynamic color)
+    const p2Color = window.HAWKVIEW_TELEMETRY?.players?.player_2?.jersey_color || '#ff2a55';
     if (this.player2Trail.length > 1) {
-      ctx.strokeStyle = 'rgba(255, 87, 34, 0.4)';
+      ctx.strokeStyle = p2Color === '#ff2a55' ? 'rgba(255, 42, 85, 0.4)' : 'rgba(255, 87, 34, 0.4)';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -516,10 +553,16 @@ class CourtViewManager {
 
   drawPlayers() {
     const ctx = this.ctx;
+    const p1Info = window.HAWKVIEW_TELEMETRY?.players?.player_1;
+    const p2Info = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+    const p1Text = `${p1Info?.display_name || 'LEE Z.J.'} ${p1Info?.flag || '🇲🇾'}`;
+    const p2Text = `${p2Info?.display_name || 'C. POPOV'} ${p2Info?.flag || '🇫🇷'}`;
+    const p1Color = p1Info?.jersey_color || '#00f0ff';
+    const p2Color = p2Info?.jersey_color || '#ff2a55';
 
-    // Player 1: Lee Zii Jia (Cyan)
+    // Player 1: Near Court (Cyan)
     const p1 = this.courtToScreen(this.player1Pos.x, this.player1Pos.y);
-    ctx.fillStyle = '#00f0ff';
+    ctx.fillStyle = p1Color;
     ctx.beginPath();
     ctx.arc(p1.x, p1.y, 7, 0, Math.PI * 2);
     ctx.fill();
@@ -528,15 +571,15 @@ class CourtViewManager {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // LZJ Label
-    ctx.fillStyle = '#00f0ff';
+    // P1 Label
+    ctx.fillStyle = p1Color;
     ctx.font = 'bold 9px "Orbitron", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('LEE Z.J. 🇲🇾', p1.x, p1.y + 16);
+    ctx.fillText(p1Text, p1.x, p1.y + 16);
 
-    // Player 2: Su Li Yang (Orange)
+    // Player 2: Far Court (Red/Blue or Orange)
     const p2 = this.courtToScreen(this.player2Pos.x, this.player2Pos.y);
-    ctx.fillStyle = '#ff5722';
+    ctx.fillStyle = p2Color;
     ctx.beginPath();
     ctx.arc(p2.x, p2.y, 7, 0, Math.PI * 2);
     ctx.fill();
@@ -545,11 +588,11 @@ class CourtViewManager {
     ctx.lineWidth = 1.5;
     ctx.stroke();
 
-    // SLY Label
-    ctx.fillStyle = '#ff5722';
+    // P2 Label
+    ctx.fillStyle = p2Color;
     ctx.font = 'bold 9px "Orbitron", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('SU L.Y. 🇹🇼', p2.x, p2.y - 12);
+    ctx.fillText(p2Text, p2.x, p2.y - 12);
   }
 
   drawShuttlecockAndShots() {

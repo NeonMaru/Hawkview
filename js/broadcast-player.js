@@ -13,6 +13,10 @@
 class BroadcastPlayer {
   constructor(options = {}) {
     this.timelineSlider = document.getElementById('rally-timeline-slider');
+    this.timecodeElapsedEl = document.getElementById('timeline-timecode-elapsed');
+    this.timecodeTotalEl = document.getElementById('timeline-timecode-total');
+    this.ticksContainer = document.getElementById('rally-timeline-ticks');
+
     this.playBtn = document.getElementById('btn-play-pause');
     this.videoElement = document.getElementById('real-video-player');
     this.videoWrapper = document.getElementById('video-viewport-wrapper');
@@ -30,25 +34,26 @@ class BroadcastPlayer {
     this.onRallyChange = options.onRallyChange || (() => {});
 
     this.isPlaying = false;
-    this.currentTime = 312.1; // Start at Rally #18 (LZJ 412km/h smash)
-    this.playbackRate = 1.0;
-    this.currentRallyIndex = 1; // Rally #18
-    this.activeShotIndex = 0;
-
     this.rallies = window.HAWKVIEW_TELEMETRY ? window.HAWKVIEW_TELEMETRY.rallies : [];
+    const landmarkIdx = this.rallies.findIndex(r => r.max_smash_kmh >= 400);
+    this.currentRallyIndex = landmarkIdx >= 0 ? landmarkIdx : 0;
     this.currentRally = this.rallies[this.currentRallyIndex] || null;
+    this.currentTime = this.currentRally ? this.currentRally.seconds_start : 25.0;
+    this.totalDuration = window.HAWKVIEW_TELEMETRY?.match_metadata?.video_duration_sec || 498;
+    this.playbackRate = 1.0;
+    this.activeShotIndex = 0;
+    this.isUserScrubbing = false;
 
-    // Dual-View State
-    this.currentViewMode = '3d'; // '3d', 'split', 'pip', 'full'
+    // Dual-View State: Default to PiP!
+    this.currentViewMode = 'pip'; // '3d', 'split', 'pip', 'full'
     this.hasVideo = false;
-    this.videoOffset = 312.1; // Match timestamp corresponding to video time 0.0s
+    this.videoOffset = this.currentTime;
     this.isSampleVideoLoaded = false;
 
     // YouTube Player State
     this.isYouTubeActive = false;
     this.ytPlayer = null;
     this.ytVideoId = null;
-    this.isLoopingRally = false;
     this._ytSeekDebounce = null;
 
     this.radarTimer = null;
@@ -60,6 +65,9 @@ class BroadcastPlayer {
     this.bindEvents();
     this.bindDualViewControls();
     this.bindYouTubeModalEvents();
+
+    this.updateTimecodeUI();
+    this.renderTimelineTicks();
 
     // Prime sample video if present in DOM
     if (this.videoElement && this.videoElement.getAttribute('src')) {
@@ -135,7 +143,161 @@ class BroadcastPlayer {
     } catch (e) {}
   }
 
+  formatTimecode(seconds) {
+    if (isNaN(seconds) || seconds < 0) seconds = 0;
+    const totalSec = Math.floor(seconds);
+    const mins = Math.floor(totalSec / 60);
+    const secs = totalSec % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  getDuration() {
+    if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.getDuration === 'function') {
+      try {
+        const d = this.ytPlayer.getDuration();
+        if (d > 0) return d;
+      } catch (e) {}
+    }
+    if (this.hasVideo && this.videoElement && this.videoElement.duration > 0) {
+      return this.videoElement.duration;
+    }
+    return this.totalDuration || 498;
+  }
+
+  updateTimecodeUI() {
+    if (this.timecodeElapsedEl) {
+      this.timecodeElapsedEl.textContent = this.formatTimecode(this.currentTime);
+    }
+    const dur = this.getDuration();
+    if (this.timecodeTotalEl) {
+      this.timecodeTotalEl.textContent = this.formatTimecode(dur);
+    }
+    if (this.timelineSlider) {
+      const ceilDur = Math.ceil(dur);
+      if (this.timelineSlider.max != ceilDur) {
+        this.timelineSlider.max = ceilDur;
+        this.renderTimelineTicks();
+      }
+    }
+  }
+
+  renderTimelineTicks() {
+    if (!this.ticksContainer) return;
+    this.ticksContainer.innerHTML = '';
+    const dur = this.getDuration();
+    if (!dur || dur <= 0) return;
+
+    this.rallies.forEach((rally, index) => {
+      const startPct = Math.max(0, Math.min(100, (rally.seconds_start / dur) * 100));
+      const endPct = Math.max(0, Math.min(100, (rally.seconds_end / dur) * 100));
+      const widthPct = Math.max(0.8, endPct - startPct);
+
+      const tick = document.createElement('div');
+      tick.className = `rally-tick-zone ${rally.max_smash_kmh >= 400 ? 'smash-record-tick' : ''}`;
+      tick.style.left = `${startPct.toFixed(2)}%`;
+      tick.style.width = `${widthPct.toFixed(2)}%`;
+      tick.title = `${rally.badge} (${this.formatTimecode(rally.seconds_start)} - ${this.formatTimecode(rally.seconds_end)}) [${rally.max_smash_kmh} km/h]`;
+      tick.setAttribute('data-rally-index', index);
+
+      tick.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.selectRally(index);
+      });
+
+      this.ticksContainer.appendChild(tick);
+    });
+  }
+
+  updateActiveTickUI(activeIndex, isDowntime) {
+    if (!this.ticksContainer) return;
+    const ticks = this.ticksContainer.querySelectorAll('.rally-tick-zone');
+    ticks.forEach((tick) => {
+      const idx = parseInt(tick.getAttribute('data-rally-index'), 10);
+      if (idx === activeIndex && !isDowntime) {
+        tick.classList.add('active-rally-tick');
+      } else {
+        tick.classList.remove('active-rally-tick');
+      }
+    });
+  }
+
+  getRallyAtTime(time) {
+    if (!this.rallies || this.rallies.length === 0) return null;
+
+    // Check if directly inside a rally (with 0.4s buffer at ends)
+    for (let i = 0; i < this.rallies.length; i++) {
+      const r = this.rallies[i];
+      if (time >= r.seconds_start && time <= r.seconds_end + 0.4) {
+        return { rally: r, index: i, isDowntime: false };
+      }
+    }
+
+    // Between rallies or downtime: find closest / last completed rally
+    let lastIndex = 0;
+    for (let i = 0; i < this.rallies.length; i++) {
+      if (time >= this.rallies[i].seconds_start) {
+        lastIndex = i;
+      } else {
+        break;
+      }
+    }
+
+    return { rally: this.rallies[lastIndex], index: lastIndex, isDowntime: true };
+  }
+
+  seekTo(targetSeconds, instant = false) {
+    const maxDur = this.getDuration();
+    const clamped = Math.max(0, Math.min(maxDur, targetSeconds));
+    this.currentTime = clamped;
+
+    if (this.timelineSlider) {
+      this.timelineSlider.value = clamped;
+    }
+    this.updateTimecodeUI();
+
+    // Bi-directional seek to YouTube immediately
+    if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+      this.ytPlayer.seekTo(clamped, true);
+    }
+    // Seek HTML5 video
+    else if (this.hasVideo && this.videoElement) {
+      const vidTarget = (this.isSampleVideoLoaded && clamped >= 312.1)
+        ? Math.max(0, Math.min(this.videoElement.duration || 20, clamped - 312.1))
+        : Math.max(0, Math.min(this.videoElement.duration || 1200, clamped));
+      this.videoElement.currentTime = vidTarget;
+    }
+
+    this.syncRallyState(instant);
+  }
+
   bindEvents() {
+    // Listen for match changes
+    window.addEventListener('hawkview:matchChanged', (e) => {
+      this.rallies = e.detail?.telemetry?.rallies || (window.HAWKVIEW_TELEMETRY ? window.HAWKVIEW_TELEMETRY.rallies : []);
+      this.totalDuration = window.HAWKVIEW_TELEMETRY?.match_metadata?.video_duration_sec || 498;
+
+      const landmarkIdx = this.rallies.findIndex(r => r.max_smash_kmh >= 400);
+      this.currentRallyIndex = landmarkIdx >= 0 ? landmarkIdx : 0;
+      this.currentRally = this.rallies[this.currentRallyIndex] || null;
+
+      if (this.currentRally) {
+        this.currentTime = this.currentRally.seconds_start;
+        this.videoOffset = this.currentRally.seconds_start;
+      }
+
+      this.renderTimelineTicks();
+      this.updateTimecodeUI();
+      if (this.threeViewer) {
+        this.threeViewer.updatePlayersFromTelemetry(window.HAWKVIEW_TELEMETRY);
+        this.threeViewer.clearTrail();
+      }
+      this.updateScorebugUI();
+      if (this.currentRally) {
+        this.onRallyChange(this.currentRally);
+      }
+      this.syncRallyState(true);
+    });
+
     if (this.playBtn) {
       this.playBtn.addEventListener('click', () => {
         this.togglePlay();
@@ -144,30 +306,30 @@ class BroadcastPlayer {
 
     if (this.timelineSlider) {
       this.timelineSlider.addEventListener('input', (e) => {
-        const pct = parseFloat(e.target.value) / 100;
-        if (this.currentRally) {
-          const duration = this.currentRally.seconds_end - this.currentRally.seconds_start;
-          this.currentTime = this.currentRally.seconds_start + duration * pct;
+        this.isUserScrubbing = true;
+        const targetSeconds = parseFloat(e.target.value);
+        this.currentTime = targetSeconds;
+        this.updateTimecodeUI();
 
-          // Sync YouTube time with debounce
-          if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
-            this.isLoopingRally = true;
-            const targetYtTime = (this.videoOffset > 0 && this.currentTime < this.videoOffset) 
-              ? Math.max(0, this.currentTime - this.videoOffset)
-              : this.currentTime;
-            this.ytPlayer.seekTo(targetYtTime, true);
-            clearTimeout(this._ytSeekDebounce);
-            this._ytSeekDebounce = setTimeout(() => { this.isLoopingRally = false; }, 300);
-          }
-          // Sync local video time
-          else if (this.hasVideo && this.videoElement) {
-            const videoDuration = this.videoElement.duration || duration;
-            const targetVidTime = Math.max(0, Math.min(videoDuration, this.currentTime - this.videoOffset));
-            this.videoElement.currentTime = targetVidTime;
-          }
-
-          this.syncRallyState(true);
+        // Bi-directional seek in real time as slider is dragged
+        if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
+          this.ytPlayer.seekTo(targetSeconds, true);
+        } else if (this.hasVideo && this.videoElement) {
+          const vidTarget = (this.isSampleVideoLoaded && targetSeconds >= 312.1)
+            ? Math.max(0, Math.min(this.videoElement.duration || 20, targetSeconds - 312.1))
+            : Math.max(0, Math.min(this.videoElement.duration || 1200, targetSeconds));
+          this.videoElement.currentTime = vidTarget;
         }
+
+        this.syncRallyState(true);
+      });
+
+      this.timelineSlider.addEventListener('change', (e) => {
+        const targetSeconds = parseFloat(e.target.value);
+        this.seekTo(targetSeconds, true);
+        setTimeout(() => {
+          this.isUserScrubbing = false;
+        }, 150);
       });
     }
 
@@ -273,14 +435,22 @@ class BroadcastPlayer {
       });
     }
 
-    // PiP Expand & Close Buttons
+    // PiP Split, Expand & Close Buttons
+    const btnPipSplit = document.getElementById('btn-pip-split');
     const btnPipExpand = document.getElementById('btn-pip-expand');
     const btnPipClose = document.getElementById('btn-pip-close');
+
+    if (btnPipSplit) {
+      btnPipSplit.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.setDualViewMode('split');
+      });
+    }
 
     if (btnPipExpand) {
       btnPipExpand.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.setDualViewMode('split');
+        this.setDualViewMode('full');
       });
     }
 
@@ -506,6 +676,17 @@ class BroadcastPlayer {
     this.hasVideo = true;
     this.isLoopingRally = false;
 
+    // Auto-detect match from YouTube video ID or label
+    if (videoId === 'EhN9qzVe7_g' || (urlOrId && urlOrId.toLowerCase().includes('popov')) || (customLabel && customLabel.toLowerCase().includes('popov'))) {
+      if (window.setHawkviewMatch) {
+        window.setHawkviewMatch('popov');
+      }
+    } else if (videoId === 'BPv0hE0ugkk' || videoId === 'cFO4yO5s0BA' || (urlOrId && urlOrId.toLowerCase().includes('su li yang')) || (customLabel && customLabel.toLowerCase().includes('su li yang'))) {
+      if (window.setHawkviewMatch) {
+        window.setHawkviewMatch('sly');
+      }
+    }
+
     const timeInUrl = this.extractYouTubeTimestamp(urlOrId);
     const startSec = timeInUrl > 0 ? timeInUrl : (offsetSec > 0 ? offsetSec : (this.currentRally ? this.currentRally.seconds_start : 0));
     this.videoOffset = startSec;
@@ -609,8 +790,8 @@ class BroadcastPlayer {
 
     initOrLoadYT();
 
-    // Set to Split Dual View
-    this.setDualViewMode('split');
+    // Default to Sleek Picture-in-Picture (PiP) Video View!
+    this.setDualViewMode('pip');
   }
 
   // =========================================================================
@@ -642,10 +823,19 @@ class BroadcastPlayer {
     }
 
     const pipControls = document.getElementById('pip-controls-bar');
+    const container = document.getElementById('video-viewport-container');
 
     // Reset base classes
     this.threeContainer.className = 'relative transition-all duration-200';
     this.videoWrapper.className = 'relative transition-all duration-200';
+
+    if (container) {
+      if (mode === 'pip') {
+        container.classList.add('pip-active');
+      } else {
+        container.classList.remove('pip-active');
+      }
+    }
 
     if (mode === '3d') {
       this.threeContainer.classList.add('w-full', 'h-full', 'block');
@@ -665,15 +855,23 @@ class BroadcastPlayer {
       if (pipControls) pipControls.classList.add('hidden');
     }
 
-    // Trigger Three.js Camera Resizing to match split/full aspect ratio
+    // Trigger Three.js Camera Resizing to match split/full aspect ratio immediately and after animation
+    if (this.threeViewer) {
+      this.threeViewer.onResize();
+    }
     setTimeout(() => {
       if (this.threeViewer) {
         this.threeViewer.onResize();
       }
     }, 60);
+    setTimeout(() => {
+      if (this.threeViewer) {
+        this.threeViewer.onResize();
+      }
+    }, 250);
   }
 
-  loadSampleVideo(switchToSplit = true) {
+  loadSampleVideo(switchToPip = true) {
     this.playMechanicalClick();
     this.isYouTubeActive = false;
 
@@ -690,8 +888,8 @@ class BroadcastPlayer {
       this.selectRally(r18Idx);
     }
 
-    if (switchToSplit && this.currentViewMode === '3d') {
-      this.setDualViewMode('split');
+    if (switchToPip && this.currentViewMode === '3d') {
+      this.setDualViewMode('pip');
     }
   }
 
@@ -708,7 +906,7 @@ class BroadcastPlayer {
     this.loadVideoSource(url, label, false);
 
     if (this.currentViewMode === '3d') {
-      this.setDualViewMode('split');
+      this.setDualViewMode('pip');
     }
   }
 
@@ -786,7 +984,7 @@ class BroadcastPlayer {
     this.currentTime = this.currentRally.seconds_start;
     this.activeShotIndex = 0;
 
-    // YouTube sync on rally selection
+    // Direct YouTube seek to rally start timecode (e.g. 312.1 for LZJ smash)
     if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
       this.ytPlayer.seekTo(this.currentRally.seconds_start, true);
     }
@@ -804,6 +1002,11 @@ class BroadcastPlayer {
         this.videoElement.play().catch(() => {});
       }
     }
+
+    if (this.timelineSlider) {
+      this.timelineSlider.value = this.currentTime;
+    }
+    this.updateTimecodeUI();
 
     if (this.threeViewer) {
       this.threeViewer.clearTrail();
@@ -845,72 +1048,126 @@ class BroadcastPlayer {
 
   updateScorebugUI() {
     if (!this.currentRally) return;
+    const p1 = window.HAWKVIEW_TELEMETRY?.players?.player_1;
+    const p2 = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+
     const p1ScoreEl = document.getElementById('overlay-p1-score');
     const p2ScoreEl = document.getElementById('overlay-p2-score');
-    if (p1ScoreEl) p1ScoreEl.textContent = this.currentRally.score_after.player_1.toString().padStart(2, '0');
-    if (p2ScoreEl) p2ScoreEl.textContent = this.currentRally.score_after.player_2.toString().padStart(2, '0');
+    const p1FlagEl = document.getElementById('overlay-p1-flag');
+    const p1CountryEl = document.getElementById('overlay-p1-country');
+    const p1NameEl = document.getElementById('overlay-p1-name');
+    const p2FlagEl = document.getElementById('overlay-p2-flag');
+    const p2CountryEl = document.getElementById('overlay-p2-country');
+    const p2NameEl = document.getElementById('overlay-p2-name');
+    const matchLabelEl = document.getElementById('overlay-match-label');
+
+    const p1Score = this.currentRally.score_after.player_1.toString().padStart(2, '0');
+    const p2Score = this.currentRally.score_after.player_2.toString().padStart(2, '0');
+
+    if (p1ScoreEl) p1ScoreEl.textContent = p1Score;
+    if (p2ScoreEl) {
+      p2ScoreEl.textContent = p2Score;
+      const isRed = (p2?.jersey_color || '#ff2a55') === '#ff2a55';
+      p2ScoreEl.className = isRed
+        ? "font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none"
+        : "font-lcd text-orange-400 font-black text-xs sm:text-sm tabular-nums leading-none";
+    }
+
+    if (p1FlagEl && p1?.flag) p1FlagEl.textContent = p1.flag;
+    if (p1CountryEl && p1?.country) p1CountryEl.textContent = p1.country;
+    if (p1NameEl && p1?.id) p1NameEl.textContent = p1.id;
+
+    if (p2FlagEl && p2?.flag) p2FlagEl.textContent = p2.flag;
+    if (p2CountryEl && p2?.country) {
+      p2CountryEl.textContent = p2.country;
+      p2CountryEl.className = (p2?.jersey_color === '#ff2a55') ? "font-bold text-[10px] text-red-400 font-mono" : "font-bold text-[10px] text-orange-400 font-mono";
+    }
+    if (p2NameEl) p2NameEl.textContent = p2?.id || p2?.display_name || 'POPOV';
+
+    if (matchLabelEl && window.HAWKVIEW_TELEMETRY?.match_metadata) {
+      const round = window.HAWKVIEW_TELEMETRY.match_metadata.round || 'QF';
+      matchLabelEl.textContent = `BWF ARCTIC // ${round.includes('Quarter') ? 'QF' : 'R16'}`;
+    }
+
+    const lcdMAS = document.getElementById('lcd-score-mas');
+    const lcdTPE = document.getElementById('lcd-score-tpe');
+    if (lcdMAS) lcdMAS.textContent = p1Score;
+    if (lcdTPE) lcdTPE.textContent = p2Score;
+
+    const lcdBadge = document.getElementById('lcd-rally-badge');
+    const lcdKeyMoment = document.getElementById('lcd-key-moment');
+    if (lcdBadge) lcdBadge.textContent = `${this.currentRally.badge} [${this.currentRally.shot_count} SHOTS]`;
+    if (lcdKeyMoment) lcdKeyMoment.textContent = this.currentRally.key_moment.toUpperCase();
   }
 
   syncRallyState(instant = false) {
-    if (!this.currentRally) return;
+    // Dynamic lookup of rally spanning currentTime (or closest/last completed)
+    const state = this.getRallyAtTime(this.currentTime);
+    if (!state) return;
 
-    // Check if time passed rally end (with loop cooldown guard to prevent seek spam)
-    if (this.currentTime > this.currentRally.seconds_end) {
-      if (!this.isLoopingRally) {
-        this.isLoopingRally = true;
-        this.currentTime = this.currentRally.seconds_start;
-        if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
-          const targetYtTime = (this.videoOffset > 0 && this.currentRally.seconds_start < this.videoOffset)
-            ? 0
-            : this.currentRally.seconds_start;
-          this.ytPlayer.seekTo(targetYtTime, true);
-        } else if (this.hasVideo && this.videoElement) {
-          this.videoElement.currentTime = 0;
-        }
-        if (this.threeViewer) {
-          this.threeViewer.clearTrail();
-        }
-        setTimeout(() => {
-          this.isLoopingRally = false;
-        }, 1500);
-      }
+    const { rally, index, isDowntime } = state;
+
+    // Check if active rally transitioned
+    if (index !== this.currentRallyIndex || rally !== this.currentRally) {
+      this.currentRallyIndex = index;
+      this.currentRally = rally;
+      this.updateScorebugUI();
+      this.onRallyChange(rally);
     }
 
-    const elapsed = this.currentTime - this.currentRally.seconds_start;
-    const duration = this.currentRally.seconds_end - this.currentRally.seconds_start;
-    const pct = Math.min(100, Math.max(0, (elapsed / duration) * 100));
-
-    if (this.timelineSlider) {
-      this.timelineSlider.value = pct;
+    // Update timeline slider if user is not actively scrubbing it
+    if (!this.isUserScrubbing && this.timelineSlider) {
+      this.timelineSlider.value = this.currentTime;
     }
 
-    // Determine active shot based on timestamp
-    if (this.currentRally.shots && this.currentRally.shots.length > 0) {
+    this.updateTimecodeUI();
+    this.updateActiveTickUI(index, isDowntime);
+
+    let telemetryPacket;
+
+    if (isDowntime) {
+      // In downtime between rallies (or before/after points)
+      telemetryPacket = {
+        time: this.currentTime,
+        elapsed: Math.max(0, this.currentTime - rally.seconds_start),
+        rally: rally,
+        shotIndex: -1,
+        shot: null,
+        isDowntime: true,
+        instant: instant
+      };
+    } else {
+      // Inside active rally: determine active shot
+      const elapsed = Math.max(0, this.currentTime - rally.seconds_start);
       let foundIndex = 0;
-      for (let i = 0; i < this.currentRally.shots.length; i++) {
-        if (this.currentTime >= this.currentRally.shots[i].time) {
-          foundIndex = i;
-        } else {
-          break;
-        }
-      }
-      if (foundIndex !== this.activeShotIndex) {
-        this.activeShotIndex = foundIndex;
-        const shot = this.currentRally.shots[foundIndex];
-        if (shot && shot.speed_kmh >= 350) {
-          this.triggerRadarFlash(`⚡ ${shot.speed_kmh} KM/H`, shot.speed_kmh);
-        }
-      }
-    }
 
-    const telemetryPacket = {
-      time: this.currentTime,
-      elapsed: elapsed,
-      rally: this.currentRally,
-      shotIndex: this.activeShotIndex,
-      shot: this.currentRally.shots ? this.currentRally.shots[this.activeShotIndex] : null,
-      instant: instant
-    };
+      if (rally.shots && rally.shots.length > 0) {
+        for (let i = 0; i < rally.shots.length; i++) {
+          if (this.currentTime >= rally.shots[i].time) {
+            foundIndex = i;
+          } else {
+            break;
+          }
+        }
+        if (foundIndex !== this.activeShotIndex) {
+          this.activeShotIndex = foundIndex;
+          const shot = rally.shots[foundIndex];
+          if (shot && shot.speed_kmh >= 350) {
+            this.triggerRadarFlash(`⚡ ${shot.speed_kmh} KM/H`, shot.speed_kmh);
+          }
+        }
+      }
+
+      telemetryPacket = {
+        time: this.currentTime,
+        elapsed: elapsed,
+        rally: rally,
+        shotIndex: foundIndex,
+        shot: rally.shots ? rally.shots[foundIndex] : null,
+        isDowntime: false,
+        instant: instant
+      };
+    }
 
     // Forward to Three.js 3D Viewer
     if (this.threeViewer) {
@@ -928,43 +1185,53 @@ class BroadcastPlayer {
       const deltaSec = (timestamp - lastTimestamp) / 1000;
       lastTimestamp = timestamp;
 
-      if (this.isPlaying && this.currentRally) {
-        // 1. YouTube active synchronization (Master-Slave Clock)
-        if (this.isYouTubeActive && this.ytPlayer) {
-          const ytState = (typeof this.ytPlayer.getPlayerState === 'function') 
-            ? this.ytPlayer.getPlayerState() 
-            : -1;
+      // 1. YouTube active synchronization (Master-Slave Clock)
+      if (this.isYouTubeActive && this.ytPlayer) {
+        const ytState = (typeof this.ytPlayer.getPlayerState === 'function') 
+          ? this.ytPlayer.getPlayerState() 
+          : -1;
 
-          // Only sync time when YouTube is actively PLAYING (state === 1)
-          if (ytState === 1 && typeof this.ytPlayer.getCurrentTime === 'function') {
-            try {
-              const ytSec = this.ytPlayer.getCurrentTime();
-              if (ytSec > 0) {
-                // If YouTube is playing a full match video at/near match time,
-                // ytSec directly represents the match timestamp (e.g. ~312s).
-                // Do not double-add videoOffset!
-                if (this.videoOffset > 0 && ytSec < this.videoOffset - 10) {
-                  this.currentTime = this.videoOffset + ytSec;
-                } else {
-                  this.currentTime = ytSec;
-                }
+        // Detect player duration dynamically
+        if (typeof this.ytPlayer.getDuration === 'function') {
+          try {
+            const dur = this.ytPlayer.getDuration();
+            if (dur > 0 && Math.abs(dur - this.totalDuration) > 1) {
+              this.totalDuration = dur;
+              this.updateTimecodeUI();
+              this.renderTimelineTicks();
+            }
+          } catch (e) {}
+        }
+
+        // Lockstep time update when PLAYING or if user scrubbed YouTube directly while PAUSED
+        if (typeof this.ytPlayer.getCurrentTime === 'function' && !this.isUserScrubbing) {
+          try {
+            const ytSec = this.ytPlayer.getCurrentTime();
+            if (ytSec >= 0) {
+              if (ytState === 1 || Math.abs(ytSec - this.currentTime) > 0.4) {
+                this.currentTime = ytSec;
                 this.syncRallyState();
               }
-            } catch (e) {
-              // Ignore cross-origin transient read errors
             }
-          }
-          // If BUFFERING (state === 3) or UNSTARTED, FREEZE CLOCK!
-          // DO NOT advance synthetic time and DO NOT thrash seekTo!
+          } catch (e) {}
         }
-        // 2. HTML5 video active synchronization
-        else if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
-          this.currentTime = this.videoOffset + this.videoElement.currentTime;
+      }
+      // 2. HTML5 video active synchronization
+      else if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
+        if (!this.isUserScrubbing) {
+          const vidSec = this.videoElement.currentTime;
+          this.currentTime = (this.isSampleVideoLoaded ? 312.1 : this.videoOffset) + vidSec;
           this.syncRallyState();
         }
-        // 3. Pure telemetry synthetic progression (no video or paused video)
-        else if (!this.isYouTubeActive && !this.hasVideo) {
+      }
+      // 3. Pure telemetry synthetic progression (no video or paused video)
+      else if (this.isPlaying && !this.isYouTubeActive && !this.hasVideo) {
+        if (!this.isUserScrubbing) {
           this.currentTime += deltaSec * this.playbackRate;
+          const maxD = this.getDuration();
+          if (this.currentTime > maxD) {
+            this.currentTime = 0;
+          }
           this.syncRallyState();
         }
       }
