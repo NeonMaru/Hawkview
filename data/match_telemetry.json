@@ -9,9 +9,21 @@
     "ambient_temp_c": 21.5,
     "shuttle_type": "Yonex Aerosensa 50 (Speed 77)",
     "homography_matrix": [
-      [1.4284, -0.1245, 120.4],
-      [0.0182, 2.1042, 45.2],
-      [0.000041, 0.00189, 1.0]
+      [
+        1.4284,
+        -0.1245,
+        120.4
+      ],
+      [
+        0.0182,
+        2.1042,
+        45.2
+      ],
+      [
+        4.1e-05,
+        0.00189,
+        1.0
+      ]
     ],
     "court_dimensions_meters": {
       "length": 13.4,
@@ -29,15 +41,15 @@
       "name": "Lee Zii Jia",
       "display_name": "LEE Z.J.",
       "country": "MAS",
-      "flag": "🇲🇾",
+      "flag": "\ud83c\uddf2\ud83c\uddfe",
       "world_ranking": 7,
       "dominant_hand": "Right",
       "height_cm": 186,
       "jersey_color": "#00f0ff",
-      "court_side_start": "bottom",
+      "court_side_start": "near",
       "racket": "Victor Thruster Ryuga Metallic",
       "stats_summary": {
-        "max_smash_speed_kmh": 412.0,
+        "max_smash_speed_kmh": 401.3,
         "avg_smash_speed_kmh": 378.4,
         "total_distance_km": 2.84,
         "sprint_bursts": 42,
@@ -50,12 +62,12 @@
       "name": "Su Li Yang",
       "display_name": "SU L.Y.",
       "country": "TPE",
-      "flag": "🇹🇼",
+      "flag": "\ud83c\uddf9\ud83c\uddfc",
       "world_ranking": 32,
       "dominant_hand": "Right",
       "height_cm": 183,
       "jersey_color": "#ff5722",
-      "court_side_start": "top",
+      "court_side_start": "far",
       "racket": "Yonex Nanoflare 1000Z",
       "stats_summary": {
         "max_smash_speed_kmh": 362.5,
@@ -70,15 +82,21 @@
   "rallies": [
     {
       "rally_id": 12,
-      "badge": "Rally #12 🔥",
+      "badge": "Rally #12 \ud83d\udd25",
       "label": "Tactical Net Exchange & Steep Smash",
       "timestamp_start": "01:14.20",
       "timestamp_end": "01:32.62",
       "seconds_start": 74.2,
       "seconds_end": 92.62,
       "duration_sec": 18.42,
-      "score_before": { "player_1": 4, "player_2": 5 },
-      "score_after": { "player_1": 5, "player_2": 5 },
+      "score_before": {
+        "player_1": 4,
+        "player_2": 5
+      },
+      "score_after": {
+        "player_1": 5,
+        "player_2": 5
+      },
       "set": 2,
       "server": "LZJ",
       "winner": "LZJ",
@@ -89,200 +107,675 @@
       "sly_sprint_dist_m": 52.1,
       "key_moment": "LZJ steep reverse slice cross-court winner",
       "shots": [
-        { "shot_num": 1, "time": 74.2, "hitter": "LZJ", "stroke": "Low Serve", "speed_kmh": 82.0, "hit_coord": [3.05, 4.72, 1.15], "land_coord": [3.10, 8.68], "trajectory_peak_z": 1.62 },
-        { "shot_num": 2, "time": 75.1, "hitter": "SLY", "stroke": "Push to Backhand", "speed_kmh": 112.5, "hit_coord": [3.10, 8.68, 0.65], "land_coord": [0.65, 1.20], "trajectory_peak_z": 2.10 },
-        { "shot_num": 3, "time": 76.5, "hitter": "LZJ", "stroke": "Overhead Clear", "speed_kmh": 178.0, "hit_coord": [0.65, 1.20, 2.45], "land_coord": [5.40, 12.80], "trajectory_peak_z": 6.80 },
-        { "shot_num": 4, "time": 78.2, "hitter": "SLY", "stroke": "Fast Drop", "speed_kmh": 142.0, "hit_coord": [5.40, 12.80, 2.30], "land_coord": [1.20, 5.20], "trajectory_peak_z": 2.40 },
-        { "shot_num": 5, "time": 79.4, "hitter": "LZJ", "stroke": "Hairpin Net Shot", "speed_kmh": 68.0, "hit_coord": [1.20, 5.20, 0.40], "land_coord": [1.40, 8.10], "trajectory_peak_z": 1.58 },
-        { "shot_num": 6, "time": 80.8, "hitter": "SLY", "stroke": "Net Lift High", "speed_kmh": 155.0, "hit_coord": [1.40, 8.10, 0.35], "land_coord": [4.80, 0.85], "trajectory_peak_z": 7.10 },
-        { "shot_num": 7, "time": 82.6, "hitter": "LZJ", "stroke": "Jump Smash Cross", "speed_kmh": 388.0, "hit_coord": [4.80, 0.85, 2.95], "land_coord": [0.85, 9.40], "trajectory_peak_z": 2.95, "smash_angle_deg": 26.5 },
-        { "shot_num": 8, "time": 83.3, "hitter": "SLY", "stroke": "Dive Defense Block", "speed_kmh": 94.0, "hit_coord": [0.85, 9.40, 0.30], "land_coord": [2.80, 5.80], "trajectory_peak_z": 1.70 },
-        { "shot_num": 9, "time": 84.5, "hitter": "LZJ", "stroke": "Mid-Court Drive", "speed_kmh": 215.0, "hit_coord": [2.80, 5.80, 1.40], "land_coord": [5.20, 10.50], "trajectory_peak_z": 1.75 },
-        { "shot_num": 10, "time": 85.6, "hitter": "SLY", "stroke": "Drive Counter", "speed_kmh": 198.0, "hit_coord": [5.20, 10.50, 1.35], "land_coord": [1.80, 3.40], "trajectory_peak_z": 1.80 },
-        { "shot_num": 11, "time": 86.8, "hitter": "LZJ", "stroke": "Reverse Slice Drop", "speed_kmh": 136.0, "hit_coord": [1.80, 3.40, 2.10], "land_coord": [5.10, 7.80], "trajectory_peak_z": 2.05 },
-        { "shot_num": 12, "time": 88.0, "hitter": "SLY", "stroke": "Underhand Lift", "speed_kmh": 162.0, "hit_coord": [5.10, 7.80, 0.45], "land_coord": [2.50, 0.60], "trajectory_peak_z": 6.95 },
-        { "shot_num": 13, "time": 90.1, "hitter": "LZJ", "stroke": "Steep Angle Winner", "speed_kmh": 365.0, "hit_coord": [2.50, 0.60, 2.88], "land_coord": [0.45, 9.80], "trajectory_peak_z": 2.88, "winner": true }
+        {
+          "shot_num": 1,
+          "time": 74.2,
+          "hitter": "LZJ",
+          "stroke": "Low Serve",
+          "speed_kmh": 82.0,
+          "hit_coord": [
+            3.05,
+            4.72,
+            1.15
+          ],
+          "land_coord": [
+            3.1,
+            8.68
+          ],
+          "trajectory_peak_z": 1.62
+        },
+        {
+          "shot_num": 2,
+          "time": 75.1,
+          "hitter": "SLY",
+          "stroke": "Push to Backhand",
+          "speed_kmh": 112.5,
+          "hit_coord": [
+            3.1,
+            8.68,
+            0.65
+          ],
+          "land_coord": [
+            0.65,
+            1.2
+          ],
+          "trajectory_peak_z": 2.1
+        },
+        {
+          "shot_num": 3,
+          "time": 76.5,
+          "hitter": "LZJ",
+          "stroke": "Overhead Clear",
+          "speed_kmh": 178.0,
+          "hit_coord": [
+            0.65,
+            1.2,
+            2.45
+          ],
+          "land_coord": [
+            5.4,
+            12.8
+          ],
+          "trajectory_peak_z": 6.8
+        },
+        {
+          "shot_num": 4,
+          "time": 78.2,
+          "hitter": "SLY",
+          "stroke": "Fast Drop",
+          "speed_kmh": 142.0,
+          "hit_coord": [
+            5.4,
+            12.8,
+            2.3
+          ],
+          "land_coord": [
+            1.2,
+            5.2
+          ],
+          "trajectory_peak_z": 2.4
+        },
+        {
+          "shot_num": 5,
+          "time": 79.4,
+          "hitter": "LZJ",
+          "stroke": "Hairpin Net Shot",
+          "speed_kmh": 68.0,
+          "hit_coord": [
+            1.2,
+            5.2,
+            0.4
+          ],
+          "land_coord": [
+            1.4,
+            8.1
+          ],
+          "trajectory_peak_z": 1.58
+        },
+        {
+          "shot_num": 6,
+          "time": 80.8,
+          "hitter": "SLY",
+          "stroke": "Net Lift High",
+          "speed_kmh": 155.0,
+          "hit_coord": [
+            1.4,
+            8.1,
+            0.35
+          ],
+          "land_coord": [
+            4.8,
+            0.85
+          ],
+          "trajectory_peak_z": 7.1
+        },
+        {
+          "shot_num": 7,
+          "time": 82.6,
+          "hitter": "LZJ",
+          "stroke": "Jump Smash Cross",
+          "speed_kmh": 388.0,
+          "hit_coord": [
+            4.8,
+            0.85,
+            2.95
+          ],
+          "land_coord": [
+            0.85,
+            9.4
+          ],
+          "trajectory_peak_z": 2.95,
+          "smash_angle_deg": 26.5
+        },
+        {
+          "shot_num": 8,
+          "time": 83.3,
+          "hitter": "SLY",
+          "stroke": "Dive Defense Block",
+          "speed_kmh": 94.0,
+          "hit_coord": [
+            0.85,
+            9.4,
+            0.3
+          ],
+          "land_coord": [
+            2.8,
+            5.8
+          ],
+          "trajectory_peak_z": 1.7
+        },
+        {
+          "shot_num": 9,
+          "time": 84.5,
+          "hitter": "LZJ",
+          "stroke": "Mid-Court Drive",
+          "speed_kmh": 215.0,
+          "hit_coord": [
+            2.8,
+            5.8,
+            1.4
+          ],
+          "land_coord": [
+            5.2,
+            10.5
+          ],
+          "trajectory_peak_z": 1.75
+        },
+        {
+          "shot_num": 10,
+          "time": 85.6,
+          "hitter": "SLY",
+          "stroke": "Drive Counter",
+          "speed_kmh": 198.0,
+          "hit_coord": [
+            5.2,
+            10.5,
+            1.35
+          ],
+          "land_coord": [
+            1.8,
+            3.4
+          ],
+          "trajectory_peak_z": 1.8
+        },
+        {
+          "shot_num": 11,
+          "time": 86.8,
+          "hitter": "LZJ",
+          "stroke": "Reverse Slice Drop",
+          "speed_kmh": 136.0,
+          "hit_coord": [
+            1.8,
+            3.4,
+            2.1
+          ],
+          "land_coord": [
+            5.1,
+            7.8
+          ],
+          "trajectory_peak_z": 2.05
+        },
+        {
+          "shot_num": 12,
+          "time": 88.0,
+          "hitter": "SLY",
+          "stroke": "Underhand Lift",
+          "speed_kmh": 162.0,
+          "hit_coord": [
+            5.1,
+            7.8,
+            0.45
+          ],
+          "land_coord": [
+            2.5,
+            0.6
+          ],
+          "trajectory_peak_z": 6.95
+        },
+        {
+          "shot_num": 13,
+          "time": 90.1,
+          "hitter": "LZJ",
+          "stroke": "Steep Angle Winner",
+          "speed_kmh": 365.0,
+          "hit_coord": [
+            2.5,
+            0.6,
+            2.88
+          ],
+          "land_coord": [
+            0.45,
+            9.8
+          ],
+          "trajectory_peak_z": 2.88,
+          "winner": true
+        }
       ]
     },
     {
       "rally_id": 18,
-      "badge": "LZJ 412km/h Smash ⚡",
+      "badge": "LZJ 412km/h Smash \u26a1",
       "label": "Record Radar Breaker - Thunder Smash",
       "timestamp_start": "05:12.10",
       "timestamp_end": "05:31.20",
       "seconds_start": 312.1,
       "seconds_end": 331.2,
-      "duration_sec": 19.10,
-      "score_before": { "player_1": 7, "player_2": 8 },
-      "score_after": { "player_1": 8, "player_2": 8 },
+      "duration_sec": 19.1,
+      "score_before": {
+        "player_1": 7,
+        "player_2": 8
+      },
+      "score_after": {
+        "player_1": 8,
+        "player_2": 8
+      },
       "set": 2,
       "server": "SLY",
       "winner": "LZJ",
       "shot_count": 16,
-      "max_smash_kmh": 412.0,
+      "max_smash_kmh": 401.3,
       "avg_shot_speed_kmh": 189.5,
       "lzj_sprint_dist_m": 39.4,
       "sly_sprint_dist_m": 44.8,
-      "key_moment": "⚡ 412 KM/H NUCLEAR SMASH DOWN THE LINE! UNRETURNABLE.",
+      "key_moment": "\u26a1 401 KM/H NUCLEAR SMASH DOWN THE LINE! UNRETURNABLE.",
       "shots": [
-        { "shot_num": 1, "time": 312.1, "hitter": "SLY", "stroke": "Flick Serve", "speed_kmh": 145.0, "hit_coord": [3.05, 8.68, 1.10], "land_coord": [1.10, 0.55], "trajectory_peak_z": 5.80 },
-        { "shot_num": 2, "time": 314.0, "hitter": "LZJ", "stroke": "Forehand Punch Clear", "speed_kmh": 188.0, "hit_coord": [1.10, 0.55, 2.30], "land_coord": [4.90, 12.90], "trajectory_peak_z": 6.50 },
-        { "shot_num": 3, "time": 316.2, "hitter": "SLY", "stroke": "Attacking Clear", "speed_kmh": 195.0, "hit_coord": [4.90, 12.90, 2.25], "land_coord": [2.20, 1.40], "trajectory_peak_z": 5.40 },
-        { "shot_num": 4, "time": 318.0, "hitter": "LZJ", "stroke": "Cross Drop", "speed_kmh": 128.0, "hit_coord": [2.20, 1.40, 2.15], "land_coord": [5.30, 7.60], "trajectory_peak_z": 1.95 },
-        { "shot_num": 5, "time": 319.6, "hitter": "SLY", "stroke": "Net Tumble Recovery", "speed_kmh": 72.0, "hit_coord": [5.30, 7.60, 0.40], "land_coord": [4.80, 5.90], "trajectory_peak_z": 1.55 },
-        { "shot_num": 6, "time": 321.0, "hitter": "LZJ", "stroke": "Spin Net Return", "speed_kmh": 58.0, "hit_coord": [4.80, 5.90, 0.42], "land_coord": [3.20, 7.90], "trajectory_peak_z": 1.56 },
-        { "shot_num": 7, "time": 322.5, "hitter": "SLY", "stroke": "Desperate High Lift", "speed_kmh": 160.0, "hit_coord": [3.20, 7.90, 0.32], "land_coord": [4.95, 1.10], "trajectory_peak_z": 7.45 },
-        { "shot_num": 8, "time": 325.2, "hitter": "LZJ", "stroke": "Full Jump Smash", "speed_kmh": 412.0, "hit_coord": [4.95, 1.10, 3.12], "land_coord": [5.45, 9.20], "trajectory_peak_z": 3.12, "smash_angle_deg": 28.4, "shuttle_transit_time_sec": 0.31, "winner": true }
+        {
+          "shot_num": 1,
+          "time": 312.1,
+          "hitter": "SLY",
+          "stroke": "Flick Serve",
+          "speed_kmh": 145.0,
+          "hit_coord": [
+            3.05,
+            8.68,
+            1.1
+          ],
+          "land_coord": [
+            1.1,
+            0.55
+          ],
+          "trajectory_peak_z": 5.8
+        },
+        {
+          "shot_num": 2,
+          "time": 314.0,
+          "hitter": "LZJ",
+          "stroke": "Forehand Punch Clear",
+          "speed_kmh": 188.0,
+          "hit_coord": [
+            1.1,
+            0.55,
+            2.3
+          ],
+          "land_coord": [
+            4.9,
+            12.9
+          ],
+          "trajectory_peak_z": 6.5
+        },
+        {
+          "shot_num": 3,
+          "time": 316.2,
+          "hitter": "SLY",
+          "stroke": "Attacking Clear",
+          "speed_kmh": 195.0,
+          "hit_coord": [
+            4.9,
+            12.9,
+            2.25
+          ],
+          "land_coord": [
+            2.2,
+            1.4
+          ],
+          "trajectory_peak_z": 5.4
+        },
+        {
+          "shot_num": 4,
+          "time": 318.0,
+          "hitter": "LZJ",
+          "stroke": "Cross Drop",
+          "speed_kmh": 128.0,
+          "hit_coord": [
+            2.2,
+            1.4,
+            2.15
+          ],
+          "land_coord": [
+            5.3,
+            7.6
+          ],
+          "trajectory_peak_z": 1.95
+        },
+        {
+          "shot_num": 5,
+          "time": 319.6,
+          "hitter": "SLY",
+          "stroke": "Net Tumble Recovery",
+          "speed_kmh": 72.0,
+          "hit_coord": [
+            5.3,
+            7.6,
+            0.4
+          ],
+          "land_coord": [
+            4.8,
+            5.9
+          ],
+          "trajectory_peak_z": 1.55
+        },
+        {
+          "shot_num": 6,
+          "time": 321.0,
+          "hitter": "LZJ",
+          "stroke": "Spin Net Return",
+          "speed_kmh": 58.0,
+          "hit_coord": [
+            4.8,
+            5.9,
+            0.42
+          ],
+          "land_coord": [
+            3.2,
+            7.9
+          ],
+          "trajectory_peak_z": 1.56
+        },
+        {
+          "shot_num": 7,
+          "time": 322.5,
+          "hitter": "SLY",
+          "stroke": "Desperate High Lift",
+          "speed_kmh": 160.0,
+          "hit_coord": [
+            3.2,
+            7.9,
+            0.32
+          ],
+          "land_coord": [
+            4.95,
+            1.1
+          ],
+          "trajectory_peak_z": 7.45
+        },
+        {
+          "shot_num": 8,
+          "time": 325.2,
+          "hitter": "LZJ",
+          "stroke": "Full Jump Smash",
+          "speed_kmh": 401.3,
+          "hit_coord": [
+            4.95,
+            1.1,
+            3.12
+          ],
+          "land_coord": [
+            5.45,
+            9.2
+          ],
+          "trajectory_peak_z": 3.12,
+          "smash_angle_deg": 19.8,
+          "shuttle_transit_time_sec": 0.252,
+          "winner": true
+        }
       ]
     },
     {
       "rally_id": 21,
-      "badge": "Rally #21 🔄",
+      "badge": "Rally #21 \ud83d\udd04",
       "label": "Su Li Yang Defensive Wall & Net Tumble",
       "timestamp_start": "08:45.00",
       "timestamp_end": "09:08.50",
       "seconds_start": 525.0,
       "seconds_end": 548.5,
-      "duration_sec": 23.50,
-      "score_before": { "player_1": 11, "player_2": 10 },
-      "score_after": { "player_1": 11, "player_2": 11 },
+      "duration_sec": 23.5,
+      "score_before": {
+        "player_1": 11,
+        "player_2": 10
+      },
+      "score_after": {
+        "player_1": 11,
+        "player_2": 11
+      },
       "set": 2,
       "server": "LZJ",
       "winner": "SLY",
-      "shot_count": 28,
-      "max_smash_kmh": 372.0,
-      "avg_shot_speed_kmh": 158.4,
+      "shot_count": 32,
+      "max_smash_kmh": 352.0,
+      "avg_shot_speed_kmh": 158.0,
       "lzj_sprint_dist_m": 62.4,
-      "sly_sprint_dist_m": 68.8,
-      "key_moment": "Su Li Yang counter-drops off 372 km/h smash",
+      "sly_sprint_dist_m": 68.2,
+      "key_moment": "Su Li Yang counter-drop tap off net tape",
       "shots": [
-        { "shot_num": 1, "time": 525.0, "hitter": "LZJ", "stroke": "Low Serve", "speed_kmh": 84.0, "hit_coord": [3.05, 4.72, 1.15], "land_coord": [2.80, 8.68], "trajectory_peak_z": 1.60 },
-        { "shot_num": 2, "time": 526.0, "hitter": "SLY", "stroke": "Push to Forehand", "speed_kmh": 120.0, "hit_coord": [2.80, 8.68, 0.70], "land_coord": [5.20, 2.10], "trajectory_peak_z": 1.90 },
-        { "shot_num": 3, "time": 528.0, "hitter": "LZJ", "stroke": "Half Smash", "speed_kmh": 320.0, "hit_coord": [5.20, 2.10, 2.20], "land_coord": [1.40, 9.80], "trajectory_peak_z": 2.20 },
-        { "shot_num": 4, "time": 529.2, "hitter": "SLY", "stroke": "Cross Defense Block", "speed_kmh": 105.0, "hit_coord": [1.40, 9.80, 0.50], "land_coord": [4.80, 4.50], "trajectory_peak_z": 1.85 },
-        { "shot_num": 5, "time": 531.0, "hitter": "LZJ", "stroke": "Jump Smash", "speed_kmh": 372.0, "hit_coord": [4.80, 4.50, 2.85], "land_coord": [2.10, 10.20], "trajectory_peak_z": 2.85 },
-        { "shot_num": 6, "time": 532.1, "hitter": "SLY", "stroke": "Tight Net Tumble", "speed_kmh": 62.0, "hit_coord": [2.10, 10.20, 0.35], "land_coord": [2.30, 6.80], "trajectory_peak_z": 1.54, "winner": true }
+        {
+          "shot_num": 1,
+          "time": 525.0,
+          "hitter": "LZJ",
+          "stroke": "Drive Serve",
+          "speed_kmh": 125.0,
+          "hit_coord": [
+            3.05,
+            4.72,
+            1.15
+          ],
+          "land_coord": [
+            2.8,
+            8.68
+          ],
+          "trajectory_peak_z": 1.45
+        },
+        {
+          "shot_num": 2,
+          "time": 526.2,
+          "hitter": "SLY",
+          "stroke": "Flat Drive",
+          "speed_kmh": 195.0,
+          "hit_coord": [
+            2.8,
+            8.68,
+            1.2
+          ],
+          "land_coord": [
+            1.1,
+            3.2
+          ],
+          "trajectory_peak_z": 1.5
+        },
+        {
+          "shot_num": 3,
+          "time": 527.5,
+          "hitter": "LZJ",
+          "stroke": "Cross Defense Block",
+          "speed_kmh": 110.0,
+          "hit_coord": [
+            1.1,
+            3.2,
+            0.5
+          ],
+          "land_coord": [
+            4.9,
+            7.8
+          ],
+          "trajectory_peak_z": 1.8
+        },
+        {
+          "shot_num": 4,
+          "time": 529.0,
+          "hitter": "SLY",
+          "stroke": "Steep Net Tap",
+          "speed_kmh": 78.0,
+          "hit_coord": [
+            4.9,
+            7.8,
+            0.4
+          ],
+          "land_coord": [
+            3.1,
+            6.2
+          ],
+          "trajectory_peak_z": 1.52,
+          "winner": true
+        }
       ]
     },
     {
       "rally_id": 34,
-      "badge": "Rally #34 🏃",
-      "label": "The 38-Shot Marathon - Physical Dogfight",
-      "timestamp_start": "14:20.10",
-      "timestamp_end": "15:02.25",
-      "seconds_start": 860.1,
-      "seconds_end": 902.25,
-      "duration_sec": 42.15,
-      "score_before": { "player_1": 17, "player_2": 16 },
-      "score_after": { "player_1": 18, "player_2": 16 },
+      "badge": "Rally #34 \ud83c\udfc3",
+      "label": "38-Shot Marathon & Backhand Defense",
+      "timestamp_start": "14:22.00",
+      "timestamp_end": "14:52.80",
+      "seconds_start": 862.0,
+      "seconds_end": 892.8,
+      "duration_sec": 30.8,
+      "score_before": {
+        "player_1": 17,
+        "player_2": 16
+      },
+      "score_after": {
+        "player_1": 18,
+        "player_2": 16
+      },
       "set": 2,
-      "server": "LZJ",
+      "server": "SLY",
       "winner": "LZJ",
       "shot_count": 38,
-      "max_smash_kmh": 395.0,
-      "avg_shot_speed_kmh": 168.2,
-      "lzj_sprint_dist_m": 128.5,
-      "sly_sprint_dist_m": 142.1,
-      "key_moment": "38 shots! Exhausted Su Li Yang lifts into the net cord",
+      "max_smash_kmh": 372.0,
+      "avg_shot_speed_kmh": 162.8,
+      "lzj_sprint_dist_m": 78.2,
+      "sly_sprint_dist_m": 82.5,
+      "key_moment": "LZJ backhand flick defense into empty cross corner",
       "shots": [
-        { "shot_num": 1, "time": 860.1, "hitter": "LZJ", "stroke": "Low Serve", "speed_kmh": 85.0, "hit_coord": [3.05, 4.72, 1.15], "land_coord": [3.20, 8.68], "trajectory_peak_z": 1.60 },
-        { "shot_num": 2, "time": 862.0, "hitter": "SLY", "stroke": "Drive to Body", "speed_kmh": 180.0, "hit_coord": [3.20, 8.68, 1.20], "land_coord": [2.90, 3.80], "trajectory_peak_z": 1.75 },
-        { "shot_num": 3, "time": 865.0, "hitter": "LZJ", "stroke": "Deep Lift", "speed_kmh": 165.0, "hit_coord": [2.90, 3.80, 1.10], "land_coord": [0.80, 12.80], "trajectory_peak_z": 7.20 },
-        { "shot_num": 4, "time": 870.0, "hitter": "SLY", "stroke": "Cross Slice Smash", "speed_kmh": 325.0, "hit_coord": [0.80, 12.80, 2.30], "land_coord": [5.20, 2.80], "trajectory_peak_z": 2.30 },
-        { "shot_num": 5, "time": 875.0, "hitter": "LZJ", "stroke": "Squat Defense", "speed_kmh": 110.0, "hit_coord": [5.20, 2.80, 0.40], "land_coord": [1.50, 10.50], "trajectory_peak_z": 3.80 },
-        { "shot_num": 6, "time": 885.0, "hitter": "SLY", "stroke": "Roundhead Smash", "speed_kmh": 348.0, "hit_coord": [1.50, 10.50, 2.40], "land_coord": [3.80, 3.10], "trajectory_peak_z": 2.40 },
-        { "shot_num": 7, "time": 894.0, "hitter": "LZJ", "stroke": "Cross Court Lift", "speed_kmh": 158.0, "hit_coord": [3.80, 3.10, 0.50], "land_coord": [5.40, 12.60], "trajectory_peak_z": 6.90 },
-        { "shot_num": 8, "time": 900.5, "hitter": "LZJ", "stroke": "Decisive Jump Smash", "speed_kmh": 395.0, "hit_coord": [2.20, 0.90, 3.05], "land_coord": [0.60, 9.60], "trajectory_peak_z": 3.05, "winner": true }
+        {
+          "shot_num": 1,
+          "time": 862.0,
+          "hitter": "SLY",
+          "stroke": "Low Serve",
+          "speed_kmh": 78.0,
+          "hit_coord": [
+            3.05,
+            8.68,
+            1.1
+          ],
+          "land_coord": [
+            1.5,
+            4.8
+          ],
+          "trajectory_peak_z": 1.55
+        },
+        {
+          "shot_num": 2,
+          "time": 863.5,
+          "hitter": "LZJ",
+          "stroke": "Net Push Flat",
+          "speed_kmh": 115.0,
+          "hit_coord": [
+            1.5,
+            4.8,
+            0.55
+          ],
+          "land_coord": [
+            5.2,
+            11.2
+          ],
+          "trajectory_peak_z": 1.7
+        },
+        {
+          "shot_num": 3,
+          "time": 865.0,
+          "hitter": "SLY",
+          "stroke": "Jump Smash Down Center",
+          "speed_kmh": 372.0,
+          "hit_coord": [
+            5.2,
+            11.2,
+            2.85
+          ],
+          "land_coord": [
+            3.05,
+            2.5
+          ],
+          "trajectory_peak_z": 2.85
+        },
+        {
+          "shot_num": 4,
+          "time": 865.8,
+          "hitter": "LZJ",
+          "stroke": "Backhand Reflex Flick",
+          "speed_kmh": 140.0,
+          "hit_coord": [
+            3.05,
+            2.5,
+            0.45
+          ],
+          "land_coord": [
+            0.65,
+            12.8
+          ],
+          "trajectory_peak_z": 5.8,
+          "winner": true
+        }
       ]
     },
     {
       "rally_id": 45,
-      "badge": "Rally #45 🏆",
-      "label": "Championship Match Point - 404 km/h Down The Line",
-      "timestamp_start": "21:05.00",
-      "timestamp_end": "21:28.15",
-      "seconds_start": 1265.0,
-      "seconds_end": 1288.15,
-      "duration_sec": 23.15,
-      "score_before": { "player_1": 20, "player_2": 19 },
-      "score_after": { "player_1": 21, "player_2": 19 },
+      "badge": "Rally #45 \ud83c\udfc6",
+      "label": "Championship Match Point - Jump Smash",
+      "timestamp_start": "19:15.00",
+      "timestamp_end": "19:33.40",
+      "seconds_start": 1155.0,
+      "seconds_end": 1173.4,
+      "duration_sec": 18.4,
+      "score_before": {
+        "player_1": 20,
+        "player_2": 17
+      },
+      "score_after": {
+        "player_1": 21,
+        "player_2": 17
+      },
       "set": 2,
       "server": "LZJ",
       "winner": "LZJ",
-      "shot_count": 22,
-      "max_smash_kmh": 404.0,
-      "avg_shot_speed_kmh": 172.5,
-      "lzj_sprint_dist_m": 58.2,
-      "sly_sprint_dist_m": 61.4,
-      "key_moment": "MATCH POINT CLINCHED! LZJ 404 km/h down-the-line laser missile!",
+      "shot_count": 18,
+      "max_smash_kmh": 398.0,
+      "avg_shot_speed_kmh": 176.4,
+      "lzj_sprint_dist_m": 44.2,
+      "sly_sprint_dist_m": 48.0,
+      "key_moment": "LZJ 398 km/h jump smash winner seals game and match!",
       "shots": [
-        { "shot_num": 1, "time": 1265.0, "hitter": "LZJ", "stroke": "Low Serve", "speed_kmh": 83.0, "hit_coord": [3.05, 4.72, 1.15], "land_coord": [3.05, 8.68], "trajectory_peak_z": 1.58 },
-        { "shot_num": 2, "time": 1266.5, "hitter": "SLY", "stroke": "Push to Left Tramline", "speed_kmh": 122.0, "hit_coord": [3.05, 8.68, 0.70], "land_coord": [0.70, 2.50], "trajectory_peak_z": 1.95 },
-        { "shot_num": 3, "time": 1269.0, "hitter": "LZJ", "stroke": "Backhand Drive", "speed_kmh": 208.0, "hit_coord": [0.70, 2.50, 1.45], "land_coord": [5.10, 11.20], "trajectory_peak_z": 1.70 },
-        { "shot_num": 4, "time": 1273.0, "hitter": "SLY", "stroke": "Defensive High Lift", "speed_kmh": 154.0, "hit_coord": [5.10, 11.20, 0.60], "land_coord": [5.15, 0.75], "trajectory_peak_z": 7.30 },
-        { "shot_num": 5, "time": 1276.5, "hitter": "LZJ", "stroke": "Thunder Down-the-Line Smash", "speed_kmh": 404.0, "hit_coord": [5.15, 0.75, 3.10], "land_coord": [5.55, 9.80], "trajectory_peak_z": 3.10, "smash_angle_deg": 27.8, "shuttle_transit_time_sec": 0.33, "winner": true }
+        {
+          "shot_num": 1,
+          "time": 1155.0,
+          "hitter": "LZJ",
+          "stroke": "Low Serve",
+          "speed_kmh": 84.0,
+          "hit_coord": [
+            3.05,
+            4.72,
+            1.15
+          ],
+          "land_coord": [
+            4.8,
+            8.68
+          ],
+          "trajectory_peak_z": 1.58
+        },
+        {
+          "shot_num": 2,
+          "time": 1156.4,
+          "hitter": "SLY",
+          "stroke": "High Lift to Baseline",
+          "speed_kmh": 168.0,
+          "hit_coord": [
+            4.8,
+            8.68,
+            0.45
+          ],
+          "land_coord": [
+            1.2,
+            0.6
+          ],
+          "trajectory_peak_z": 7.2
+        },
+        {
+          "shot_num": 3,
+          "time": 1158.2,
+          "hitter": "LZJ",
+          "stroke": "Match Point Jump Smash",
+          "speed_kmh": 398.0,
+          "hit_coord": [
+            1.2,
+            0.6,
+            3.1
+          ],
+          "land_coord": [
+            5.2,
+            9.6
+          ],
+          "trajectory_peak_z": 3.1,
+          "winner": true
+        }
       ]
     }
-  ],
-  "heatmap_distribution": {
-    "lzj_court_coverage_percent": {
-      "front_court": 28.5,
-      "mid_court": 34.2,
-      "rear_court": 37.3
-    },
-    "sly_court_coverage_percent": {
-      "front_court": 31.0,
-      "mid_court": 39.5,
-      "rear_court": 29.5
-    },
-    "smash_velocity_distribution": [
-      { "speed_bracket": "<250 km/h", "count": 14, "pct": 12.5 },
-      { "speed_bracket": "250-320 km/h", "count": 32, "pct": 28.6 },
-      { "speed_bracket": "320-380 km/h", "count": 48, "pct": 42.8 },
-      { "speed_bracket": ">380 km/h (Redline)", "count": 18, "pct": 16.1 }
-    ]
-  },
-  "pipeline_stages_telemetry": {
-    "device": "Apple Neural Engine (16-Core ANE) / iOS 18",
-    "video_format": "1080p60 H.264 BWF Clean Broadcast Feed",
-    "total_frames": 28800,
-    "stages": [
-      {
-        "id": 1,
-        "name": "Court Line Calibration & Homography",
-        "model": "CourtKeyNet + OpenCV RANSAC",
-        "progress_range": [0, 15],
-        "latency_ms": 14.2,
-        "status": "COMPLETED",
-        "output_summary": "4 corners + 2 net posts locked. Ground homography error < 0.82px."
-      },
-      {
-        "id": 2,
-        "name": "Rally Segmentation & Scorebug OCR",
-        "model": "PaddleOCR MobileNetV3 + Scene Cut Detector",
-        "progress_range": [15, 30],
-        "latency_ms": 28.5,
-        "status": "COMPLETED",
-        "output_summary": "Detected 45 rallies. Filtered 62% non-gameplay replay/downtime frames."
-      },
-      {
-        "id": 3,
-        "name": "Shuttlecock & Player Pose Tracking",
-        "model": "TrackNetV3 (3-Frame Concatenated 9-ch) + YOLO11-Pose",
-        "progress_range": [30, 85],
-        "throughput_fps": 148,
-        "status": "COMPLETED",
-        "output_summary": "28,800 frames tracked. Shuttle detection confidence 98.4%. 0 player ID swaps."
-      },
-      {
-        "id": 4,
-        "name": "3D Aerodynamic Speed & Heatmap Synthesis",
-        "model": "MonoTrack 3D Ballistic ODE Drag Engine",
-        "progress_range": [85, 100],
-        "latency_ms": 18.0,
-        "status": "COMPLETED",
-        "output_summary": "Top Smash 412 km/h detected (Rally #18 @ 05:25). 2D metric heatmap generated."
-      }
-    ]
-  }
+  ]
 }
