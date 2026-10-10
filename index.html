@@ -183,7 +183,7 @@
             <!-- Real Video Player Container Wrapper (Supports Split 62/38%, Floating PiP, Full Video) -->
             <div id="video-viewport-wrapper" class="hidden relative transition-all duration-300">
               <!-- Local HTML5 Video Player -->
-              <video id="real-video-player" class="w-full h-full object-contain bg-black" src="assets/sample_rally.mp4" playsinline preload="auto"></video>
+              <video id="real-video-player" class="w-full h-full object-contain bg-black" src="assets/LZJvPopov.mp4" playsinline preload="auto"></video>
               
               <!-- Embedded YouTube Video Container -->
               <div id="youtube-player-container" class="w-full h-full hidden bg-black flex items-center justify-center relative overflow-hidden">
@@ -257,8 +257,8 @@
             <!-- 2. TOP-RIGHT RALLY STOPWATCH & CADENCE PILL (Non-blocking, compact) -->
             <div id="hud-stopwatch-pill" class="absolute top-2 right-2 z-20 pointer-events-none w-[108px] sm:w-[120px] hud-glass-card rounded-lg px-2 py-1 shadow-xl text-right font-mono">
               <div class="text-[8px] font-bold text-slate-300 tracking-wider uppercase flex items-center justify-between border-b border-slate-800/80 pb-0.5 mb-0.5">
-                <span class="status-led status-led-red"></span>
-                <span class="text-[8px] text-slate-200">LIVE 60FPS</span>
+                <span id="hud-status-led" class="status-led status-led-red"></span>
+                <span id="hud-status-badge" class="text-[8px] text-slate-200">LIVE 60FPS</span>
               </div>
               <div class="flex items-baseline justify-between py-0.5">
                 <span id="lcd-stopwatch-timer" class="font-lcd text-xs sm:text-sm font-black lcd-emerald tabular-nums leading-none">00:19.10</span>

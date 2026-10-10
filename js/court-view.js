@@ -50,6 +50,13 @@ class CourtViewManager {
     this.startLoop();
   }
 
+  getNearPlayerId() {
+    if (this.currentRally && this.currentRally.near_player) {
+      return this.currentRally.near_player;
+    }
+    return 'LZJ';
+  }
+
   initCanvas() {
     if (!this.canvas) return;
     const dpr = window.devicePixelRatio || 1;
@@ -88,11 +95,14 @@ class CourtViewManager {
       badge.textContent = 'COURT: 13.40m × 6.10m (BWF REGULATION)';
       return;
     }
+    const nearId = this.getNearPlayerId();
     const p1 = window.HAWKVIEW_TELEMETRY?.players?.player_1;
     const p2 = window.HAWKVIEW_TELEMETRY?.players?.player_2;
     const p1Label = `${p1?.id || 'LZJ'} HALF (${p1?.country || 'MAS'})`;
     const p2Label = `${p2?.id || 'POPOV'} HALF (${p2?.country || 'FRA'})`;
-    const zone = coord.y < 6.70 ? p1Label : p2Label;
+    const zone = coord.y < 6.70 
+      ? (nearId === 'POPOV' ? p2Label : p1Label)
+      : (nearId === 'POPOV' ? p1Label : p2Label);
     badge.textContent = `X: ${coord.x.toFixed(2)}m | Y: ${coord.y.toFixed(2)}m [${zone}]`;
   }
 
@@ -115,13 +125,21 @@ class CourtViewManager {
 
     if (rallyData && rallyData.shots && rallyData.shots.length > 0) {
       const shot0 = rallyData.shots[0];
-      const isLZJ = shot0.hitter === 'LZJ';
-      if (isLZJ) {
+      const nearId = this.getNearPlayerId();
+      const isLZJNear = nearId === 'LZJ';
+      const isLZJHitter = shot0.hitter === 'LZJ';
+      if (isLZJHitter) {
         this.player1Pos = { x: shot0.hit_coord[0], y: shot0.hit_coord[1] };
-        this.player2Pos = { x: shot0.land_coord[0], y: Math.max(7.20, shot0.land_coord[1]) };
+        this.player2Pos = { 
+          x: shot0.land_coord[0], 
+          y: isLZJNear ? Math.max(7.20, shot0.land_coord[1]) : Math.min(6.20, shot0.land_coord[1]) 
+        };
       } else {
         this.player2Pos = { x: shot0.hit_coord[0], y: shot0.hit_coord[1] };
-        this.player1Pos = { x: shot0.land_coord[0], y: Math.min(6.20, shot0.land_coord[1]) };
+        this.player1Pos = { 
+          x: shot0.land_coord[0], 
+          y: isLZJNear ? Math.min(6.20, shot0.land_coord[1]) : Math.max(7.20, shot0.land_coord[1]) 
+        };
       }
       this.shuttlePos = {
         x: shot0.hit_coord[0],
@@ -141,13 +159,22 @@ class CourtViewManager {
     this.selectedShotIndex = shotIndex;
     this.activeShot = shot;
 
+    const nearId = this.getNearPlayerId();
+    const isLZJNear = nearId === 'LZJ';
+
     // Both players positioned accurately
     if (shot.hitter === 'LZJ') {
       this.player1Pos = { x: shot.hit_coord[0], y: shot.hit_coord[1] };
-      this.player2Pos = { x: shot.land_coord[0], y: Math.max(7.20, shot.land_coord[1]) };
+      this.player2Pos = { 
+        x: shot.land_coord[0], 
+        y: isLZJNear ? Math.max(7.20, shot.land_coord[1]) : Math.min(6.20, shot.land_coord[1]) 
+      };
     } else {
       this.player2Pos = { x: shot.hit_coord[0], y: shot.hit_coord[1] };
-      this.player1Pos = { x: shot.land_coord[0], y: Math.min(6.20, shot.land_coord[1]) };
+      this.player1Pos = { 
+        x: shot.land_coord[0], 
+        y: isLZJNear ? Math.min(6.20, shot.land_coord[1]) : Math.max(7.20, shot.land_coord[1]) 
+      };
     }
 
     this.player1Trail.push({ ...this.player1Pos, time: Date.now() });
@@ -169,19 +196,22 @@ class CourtViewManager {
     this.selectedShotIndex = shotIndex;
     this.activeShot = shot;
 
+    const nearId = this.getNearPlayerId();
+    const isLZJNear = nearId === 'LZJ';
+
     if (isDowntime) {
       // In downtime between rallies, place players in ready service stance
-      const p1Target = { x: 3.05, y: 1.80 };
-      const p2Target = { x: 3.05, y: 11.60 };
+      const p1Target = isLZJNear ? { x: 3.05, y: 1.80 } : { x: 3.05, y: 11.60 };
+      const p2Target = isLZJNear ? { x: 3.05, y: 11.60 } : { x: 3.05, y: 1.80 };
       this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.15;
       this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.15;
       this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.15;
       this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.15;
 
-      const isLZJServer = !rally || rally.server === 'LZJ' || (rally.score_after && rally.winner === 'LZJ');
+      const isServerNear = (rally && rally.server) ? (rally.server === nearId) : (nearId === 'LZJ');
       this.shuttlePos = {
         x: 3.05,
-        y: isLZJServer ? 1.80 : 11.60,
+        y: isServerNear ? 1.80 : 11.60,
         z: 1.15
       };
       return;
@@ -198,29 +228,37 @@ class CourtViewManager {
     const progress = Math.min(1.0, Math.max(0.0, (time - shotStartTime) / shotDuration));
 
     const isLZJ = currentShot.hitter === 'LZJ';
+    const p1BaseY = isLZJNear ? 2.50 : 10.90;
+    const p2BaseY = isLZJNear ? 10.90 : 2.50;
 
-    let p1Target = { x: 3.05, y: 1.80 };
-    let p2Target = { x: 3.05, y: 11.60 };
-
+    let p1Target, p2Target;
     if (isLZJ) {
-      // LZJ is hitter, recovering towards center; SLY anticipates landing
+      // LZJ is hitter, recovering towards base T; P2 anticipates landing
       p1Target = { 
         x: currentShot.hit_coord[0] + (3.05 - currentShot.hit_coord[0]) * Math.min(1.0, progress * 0.6), 
-        y: Math.min(6.20, currentShot.hit_coord[1] + (2.50 - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+        y: isLZJNear
+          ? Math.min(6.20, currentShot.hit_coord[1] + (p1BaseY - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+          : Math.max(7.20, currentShot.hit_coord[1] + (p1BaseY - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
       };
       p2Target = { 
         x: 3.05 + (currentShot.land_coord[0] - 3.05) * Math.min(1.0, progress * 1.1), 
-        y: Math.max(7.20, 11.0 + (currentShot.land_coord[1] - 11.0) * Math.min(1.0, progress * 1.1)) 
+        y: isLZJNear
+          ? Math.max(7.20, p2BaseY + (currentShot.land_coord[1] - p2BaseY) * Math.min(1.0, progress * 1.1))
+          : Math.min(6.20, p2BaseY + (currentShot.land_coord[1] - p2BaseY) * Math.min(1.0, progress * 1.1))
       };
     } else {
-      // SLY is hitter, recovering towards center; LZJ anticipates landing
+      // P2 is hitter, recovering towards base T; LZJ anticipates landing
       p2Target = { 
         x: currentShot.hit_coord[0] + (3.05 - currentShot.hit_coord[0]) * Math.min(1.0, progress * 0.6), 
-        y: Math.max(7.20, currentShot.hit_coord[1] + (10.9 - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+        y: isLZJNear
+          ? Math.max(7.20, currentShot.hit_coord[1] + (p2BaseY - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
+          : Math.min(6.20, currentShot.hit_coord[1] + (p2BaseY - currentShot.hit_coord[1]) * Math.min(1.0, progress * 0.6))
       };
       p1Target = { 
         x: 3.05 + (currentShot.land_coord[0] - 3.05) * Math.min(1.0, progress * 1.1), 
-        y: Math.min(6.20, 2.50 + (currentShot.land_coord[1] - 2.50) * Math.min(1.0, progress * 1.1)) 
+        y: isLZJNear
+          ? Math.min(6.20, p1BaseY + (currentShot.land_coord[1] - p1BaseY) * Math.min(1.0, progress * 1.1))
+          : Math.max(7.20, p1BaseY + (currentShot.land_coord[1] - p1BaseY) * Math.min(1.0, progress * 1.1))
       };
     }
 
@@ -479,36 +517,47 @@ class CourtViewManager {
     ctx.rect(courtX, courtY, courtW, courtH);
     ctx.clip();
 
-    // LZJ Dominance Hotspots (Near Court)
-    const lzjHotspots = [
+    const nearId = this.getNearPlayerId();
+    const isPopovNear = nearId === 'POPOV';
+
+    // Near Court Hotspots
+    const nearHotspots = isPopovNear ? [
+      { x: 3.05, y: 1.5, r: 80, color: 'rgba(255, 42, 85, 0.4)' },
+      { x: 1.8, y: 4.8, r: 60, color: 'rgba(255, 80, 110, 0.35)' },
+      { x: 4.5, y: 2.2, r: 70, color: 'rgba(255, 42, 85, 0.3)' }
+    ] : [
       { x: 3.05, y: 1.5, r: 80, color: 'rgba(0, 240, 255, 0.4)' },
       { x: 1.8, y: 4.8, r: 60, color: 'rgba(0, 229, 163, 0.35)' },
       { x: 4.5, y: 2.2, r: 70, color: 'rgba(0, 240, 255, 0.3)' }
     ];
 
-    lzjHotspots.forEach(spot => {
+    nearHotspots.forEach(spot => {
       const sp = this.courtToScreen(spot.x, spot.y);
       const rad = ctx.createRadialGradient(sp.x, sp.y, 5, sp.x, sp.y, spot.r);
       rad.addColorStop(0, spot.color);
-      rad.addColorStop(1, 'rgba(0, 240, 255, 0)');
+      rad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = rad;
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, spot.r, 0, Math.PI * 2);
       ctx.fill();
     });
 
-    // SLY Dominance Hotspots (Far Court)
-    const slyHotspots = [
-      { x: 3.05, y: 11.8, r: 80, color: 'rgba(255, 87, 34, 0.4)' },
-      { x: 4.2, y: 8.5, r: 60, color: 'rgba(255, 183, 3, 0.3)' },
-      { x: 1.5, y: 10.5, r: 65, color: 'rgba(255, 87, 34, 0.25)' }
+    // Far Court Hotspots
+    const farHotspots = isPopovNear ? [
+      { x: 3.05, y: 11.8, r: 80, color: 'rgba(0, 240, 255, 0.4)' },
+      { x: 4.2, y: 8.5, r: 60, color: 'rgba(0, 229, 163, 0.35)' },
+      { x: 1.5, y: 10.5, r: 65, color: 'rgba(0, 240, 255, 0.25)' }
+    ] : [
+      { x: 3.05, y: 11.8, r: 80, color: 'rgba(255, 42, 85, 0.4)' },
+      { x: 4.2, y: 8.5, r: 60, color: 'rgba(255, 80, 110, 0.3)' },
+      { x: 1.5, y: 10.5, r: 65, color: 'rgba(255, 42, 85, 0.25)' }
     ];
 
-    slyHotspots.forEach(spot => {
+    farHotspots.forEach(spot => {
       const sp = this.courtToScreen(spot.x, spot.y);
       const rad = ctx.createRadialGradient(sp.x, sp.y, 5, sp.x, sp.y, spot.r);
       rad.addColorStop(0, spot.color);
-      rad.addColorStop(1, 'rgba(255, 87, 34, 0)');
+      rad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       ctx.fillStyle = rad;
       ctx.beginPath();
       ctx.arc(sp.x, sp.y, spot.r, 0, Math.PI * 2);
@@ -520,10 +569,12 @@ class CourtViewManager {
 
   drawPlayerTrails() {
     const ctx = this.ctx;
+    const nearId = this.getNearPlayerId();
+    const isPopovNear = nearId === 'POPOV';
 
-    // LZJ Trail (Cyan)
+    // Player 1 (LZJ) Trail
     if (this.player1Trail.length > 1) {
-      ctx.strokeStyle = 'rgba(0, 240, 255, 0.4)';
+      ctx.strokeStyle = isPopovNear ? 'rgba(0, 240, 255, 0.45)' : 'rgba(0, 240, 255, 0.55)';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -535,10 +586,13 @@ class CourtViewManager {
       ctx.stroke();
     }
 
-    // Player 2 Trail (Dynamic color)
-    const p2Color = window.HAWKVIEW_TELEMETRY?.players?.player_2?.jersey_color || '#ff2a55';
+    // Player 2 (POPOV / Opponent) Trail
+    const p2Info = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+    const isPopov = (p2Info?.id === 'POPOV') || (p2Info?.country === 'FRA');
     if (this.player2Trail.length > 1) {
-      ctx.strokeStyle = p2Color === '#ff2a55' ? 'rgba(255, 42, 85, 0.4)' : 'rgba(255, 87, 34, 0.4)';
+      ctx.strokeStyle = isPopov
+        ? (isPopovNear ? 'rgba(255, 42, 85, 0.55)' : 'rgba(255, 42, 85, 0.45)')
+        : 'rgba(255, 87, 34, 0.45)';
       ctx.lineWidth = 2.5;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -557,12 +611,10 @@ class CourtViewManager {
     const p2Info = window.HAWKVIEW_TELEMETRY?.players?.player_2;
     const p1Text = `${p1Info?.display_name || 'LEE Z.J.'} ${p1Info?.flag || '🇲🇾'}`;
     const p2Text = `${p2Info?.display_name || 'C. POPOV'} ${p2Info?.flag || '🇫🇷'}`;
-    const p1Color = p1Info?.jersey_color || '#00f0ff';
-    const p2Color = p2Info?.jersey_color || '#ff2a55';
 
-    // Player 1: Near Court (Cyan)
+    // Player 1 (LZJ) - Cyan jersey
     const p1 = this.courtToScreen(this.player1Pos.x, this.player1Pos.y);
-    ctx.fillStyle = p1Color;
+    ctx.fillStyle = '#00f0ff';
     ctx.beginPath();
     ctx.arc(p1.x, p1.y, 7, 0, Math.PI * 2);
     ctx.fill();
@@ -572,27 +624,34 @@ class CourtViewManager {
     ctx.stroke();
 
     // P1 Label
-    ctx.fillStyle = p1Color;
+    ctx.fillStyle = '#00f0ff';
     ctx.font = 'bold 9px "Orbitron", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(p1Text, p1.x, p1.y + 16);
+    const p1LabelOffset = this.player1Pos.y < 6.70 ? 16 : -12;
+    ctx.fillText(p1Text, p1.x, p1.y + p1LabelOffset);
 
-    // Player 2: Far Court (Red/Blue or Orange)
+    // Player 2 (POPOV / Opponent) - French white kit with crimson trim & text
     const p2 = this.courtToScreen(this.player2Pos.x, this.player2Pos.y);
-    ctx.fillStyle = p2Color;
+    const isPopov = (p2Info?.id === 'POPOV') || (p2Info?.country === 'FRA');
+    const p2Fill = isPopov ? '#ffffff' : (p2Info?.jersey_color || '#ff5722');
+    const p2Stroke = isPopov ? '#ff2a55' : '#ffffff';
+    const p2TextCol = isPopov ? '#ff2a55' : (p2Info?.jersey_color || '#ff5722');
+
+    ctx.fillStyle = p2Fill;
     ctx.beginPath();
     ctx.arc(p2.x, p2.y, 7, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = p2Stroke;
+    ctx.lineWidth = isPopov ? 2.0 : 1.5;
     ctx.stroke();
 
     // P2 Label
-    ctx.fillStyle = p2Color;
+    ctx.fillStyle = p2TextCol;
     ctx.font = 'bold 9px "Orbitron", sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText(p2Text, p2.x, p2.y - 12);
+    const p2LabelOffset = this.player2Pos.y < 6.70 ? 16 : -12;
+    ctx.fillText(p2Text, p2.x, p2.y + p2LabelOffset);
   }
 
   drawShuttlecockAndShots() {

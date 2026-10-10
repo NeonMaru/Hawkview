@@ -47,7 +47,7 @@ class BroadcastPlayer {
     // Dual-View State: Default to PiP!
     this.currentViewMode = 'pip'; // '3d', 'split', 'pip', 'full'
     this.hasVideo = false;
-    this.videoOffset = this.currentTime;
+    this.videoOffset = 0;
     this.isSampleVideoLoaded = false;
 
     // YouTube Player State
@@ -71,7 +71,12 @@ class BroadcastPlayer {
 
     // Prime sample video if present in DOM
     if (this.videoElement && this.videoElement.getAttribute('src')) {
-      this.loadVideoSource(this.videoElement.getAttribute('src'), 'BWF ARCTIC OPEN // QF (MAS vs TPE)', true);
+      const initialSrc = this.videoElement.getAttribute('src');
+      const isPopovMatch = initialSrc.includes('LZJvPopov') || (window.HAWKVIEW_ACTIVE_MATCH_KEY === 'popov');
+      const label = isPopovMatch
+        ? 'BWF ARCTIC OPEN // QF (LEE ZII JIA vs CHRISTO POPOV)'
+        : 'BWF ARCTIC OPEN // QF (MAS vs TPE)';
+      this.loadVideoSource(initialSrc, label, true);
     }
 
     this.startPlaybackLoop();
@@ -81,7 +86,11 @@ class BroadcastPlayer {
 
   initThreeViewer() {
     if (window.ThreeCourtViewer) {
-      this.threeViewer = new window.ThreeCourtViewer('three-viewport-container');
+      try {
+        this.threeViewer = new window.ThreeCourtViewer('three-viewport-container');
+      } catch (e) {
+        console.warn('ThreeCourtViewer failed to initialize:', e);
+      }
     }
   }
 
@@ -224,25 +233,36 @@ class BroadcastPlayer {
   getRallyAtTime(time) {
     if (!this.rallies || this.rallies.length === 0) return null;
 
-    // Check if directly inside a rally (with 0.4s buffer at ends)
+    // Check if directly inside a rally [seconds_start, seconds_end]
     for (let i = 0; i < this.rallies.length; i++) {
       const r = this.rallies[i];
-      if (time >= r.seconds_start && time <= r.seconds_end + 0.4) {
+      if (time >= r.seconds_start && time <= r.seconds_end) {
         return { rally: r, index: i, isDowntime: false };
       }
     }
 
-    // Between rallies or downtime: find closest / last completed rally
-    let lastIndex = 0;
-    for (let i = 0; i < this.rallies.length; i++) {
-      if (time >= this.rallies[i].seconds_start) {
-        lastIndex = i;
-      } else {
-        break;
+    // Between rallies or in transition/replay downtime:
+    // If before first rally:
+    if (time < this.rallies[0].seconds_start) {
+      return { rally: this.rallies[0], index: 0, isDowntime: true };
+    }
+
+    // Find the contextual rally between points
+    for (let i = 0; i < this.rallies.length - 1; i++) {
+      const curr = this.rallies[i];
+      const next = this.rallies[i + 1];
+      if (time > curr.seconds_end && time < next.seconds_start) {
+        const mid = curr.seconds_end + (next.seconds_start - curr.seconds_end) * 0.45;
+        if (time >= mid) {
+          return { rally: next, index: i + 1, isDowntime: true };
+        } else {
+          return { rally: curr, index: i, isDowntime: true };
+        }
       }
     }
 
-    return { rally: this.rallies[lastIndex], index: lastIndex, isDowntime: true };
+    const lastIdx = this.rallies.length - 1;
+    return { rally: this.rallies[lastIdx], index: lastIdx, isDowntime: true };
   }
 
   seekTo(targetSeconds, instant = false) {
@@ -261,9 +281,10 @@ class BroadcastPlayer {
     }
     // Seek HTML5 video
     else if (this.hasVideo && this.videoElement) {
-      const vidTarget = (this.isSampleVideoLoaded && clamped >= 312.1)
+      const isRally18Clip = this.videoElement.src && this.videoElement.src.includes('sample_rally.mp4');
+      const vidTarget = (isRally18Clip && clamped >= 312.1)
         ? Math.max(0, Math.min(this.videoElement.duration || 20, clamped - 312.1))
-        : Math.max(0, Math.min(this.videoElement.duration || 1200, clamped));
+        : Math.max(0, Math.min(this.videoElement.duration || 1200, clamped - (this.videoOffset || 0)));
       this.videoElement.currentTime = vidTarget;
     }
 
@@ -282,7 +303,7 @@ class BroadcastPlayer {
 
       if (this.currentRally) {
         this.currentTime = this.currentRally.seconds_start;
-        this.videoOffset = this.currentRally.seconds_start;
+        this.videoOffset = 0;
       }
 
       this.renderTimelineTicks();
@@ -315,9 +336,10 @@ class BroadcastPlayer {
         if (this.isYouTubeActive && this.ytPlayer && typeof this.ytPlayer.seekTo === 'function') {
           this.ytPlayer.seekTo(targetSeconds, true);
         } else if (this.hasVideo && this.videoElement) {
-          const vidTarget = (this.isSampleVideoLoaded && targetSeconds >= 312.1)
+          const isRally18Clip = this.videoElement.src && this.videoElement.src.includes('sample_rally.mp4');
+          const vidTarget = (isRally18Clip && targetSeconds >= 312.1)
             ? Math.max(0, Math.min(this.videoElement.duration || 20, targetSeconds - 312.1))
-            : Math.max(0, Math.min(this.videoElement.duration || 1200, targetSeconds));
+            : Math.max(0, Math.min(this.videoElement.duration || 1200, targetSeconds - (this.videoOffset || 0)));
           this.videoElement.currentTime = vidTarget;
         }
 
@@ -879,14 +901,17 @@ class BroadcastPlayer {
     if (this.ytContainer) this.ytContainer.classList.add('hidden');
     if (this.videoElement) this.videoElement.classList.remove('hidden');
 
-    const samplePath = 'assets/sample_rally.mp4';
-    this.loadVideoSource(samplePath, 'BWF ARCTIC OPEN // QF (MAS vs TPE)', true);
-
-    // Jump to Rally #18 (LZJ 412km/h smash)
-    const r18Idx = this.rallies.findIndex(r => r.rally_id === 18);
-    if (r18Idx !== -1) {
-      this.selectRally(r18Idx);
+    if (window.setHawkviewMatch) {
+      window.setHawkviewMatch('popov');
     }
+
+    const samplePath = 'assets/LZJvPopov.mp4';
+    this.loadVideoSource(samplePath, 'BWF ARCTIC OPEN // QF (LEE ZII JIA vs CHRISTO POPOV)', true);
+
+    // Jump to Rally #4 (LZJ 408km/h smash) or Rally 1
+    const smashIdx = this.rallies.findIndex(r => r.max_smash_kmh >= 400);
+    const targetIdx = smashIdx !== -1 ? smashIdx : 0;
+    this.selectRally(targetIdx);
 
     if (switchToPip && this.currentViewMode === '3d') {
       this.setDualViewMode('pip');
@@ -924,14 +949,14 @@ class BroadcastPlayer {
 
     this.videoElement.onloadedmetadata = () => {
       this.hasVideo = true;
-      if (isSample) {
+      if (src.includes('sample_rally.mp4')) {
         this.videoOffset = 312.1;
       } else {
-        this.videoOffset = this.currentRally ? this.currentRally.seconds_start : 0;
+        this.videoOffset = 0;
       }
 
       // Seek video to current match time
-      const targetTime = Math.max(0, Math.min(this.videoElement.duration, this.currentTime - this.videoOffset));
+      const targetTime = Math.max(0, Math.min(this.videoElement.duration, this.currentTime - (this.videoOffset || 0)));
       this.videoElement.currentTime = targetTime;
 
       if (this.isPlaying) {
@@ -990,12 +1015,13 @@ class BroadcastPlayer {
     }
     // Local video sync on rally selection
     else if (this.hasVideo && this.videoElement) {
-      if (this.isSampleVideoLoaded && this.currentRally.rally_id === 18) {
+      const isRally18Clip = this.videoElement.src && this.videoElement.src.includes('sample_rally.mp4');
+      if (isRally18Clip && this.currentRally.rally_id === 18) {
         this.videoOffset = 312.1;
         this.videoElement.currentTime = 0;
       } else {
-        this.videoOffset = this.currentRally.seconds_start;
-        this.videoElement.currentTime = 0;
+        this.videoOffset = 0;
+        this.videoElement.currentTime = this.currentRally.seconds_start;
       }
 
       if (this.isPlaying) {
@@ -1174,6 +1200,25 @@ class BroadcastPlayer {
       this.threeViewer.updateTelemetryState(telemetryPacket, instant);
     }
 
+    // Update live broadcast HUD status badge, LED, and video feed label
+    const hudBadge = document.getElementById('hud-status-badge');
+    const hudLed = document.getElementById('hud-status-led');
+    const feedLabel = document.getElementById('video-feed-label');
+
+    if (isDowntime) {
+      if (hudBadge) hudBadge.textContent = 'REPLAY / TRANSITION // READY';
+      if (hudLed) hudLed.className = 'status-led status-led-amber';
+      if (feedLabel && !this.isYouTubeActive) {
+        feedLabel.textContent = 'BWF BROADCAST CAM 01 // REPLAY / TRANSITION // READY';
+      }
+    } else {
+      if (hudBadge) hudBadge.textContent = `LIVE 60FPS // RALLY #${rally.rally_id}`;
+      if (hudLed) hudLed.className = 'status-led status-led-red';
+      if (feedLabel && !this.isYouTubeActive) {
+        feedLabel.textContent = `BWF BROADCAST CAM 01 // LIVE // RALLY #${rally.rally_id}`;
+      }
+    }
+
     // Callback to update sub-dials, LCD, and 2D court
     this.onTimeUpdate(telemetryPacket);
   }
@@ -1219,8 +1264,9 @@ class BroadcastPlayer {
       // 2. HTML5 video active synchronization
       else if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
         if (!this.isUserScrubbing) {
+          const isRally18Clip = this.videoElement.src && this.videoElement.src.includes('sample_rally.mp4');
           const vidSec = this.videoElement.currentTime;
-          this.currentTime = (this.isSampleVideoLoaded ? 312.1 : this.videoOffset) + vidSec;
+          this.currentTime = (isRally18Clip ? 312.1 : (this.videoOffset || 0)) + vidSec;
           this.syncRallyState();
         }
       }

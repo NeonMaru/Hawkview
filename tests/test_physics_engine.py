@@ -12,6 +12,7 @@ from engine.tracknet import TrackNetProcessor, ShuttleDetection
 from engine.player_pose import PlayerPoseEngine
 from engine.scoreboard_ocr import ScoreboardOCREngine
 from engine.pipeline import HawkviewPipeline
+from engine.video_analyzer import VideoAnalyzer
 
 
 class TestCourtGeometry(unittest.TestCase):
@@ -259,6 +260,72 @@ class TestPipelineEndToEnd(unittest.TestCase):
 
         if os.path.exists(out_path):
             os.remove(out_path)
+
+
+class TestVideoAnalyzer(unittest.TestCase):
+    def setUp(self):
+        self.analyzer = VideoAnalyzer(video_path="assets/LZJvPopov.mp4")
+
+    def test_analyzer_contract_structure(self):
+        """Verifies that the video analyzer generates all 22 verified rallies with required schema."""
+        contract = self.analyzer.build_ground_truth_contract()
+        self.assertIn("match_metadata", contract)
+        self.assertIn("transitions", contract["match_metadata"])
+        self.assertIn("players", contract)
+        self.assertIn("rallies", contract)
+        self.assertEqual(len(contract["rallies"]), 22)
+
+    def test_player_orientation_swap(self):
+        """
+        Verifies that Set 1 has Popov on near court and LZJ on far court,
+        and Set 2 has LZJ on near court and Popov on far court.
+        """
+        contract = self.analyzer.build_ground_truth_contract()
+        rallies = contract["rallies"]
+
+        # Game 1: Rallies 1 to 10
+        for r in rallies[:10]:
+            self.assertEqual(r["set"], 1)
+            self.assertEqual(r["near_player"], "POPOV", f"Rally {r['rally_id']} near_player must be POPOV")
+            self.assertEqual(r["far_player"], "LZJ", f"Rally {r['rally_id']} far_player must be LZJ")
+
+        # Game 2: Rallies 11 to 22
+        for r in rallies[10:]:
+            self.assertEqual(r["set"], 2)
+            self.assertEqual(r["near_player"], "LZJ", f"Rally {r['rally_id']} near_player must be LZJ")
+            self.assertEqual(r["far_player"], "POPOV", f"Rally {r['rally_id']} far_player must be POPOV")
+
+    def test_timestamps_monotonic_and_within_bounds(self):
+        """Verifies that all 22 rallies have valid chronological non-overlapping timestamps."""
+        contract = self.analyzer.build_ground_truth_contract()
+        rallies = contract["rallies"]
+        prev_end = 0.0
+
+        for r in rallies:
+            s = r["seconds_start"]
+            e = r["seconds_end"]
+            self.assertGreaterEqual(s, prev_end, f"Rally {r['rally_id']} overlap or backwards time")
+            self.assertGreater(e, s, f"Rally {r['rally_id']} zero or negative duration")
+            self.assertLessEqual(e, 498.44, f"Rally {r['rally_id']} exceeds video duration")
+            self.assertEqual(round(e - s, 2), r["duration_sec"])
+
+            # Verify individual shot timestamps are bounded
+            for shot in r["shots"]:
+                self.assertGreaterEqual(shot["time"], s - 0.01)
+                self.assertLessEqual(shot["time"], e + 0.01)
+                # Verify shot peak clears the net (1.524m)
+                self.assertGreater(shot["trajectory_peak_z"], 1.50)
+
+            prev_end = e
+
+    def test_transitions_structure(self):
+        """Verifies that detected transition windows have valid start and end."""
+        transitions = self.analyzer.detect_transitions()
+        self.assertGreater(len(transitions), 10)
+        for s, e in transitions:
+            self.assertLess(s, e)
+            self.assertGreaterEqual(s, 0.0)
+            self.assertLessEqual(e, 498.44)
 
 
 if __name__ == "__main__":

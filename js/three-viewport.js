@@ -76,14 +76,19 @@ class ThreeCourtViewer {
     this.maxTrailPoints = 40;
     this.isSmashActive = false;
 
-    this.initScene();
-    this.buildLighting();
-    this.buildArenaAndCourt();
-    this.buildNet();
-    this.buildShuttlecock();
-    this.buildPlayers();
-    this.setupEvents();
-    this.animate();
+    try {
+      this.initScene();
+      this.buildLighting();
+      this.buildArenaAndCourt();
+      this.buildNet();
+      this.buildShuttlecock();
+      this.buildPlayers();
+      this.setupEvents();
+      this.animate();
+    } catch (e) {
+      console.warn("[ThreeCourtViewer] WebGL initialization fallback:", e);
+      this.webglFailed = true;
+    }
   }
 
   initScene() {
@@ -447,46 +452,122 @@ class ThreeCourtViewer {
   }
 
   buildPlayers() {
-    const p1Data = window.HAWKVIEW_TELEMETRY?.players?.player_1;
-    const p2Data = window.HAWKVIEW_TELEMETRY?.players?.player_2;
-    const p1Left = (p1Data?.dominant_hand || 'Right').toLowerCase() === 'left';
-    const p2Left = (p2Data?.dominant_hand || 'Left').toLowerCase() === 'left';
+    this.currentNearPlayerId = null;
+    this._sidesConfigured = false;
 
-    const p1Jersey = p1Data?.jersey_color ? parseInt(p1Data.jersey_color.replace('#', '0x'), 16) : 0x00f0ff;
-    const p2Jersey = p2Data?.jersey_color ? parseInt(p2Data.jersey_color.replace('#', '0x'), 16) : 0xff2a55;
+    // Near Player (standing closer to camera, Y ~ 1.8m, Z ~ -4.8)
+    this.nearPlayer = this.createPlayerFigure(0x1e1e24, 0x111827, 'LEE ZII JIA (MAS)', true, false);
+    this.scene.add(this.nearPlayer.group);
 
-    // Player 1: Lee Zii Jia (MAS - Cyan Jersey #00f0ff, Right handed)
-    this.player1 = this.createPlayerFigure(p1Jersey, 0x111827, p1Data?.name || 'LEE ZII JIA (MAS)', true, p1Left);
-    this.scene.add(this.player1.group);
+    // Far Player (across net, Y ~ 11.6m, Z ~ 4.8)
+    this.farPlayer = this.createPlayerFigure(0xf8fafc, 0x06b6d4, 'CHRISTO POPOV (FRA)', false, true);
+    this.scene.add(this.farPlayer.group);
 
-    // Player 2: Christo Popov / Su Li Yang
-    this.player2 = this.createPlayerFigure(p2Jersey, 0x0f172a, p2Data?.name || 'CHRISTO POPOV (FRA)', false, p2Left);
-    this.scene.add(this.player2.group);
+    // Aliases for compatibility
+    this.player1 = this.nearPlayer;
+    this.player2 = this.farPlayer;
+
+    // Initial side configuration from active telemetry
+    const initialNear = window.HAWKVIEW_TELEMETRY?.rallies?.[0]?.near_player || 'POPOV';
+    this.setPlayerSides(initialNear);
   }
 
   updatePlayersFromTelemetry(telemetry) {
-    if (!telemetry || !telemetry.players) return;
-    const p1Data = telemetry.players.player_1;
-    const p2Data = telemetry.players.player_2;
+    if (!telemetry) return;
+    this._sidesConfigured = false;
+    const initialNear = telemetry?.rallies?.[0]?.near_player || 'LZJ';
+    this.setPlayerSides(initialNear);
+  }
 
-    if (this.player1 && this.player1.group) {
-      this.scene.remove(this.player1.group);
+  setPlayerSides(nearPlayerId = 'LZJ') {
+    if (this.currentNearPlayerId === nearPlayerId && this._sidesConfigured) return;
+    this.currentNearPlayerId = nearPlayerId;
+    this._sidesConfigured = true;
+
+    const isPopovNear = (nearPlayerId === 'POPOV');
+
+    // Kit specs:
+    // Christo Popov:
+    // French Flag / Kit: White shirt (0xf8fafc), turquoise shorts (0x06b6d4), crimson accent #ff2a55.
+    // Left-handed racket: attached to LEFT arm!
+    const popovKit = {
+      id: 'POPOV',
+      name: 'CHRISTO POPOV (FRA)',
+      jerseyColor: 0xf8fafc,
+      shortsColor: 0x06b6d4,
+      hasAccent: true,
+      accentColor: 0xff2a55,
+      isLeftHanded: true
+    };
+
+    // Lee Zii Jia:
+    // Malaysian Kit: Dark sleeveless shirt #1e1e24, black shorts #111827, right-handed racket on the RIGHT arm!
+    const lzjKit = {
+      id: 'LZJ',
+      name: 'LEE ZII JIA (MAS)',
+      jerseyColor: 0x1e1e24,
+      shortsColor: 0x111827,
+      hasAccent: false,
+      accentColor: 0x00f0ff,
+      isLeftHanded: false
+    };
+
+    // Su Li Yang fallback if active match is SLY
+    const p2Data = window.HAWKVIEW_TELEMETRY?.players?.player_2;
+    const isSLY = p2Data && p2Data.id === 'SLY';
+    const opponentKit = isSLY ? {
+      id: 'SLY',
+      name: 'SU LI YANG (TPE)',
+      jerseyColor: 0xff5722,
+      shortsColor: 0x0f172a,
+      hasAccent: false,
+      accentColor: 0xffb703,
+      isLeftHanded: false
+    } : popovKit;
+
+    if (isPopovNear) {
+      // NEAR 3D model (closer to camera): Christo Popov
+      this.configurePlayerAppearance(this.nearPlayer, { ...popovKit, isNearSide: true });
+      // FAR 3D model (across net): Lee Zii Jia
+      this.configurePlayerAppearance(this.farPlayer, { ...lzjKit, isNearSide: false });
+    } else {
+      // NEAR 3D model: Lee Zii Jia
+      this.configurePlayerAppearance(this.nearPlayer, { ...lzjKit, isNearSide: true });
+      // FAR 3D model: Christo Popov (or opponent)
+      this.configurePlayerAppearance(this.farPlayer, { ...opponentKit, isNearSide: false });
     }
-    if (this.player2 && this.player2.group) {
-      this.scene.remove(this.player2.group);
+  }
+
+  configurePlayerAppearance(player, config) {
+    if (!player || !config) return;
+
+    player.playerId = config.id;
+    player.name = config.name;
+
+    // Torso (Jersey)
+    if (player.torso && player.torso.material) {
+      player.torso.material.color.setHex(config.jerseyColor);
     }
 
-    const p1Left = (p1Data?.dominant_hand || 'Right').toLowerCase() === 'left';
-    const p2Left = (p2Data?.dominant_hand || 'Left').toLowerCase() === 'left';
+    // Crimson accent band
+    if (player.accentBand) {
+      player.accentBand.visible = !!config.hasAccent;
+      if (config.accentColor) {
+        player.accentBand.material.color.setHex(config.accentColor);
+      }
+    }
 
-    const p1Jersey = p1Data?.jersey_color ? parseInt(p1Data.jersey_color.replace('#', '0x'), 16) : 0x00f0ff;
-    const p2Jersey = p2Data?.jersey_color ? parseInt(p2Data.jersey_color.replace('#', '0x'), 16) : 0xff2a55;
+    // Shorts
+    if (player.shorts && player.shorts.material) {
+      player.shorts.material.color.setHex(config.shortsColor);
+    }
 
-    this.player1 = this.createPlayerFigure(p1Jersey, 0x111827, p1Data?.name || 'LEE ZII JIA (MAS)', true, p1Left);
-    this.scene.add(this.player1.group);
+    // Handedness: Left arm vs Right arm
+    this.setPlayerHandedness(player, config.isLeftHanded);
 
-    this.player2 = this.createPlayerFigure(p2Jersey, 0x0f172a, p2Data?.name || 'CHRISTO POPOV (FRA)', false, p2Left);
-    this.scene.add(this.player2.group);
+    // Orientation: Near faces +Z (rotation.y = 0), Far faces -Z (rotation.y = Math.PI)
+    player.group.rotation.y = config.isNearSide ? 0 : Math.PI;
+    player.isNearSide = config.isNearSide;
   }
 
   createPlayerFigure(jerseyHex, shortsHex, name, isNearSide, isLeftHanded = false) {
@@ -503,6 +584,18 @@ class ThreeCourtViewer {
     torso.position.y = 1.25;
     torso.castShadow = true;
     group.add(torso);
+
+    // Crimson Accent Band (French kit collar / chest trim)
+    const accentGeo = new THREE.BoxGeometry(0.444, 0.08, 0.244);
+    const accentMat = new THREE.MeshStandardMaterial({
+      color: 0xff2a55,
+      roughness: 0.4
+    });
+    const accentBand = new THREE.Mesh(accentGeo, accentMat);
+    accentBand.position.y = 1.48;
+    accentBand.castShadow = true;
+    accentBand.visible = false;
+    group.add(accentBand);
 
     // Head
     const headGeo = new THREE.SphereGeometry(0.12, 16, 16);
@@ -618,6 +711,8 @@ class ThreeCourtViewer {
     return {
       group,
       torso,
+      accentBand,
+      shorts,
       racketArm,
       armGroup: racketArm, // Compatibility alias
       balanceArm,
@@ -630,13 +725,15 @@ class ThreeCourtViewer {
     };
   }
 
-  setPlayerHandedness(playerIndex, isLeftHanded) {
-    const player = playerIndex === 1 ? this.player1 : this.player2;
+  setPlayerHandedness(playerOrIndex, isLeftHanded) {
+    const player = (typeof playerOrIndex === 'number')
+      ? (playerOrIndex === 1 ? this.player1 : this.player2)
+      : playerOrIndex;
     if (!player) return;
-    if (player.isLeftHanded === isLeftHanded) return;
+    if (player.isLeftHanded === isLeftHanded && player.racketArm) return;
 
-    player.group.remove(player.racketArm);
-    player.group.remove(player.balanceArm);
+    if (player.racketArm) player.group.remove(player.racketArm);
+    if (player.balanceArm) player.group.remove(player.balanceArm);
 
     const legMat = new THREE.MeshStandardMaterial({ color: 0xffd1b3, roughness: 0.8 });
     const armGeo = new THREE.CylinderGeometry(0.05, 0.045, 0.55, 12);
@@ -759,7 +856,7 @@ class ThreeCourtViewer {
   }
 
   onResize() {
-    if (!this.container || !this.renderer || !this.camera) return;
+    if (this.webglFailed || !this.container || !this.renderer || !this.camera) return;
     const rect = this.container.getBoundingClientRect();
     const width = rect.width || 720;
     const height = rect.height || 450;
@@ -781,29 +878,37 @@ class ThreeCourtViewer {
   }
 
   setDowntimeState(rally, instant = false) {
-    // In downtime between rallies (or before/after points), place players in ready/service stance at baseline/service line
-    const p1Ready = new THREE.Vector3(0, 0, -4.8);
-    const p2Ready = new THREE.Vector3(0, 0, 4.8);
+    if (this.webglFailed) return;
+    this.currentRally = rally;
+    const nearId = (rally && rally.near_player) ? rally.near_player : 'LZJ';
+    this.setPlayerSides(nearId);
+
+    // In downtime between rallies (or transitions), pose near and far players in ready stances on their respective sides
+    const nearReady = new THREE.Vector3(0, 0, -4.8);
+    const farReady = new THREE.Vector3(0, 0, 4.8);
 
     if (instant) {
-      this.player1.group.position.copy(p1Ready);
-      this.player2.group.position.copy(p2Ready);
+      this.nearPlayer.group.position.copy(nearReady);
+      this.farPlayer.group.position.copy(farReady);
     } else {
-      this.player1.group.position.lerp(p1Ready, 0.15);
-      this.player2.group.position.lerp(p2Ready, 0.15);
+      this.nearPlayer.group.position.lerp(nearReady, 0.15);
+      this.farPlayer.group.position.lerp(farReady, 0.15);
     }
 
+    this.nearPlayer.group.rotation.y = 0; // facing net (+Z)
+    this.farPlayer.group.rotation.y = Math.PI; // facing net (-Z)
+
     // Reset jump & arm swing to athletic ready stance
-    this.player1.torso.position.y = 1.25;
-    this.player2.torso.position.y = 1.25;
-    if (this.player1.racketArm) this.player1.racketArm.rotation.x = 0;
-    if (this.player2.racketArm) this.player2.racketArm.rotation.x = 0;
-    this.player1.shadow.scale.set(1, 1, 1);
-    this.player2.shadow.scale.set(1, 1, 1);
+    this.nearPlayer.torso.position.y = 1.25;
+    this.farPlayer.torso.position.y = 1.25;
+    if (this.nearPlayer.racketArm) this.nearPlayer.racketArm.rotation.x = 0;
+    if (this.farPlayer.racketArm) this.farPlayer.racketArm.rotation.x = 0;
+    this.nearPlayer.shadow.scale.set(1, 1, 1);
+    this.farPlayer.shadow.scale.set(1, 1, 1);
 
     // Shuttlecock placed with server in ready position
-    const isLZJServer = !rally || rally.server === 'LZJ' || (rally.score_after && rally.winner === 'LZJ');
-    const shuttleReady = isLZJServer 
+    const isNearServer = !rally || (rally.server === nearId) || (!rally.server && nearId === 'LZJ');
+    const shuttleReady = isNearServer 
       ? new THREE.Vector3(0, 1.15, -4.2)
       : new THREE.Vector3(0, 1.15, 4.2);
 
@@ -822,14 +927,20 @@ class ThreeCourtViewer {
    * Updates state on each playback frame from telemetry engine
    */
   updateTelemetryState(data, instant = false) {
-    if (!data) return;
+    if (!data || this.webglFailed) return;
+
+    const { rally, shot, shotIndex, time, elapsed } = data;
+    this.currentRally = rally;
+
+    // Dynamically adapt 3D player sides based on rally.near_player
+    const nearId = (rally && rally.near_player) ? rally.near_player : 'LZJ';
+    this.setPlayerSides(nearId);
 
     if (data.isDowntime) {
       this.setDowntimeState(data.rally, instant);
       return;
     }
 
-    const { rally, shot, shotIndex, time, elapsed } = data;
     this.isSmashActive = shot && shot.speed_kmh >= 350;
 
     // 1. Calculate Ballistic Trajectory & Shuttle Position
@@ -899,7 +1010,8 @@ class ThreeCourtViewer {
   updatePlayerPositions(currentShot, nextShot, progress, instant = false) {
     if (!currentShot) return;
 
-    const isLZJ = currentShot.hitter === 'LZJ';
+    const nearId = this.currentNearPlayerId || 'LZJ';
+    const isHitterNear = (currentShot.hitter === nearId) || (currentShot.hit_coord && currentShot.hit_coord[1] < 6.70);
     const isSmash = currentShot.stroke && currentShot.stroke.includes('Smash');
 
     // Hitter position: at hit_coord initially, recovering towards base T
@@ -910,32 +1022,36 @@ class ThreeCourtViewer {
     // Receiver position: moving smoothly towards land_coord to intercept shot
     const receiverInterceptWorld = this.courtToWorld(currentShot.land_coord[0], currentShot.land_coord[1], 0);
 
-    let p1Target, p2Target;
-    if (isLZJ) {
-      p1Target = new THREE.Vector3().lerpVectors(hitterHitWorld, nearCourtBase, Math.min(1.0, progress * 0.7));
-      p1Target.z = Math.min(-1.5, p1Target.z);
+    let nearTarget, farTarget;
+    if (isHitterNear) {
+      // Near player is the hitter, recovering towards near base T
+      nearTarget = new THREE.Vector3().lerpVectors(hitterHitWorld, nearCourtBase, Math.min(1.0, progress * 0.7));
+      nearTarget.z = Math.min(-1.5, nearTarget.z);
 
-      p2Target = new THREE.Vector3().lerpVectors(farCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
-      p2Target.z = Math.max(1.5, p2Target.z);
+      // Far player is the receiver, intercepting landing
+      farTarget = new THREE.Vector3().lerpVectors(farCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
+      farTarget.z = Math.max(1.5, farTarget.z);
     } else {
-      p2Target = new THREE.Vector3().lerpVectors(hitterHitWorld, farCourtBase, Math.min(1.0, progress * 0.7));
-      p2Target.z = Math.max(1.5, p2Target.z);
+      // Far player is the hitter, recovering towards far base T
+      farTarget = new THREE.Vector3().lerpVectors(hitterHitWorld, farCourtBase, Math.min(1.0, progress * 0.7));
+      farTarget.z = Math.max(1.5, farTarget.z);
 
-      p1Target = new THREE.Vector3().lerpVectors(nearCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
-      p1Target.z = Math.min(-1.5, p1Target.z);
+      // Near player is the receiver, intercepting landing
+      nearTarget = new THREE.Vector3().lerpVectors(nearCourtBase, receiverInterceptWorld, Math.min(1.0, progress * 1.2));
+      nearTarget.z = Math.min(-1.5, nearTarget.z);
     }
 
     if (instant) {
-      this.player1.group.position.copy(p1Target);
-      this.player2.group.position.copy(p2Target);
+      this.nearPlayer.group.position.copy(nearTarget);
+      this.farPlayer.group.position.copy(farTarget);
     } else {
-      this.player1.group.position.lerp(p1Target, 0.22);
-      this.player2.group.position.lerp(p2Target, 0.22);
+      this.nearPlayer.group.position.lerp(nearTarget, 0.22);
+      this.farPlayer.group.position.lerp(farTarget, 0.22);
     }
 
     // Jump smash animation for hitter
-    const jumpPlayer = isLZJ ? this.player1 : this.player2;
-    const otherPlayer = isLZJ ? this.player2 : this.player1;
+    const jumpPlayer = isHitterNear ? this.nearPlayer : this.farPlayer;
+    const otherPlayer = isHitterNear ? this.farPlayer : this.nearPlayer;
 
     if (isSmash && progress < 0.65) {
       const jumpProgress = Math.sin((progress / 0.65) * Math.PI);
@@ -967,10 +1083,12 @@ class ThreeCourtViewer {
   }
 
   clearTrail() {
+    if (this.webglFailed) return;
     this.trailPoints = [];
   }
 
   animate() {
+    if (this.webglFailed || !this.renderer) return;
     requestAnimationFrame(() => this.animate());
 
     // Camera preset transition interpolation

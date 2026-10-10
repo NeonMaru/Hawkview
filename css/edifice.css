@@ -200,6 +200,11 @@
   box-shadow: 0 0 6px var(--edifice-emerald);
 }
 
+.status-led-amber {
+  background-color: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
+}
+
 @keyframes led-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.35; }

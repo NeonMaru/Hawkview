@@ -19,6 +19,7 @@ window.HAWKVIEW_MATCHES = {
     "date": "2024-10-11",
     "video_id": "EhN9qzVe7_g",
     "video_url": "https://www.youtube.com/watch?v=EhN9qzVe7_g",
+    "local_video_path": "assets/LZJvPopov.mp4",
     "video_duration_sec": 498,
     "court_id": "Court 1 (TV Court)",
     "surface": "Yonex Official Pro Mat (Green)",
@@ -62,7 +63,7 @@ window.HAWKVIEW_MATCHES = {
       "dominant_hand": "Right",
       "height_cm": 186,
       "jersey_color": "#00f0ff",
-      "court_side_start": "near",
+      "court_side_start": "far",
       "racket": "Victor Thruster Ryuga Metallic",
       "stats_summary": {
         "max_smash_speed_kmh": 408.0,
@@ -83,7 +84,7 @@ window.HAWKVIEW_MATCHES = {
       "dominant_hand": "Left",
       "height_cm": 180,
       "jersey_color": "#ff2a55",
-      "court_side_start": "far",
+      "court_side_start": "near",
       "racket": "Babolat Satelite Gravity 78",
       "stats_summary": {
         "max_smash_speed_kmh": 368.2,
@@ -100,22 +101,23 @@ window.HAWKVIEW_MATCHES = {
       "rally_id": 1,
       "badge": "Rally #1 \ud83c\udff8",
       "label": "Opening Net Tumble & Cross-Drop",
-      "timestamp_start": "00:25.00",
-      "timestamp_end": "00:42.00",
-      "seconds_start": 25.0,
-      "seconds_end": 42.0,
-      "duration_sec": 17.0,
+      "timestamp_start": "00:24.50",
+      "timestamp_end": "00:37.50",
+      "seconds_start": 24.5,
+      "seconds_end": 37.5,
+      "duration_sec": 13.0,
       "score_before": {
-        "player_1": 0,
-        "player_2": 0
+        "player_1": 9,
+        "player_2": 4
       },
       "score_after": {
-        "player_1": 0,
-        "player_2": 1
+        "player_1": 9,
+        "player_2": 5
       },
       "set": 1,
-      "server": "LZJ",
+      "server": "POPOV",
       "winner": "POPOV",
+      "near_player": "POPOV",
       "shot_count": 14,
       "max_smash_kmh": 315.0,
       "avg_shot_speed_kmh": 152.0,
@@ -126,8 +128,8 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 1,
           "time": 25.0,
-          "hitter": "LZJ",
-          "stroke": "Low Serve",
+          "hitter": "POPOV",
+          "stroke": "Low Serve (Left-Hand)",
           "speed_kmh": 82.0,
           "hit_coord": [
             3.05,
@@ -143,7 +145,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 2,
           "time": 26.2,
-          "hitter": "POPOV",
+          "hitter": "LZJ",
           "stroke": "Push to Backhand",
           "speed_kmh": 118.0,
           "hit_coord": [
@@ -160,7 +162,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 3,
           "time": 27.5,
-          "hitter": "LZJ",
+          "hitter": "POPOV",
           "stroke": "Overhead Clear",
           "speed_kmh": 176.0,
           "hit_coord": [
@@ -177,7 +179,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 4,
           "time": 29.1,
-          "hitter": "POPOV",
+          "hitter": "LZJ",
           "stroke": "Fast Drop",
           "speed_kmh": 138.0,
           "hit_coord": [
@@ -194,7 +196,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 5,
           "time": 30.3,
-          "hitter": "LZJ",
+          "hitter": "POPOV",
           "stroke": "Hairpin Net Shot",
           "speed_kmh": 66.0,
           "hit_coord": [
@@ -211,7 +213,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 6,
           "time": 31.6,
-          "hitter": "POPOV",
+          "hitter": "LZJ",
           "stroke": "Net Lift High",
           "speed_kmh": 160.0,
           "hit_coord": [
@@ -228,7 +230,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 7,
           "time": 33.0,
-          "hitter": "LZJ",
+          "hitter": "POPOV",
           "stroke": "Half Smash Down-the-Line",
           "speed_kmh": 315.0,
           "hit_coord": [
@@ -245,7 +247,7 @@ window.HAWKVIEW_MATCHES = {
         {
           "shot_num": 8,
           "time": 34.0,
-          "hitter": "POPOV",
+          "hitter": "LZJ",
           "stroke": "Backhand Drive Defense",
           "speed_kmh": 162.0,
           "hit_coord": [
@@ -261,8 +263,8 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 9,
-          "time": 35.2,
-          "hitter": "LZJ",
+          "time": 35.0,
+          "hitter": "POPOV",
           "stroke": "Cross-Court Push",
           "speed_kmh": 144.0,
           "hit_coord": [
@@ -278,8 +280,8 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 10,
-          "time": 36.5,
-          "hitter": "POPOV",
+          "time": 35.7,
+          "hitter": "LZJ",
           "stroke": "Forehand Punch Clear",
           "speed_kmh": 172.0,
           "hit_coord": [
@@ -295,8 +297,8 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 11,
-          "time": 38.0,
-          "hitter": "LZJ",
+          "time": 36.3,
+          "hitter": "POPOV",
           "stroke": "Reverse Slice Drop",
           "speed_kmh": 128.0,
           "hit_coord": [
@@ -312,8 +314,8 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 12,
-          "time": 39.3,
-          "hitter": "POPOV",
+          "time": 36.7,
+          "hitter": "LZJ",
           "stroke": "Underarm Cross Lift",
           "speed_kmh": 148.0,
           "hit_coord": [
@@ -329,8 +331,8 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 13,
-          "time": 40.6,
-          "hitter": "LZJ",
+          "time": 37.1,
+          "hitter": "POPOV",
           "stroke": "Soft Block to Net",
           "speed_kmh": 74.0,
           "hit_coord": [
@@ -346,18 +348,18 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 14,
-          "time": 41.8,
+          "time": 37.5,
           "hitter": "POPOV",
           "stroke": "Spinning Net Tumble Winner",
           "speed_kmh": 52.0,
           "hit_coord": [
             2.6,
-            7.1,
+            6.25,
             0.32
           ],
           "land_coord": [
             2.55,
-            6.25
+            6.45
           ],
           "trajectory_peak_z": 1.56,
           "winner": true
@@ -368,22 +370,23 @@ window.HAWKVIEW_MATCHES = {
       "rally_id": 2,
       "badge": "Rally #2 \ud83d\udca5",
       "label": "Steep Angle Reverse Slice Smash",
-      "timestamp_start": "01:18.00",
-      "timestamp_end": "01:36.00",
-      "seconds_start": 78.0,
-      "seconds_end": 96.0,
-      "duration_sec": 18.0,
+      "timestamp_start": "01:23.00",
+      "timestamp_end": "01:38.00",
+      "seconds_start": 83.0,
+      "seconds_end": 98.0,
+      "duration_sec": 15.0,
       "score_before": {
-        "player_1": 2,
-        "player_2": 2
+        "player_1": 14,
+        "player_2": 8
       },
       "score_after": {
-        "player_1": 3,
-        "player_2": 2
+        "player_1": 15,
+        "player_2": 8
       },
       "set": 1,
       "server": "POPOV",
       "winner": "LZJ",
+      "near_player": "POPOV",
       "shot_count": 16,
       "max_smash_kmh": 382.5,
       "avg_shot_speed_kmh": 168.4,
@@ -393,273 +396,273 @@ window.HAWKVIEW_MATCHES = {
       "shots": [
         {
           "shot_num": 1,
-          "time": 78.0,
+          "time": 83.0,
           "hitter": "POPOV",
           "stroke": "Low Serve (Left-Hand)",
           "speed_kmh": 81.0,
           "hit_coord": [
             3.05,
-            8.68,
+            4.72,
             1.1
           ],
           "land_coord": [
             3.1,
-            4.72
+            8.68
           ],
           "trajectory_peak_z": 1.56
         },
         {
           "shot_num": 2,
-          "time": 79.1,
+          "time": 84.1,
           "hitter": "LZJ",
           "stroke": "Drive Return",
           "speed_kmh": 165.0,
           "hit_coord": [
             3.1,
-            4.72,
+            8.68,
             0.95
           ],
           "land_coord": [
             4.8,
-            10.5
+            2.5
           ],
           "trajectory_peak_z": 1.85
         },
         {
           "shot_num": 3,
-          "time": 80.2,
+          "time": 85.2,
           "hitter": "POPOV",
           "stroke": "Backhand Block",
           "speed_kmh": 115.0,
           "hit_coord": [
             4.8,
-            10.5,
+            2.5,
             0.85
           ],
           "land_coord": [
             1.5,
-            5.0
+            8.0
           ],
           "trajectory_peak_z": 1.68
         },
         {
           "shot_num": 4,
-          "time": 81.4,
+          "time": 86.4,
           "hitter": "LZJ",
           "stroke": "High Lift to Baseline",
           "speed_kmh": 172.0,
           "hit_coord": [
             1.5,
-            5.0,
+            8.0,
             0.4
           ],
           "land_coord": [
             1.2,
-            12.8
+            0.8
           ],
           "trajectory_peak_z": 7.1
         },
         {
           "shot_num": 5,
-          "time": 82.9,
+          "time": 87.9,
           "hitter": "POPOV",
           "stroke": "Overhead Forehand Clear",
           "speed_kmh": 168.0,
           "hit_coord": [
             1.2,
-            12.8,
+            0.8,
             2.35
           ],
           "land_coord": [
             4.9,
-            0.8
+            12.8
           ],
           "trajectory_peak_z": 6.8
         },
         {
           "shot_num": 6,
-          "time": 84.4,
+          "time": 89.4,
           "hitter": "LZJ",
           "stroke": "Fast Slice Drop",
           "speed_kmh": 142.0,
           "hit_coord": [
             4.9,
-            0.8,
+            12.8,
             2.5
           ],
           "land_coord": [
             1.5,
-            7.5
+            5.5
           ],
           "trajectory_peak_z": 2.3
         },
         {
           "shot_num": 7,
-          "time": 85.6,
+          "time": 90.6,
           "hitter": "POPOV",
           "stroke": "Underhand Net Cross",
           "speed_kmh": 92.0,
           "hit_coord": [
             1.5,
-            7.5,
+            5.5,
             0.35
           ],
           "land_coord": [
             4.5,
-            5.8
+            8.2
           ],
           "trajectory_peak_z": 1.65
         },
         {
           "shot_num": 8,
-          "time": 86.8,
+          "time": 91.8,
           "hitter": "LZJ",
           "stroke": "Forehand Push",
           "speed_kmh": 150.0,
           "hit_coord": [
             4.5,
-            5.8,
+            8.2,
             0.8
           ],
           "land_coord": [
             1.2,
-            10.2
+            2.2
           ],
           "trajectory_peak_z": 1.8
         },
         {
           "shot_num": 9,
-          "time": 88.0,
+          "time": 93.0,
           "hitter": "POPOV",
           "stroke": "Defensive High Lift",
           "speed_kmh": 164.0,
           "hit_coord": [
             1.2,
-            10.2,
+            2.2,
             0.5
           ],
           "land_coord": [
             3.2,
-            1.0
+            12.6
           ],
           "trajectory_peak_z": 7.3
         },
         {
           "shot_num": 10,
-          "time": 89.5,
+          "time": 94.2,
           "hitter": "LZJ",
           "stroke": "Jump Smash Cross",
           "speed_kmh": 365.0,
           "hit_coord": [
             3.2,
-            1.0,
+            12.6,
             3.05
           ],
           "land_coord": [
             1.1,
-            9.8
+            3.2
           ],
           "trajectory_peak_z": 3.05
         },
         {
           "shot_num": 11,
-          "time": 90.4,
+          "time": 95.1,
           "hitter": "POPOV",
           "stroke": "Diving Backhand Return",
           "speed_kmh": 142.0,
           "hit_coord": [
             1.1,
-            9.8,
+            3.2,
             0.4
           ],
           "land_coord": [
             4.2,
-            4.5
+            9.2
           ],
           "trajectory_peak_z": 2.2
         },
         {
           "shot_num": 12,
-          "time": 91.6,
+          "time": 95.9,
           "hitter": "LZJ",
           "stroke": "Mid-Court Tap",
           "speed_kmh": 135.0,
           "hit_coord": [
             4.2,
-            4.5,
+            9.2,
             1.2
           ],
           "land_coord": [
             2.0,
-            8.2
+            4.5
           ],
           "trajectory_peak_z": 1.7
         },
         {
           "shot_num": 13,
-          "time": 92.8,
+          "time": 96.7,
           "hitter": "POPOV",
           "stroke": "Forehand Lift to Backhand Corner",
           "speed_kmh": 160.0,
           "hit_coord": [
             2.0,
-            8.2,
+            4.5,
             0.45
           ],
           "land_coord": [
             1.1,
-            0.7
+            12.7
           ],
           "trajectory_peak_z": 7.0
         },
         {
           "shot_num": 14,
-          "time": 94.2,
+          "time": 97.2,
           "hitter": "LZJ",
           "stroke": "Reverse Slice Preparation",
           "speed_kmh": 155.0,
           "hit_coord": [
             1.1,
-            0.7,
+            12.7,
             2.6
           ],
           "land_coord": [
             4.5,
-            11.2
+            2.8
           ],
           "trajectory_peak_z": 4.5
         },
         {
           "shot_num": 15,
-          "time": 95.1,
+          "time": 97.6,
           "hitter": "POPOV",
           "stroke": "Weak High Return",
           "speed_kmh": 120.0,
           "hit_coord": [
             4.5,
-            11.2,
+            2.8,
             1.8
           ],
           "land_coord": [
             3.0,
-            2.5
+            10.5
           ],
           "trajectory_peak_z": 4.2
         },
         {
           "shot_num": 16,
-          "time": 95.8,
+          "time": 98.0,
           "hitter": "LZJ",
           "stroke": "Steep Reverse Slice Smash Winner",
           "speed_kmh": 382.5,
           "hit_coord": [
             3.0,
-            2.5,
+            10.5,
             3.1
           ],
           "land_coord": [
             5.2,
-            8.9
+            4.5
           ],
           "trajectory_peak_z": 3.1,
           "winner": true
@@ -670,22 +673,23 @@ window.HAWKVIEW_MATCHES = {
       "rally_id": 3,
       "badge": "Rally #3 \u26a1",
       "label": "High-Pace Flat Drive Dogfight",
-      "timestamp_start": "03:05.00",
+      "timestamp_start": "03:08.00",
       "timestamp_end": "03:24.00",
-      "seconds_start": 185.0,
+      "seconds_start": 188.0,
       "seconds_end": 204.0,
-      "duration_sec": 19.0,
+      "duration_sec": 16.0,
       "score_before": {
-        "player_1": 6,
-        "player_2": 6
+        "player_1": 0,
+        "player_2": 0
       },
       "score_after": {
-        "player_1": 7,
-        "player_2": 6
+        "player_1": 1,
+        "player_2": 0
       },
-      "set": 1,
+      "set": 2,
       "server": "LZJ",
       "winner": "LZJ",
+      "near_player": "LZJ",
       "shot_count": 18,
       "max_smash_kmh": 345.0,
       "avg_shot_speed_kmh": 188.0,
@@ -695,7 +699,7 @@ window.HAWKVIEW_MATCHES = {
       "shots": [
         {
           "shot_num": 1,
-          "time": 185.0,
+          "time": 188.0,
           "hitter": "LZJ",
           "stroke": "Flick Serve to Baseline",
           "speed_kmh": 132.0,
@@ -712,7 +716,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 2,
-          "time": 186.2,
+          "time": 189.2,
           "hitter": "POPOV",
           "stroke": "Punch Clear Cross",
           "speed_kmh": 178.0,
@@ -729,7 +733,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 3,
-          "time": 187.3,
+          "time": 190.3,
           "hitter": "LZJ",
           "stroke": "Flat Forehand Drive",
           "speed_kmh": 192.0,
@@ -746,7 +750,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 4,
-          "time": 188.2,
+          "time": 191.2,
           "hitter": "POPOV",
           "stroke": "Counter Drive Down-the-Line",
           "speed_kmh": 198.0,
@@ -763,7 +767,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 5,
-          "time": 189.1,
+          "time": 192.1,
           "hitter": "LZJ",
           "stroke": "Cross-Court Drive",
           "speed_kmh": 204.0,
@@ -780,7 +784,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 6,
-          "time": 190.0,
+          "time": 193.0,
           "hitter": "POPOV",
           "stroke": "Forehand Drive Block",
           "speed_kmh": 185.0,
@@ -797,7 +801,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 7,
-          "time": 191.0,
+          "time": 194.0,
           "hitter": "LZJ",
           "stroke": "Push to Deep Backhand",
           "speed_kmh": 170.0,
@@ -814,7 +818,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 8,
-          "time": 192.1,
+          "time": 195.1,
           "hitter": "POPOV",
           "stroke": "Around-the-Head Slice Drop",
           "speed_kmh": 140.0,
@@ -831,7 +835,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 9,
-          "time": 193.3,
+          "time": 196.3,
           "hitter": "LZJ",
           "stroke": "Tumbling Hairpin Net",
           "speed_kmh": 68.0,
@@ -848,7 +852,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 10,
-          "time": 194.5,
+          "time": 197.5,
           "hitter": "POPOV",
           "stroke": "Tight Net Re-Spin",
           "speed_kmh": 62.0,
@@ -865,7 +869,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 11,
-          "time": 195.7,
+          "time": 198.7,
           "hitter": "LZJ",
           "stroke": "Explosive Net Lift High",
           "speed_kmh": 165.0,
@@ -882,7 +886,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 12,
-          "time": 197.1,
+          "time": 199.8,
           "hitter": "POPOV",
           "stroke": "Left-Hand Half Smash",
           "speed_kmh": 320.0,
@@ -899,7 +903,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 13,
-          "time": 198.0,
+          "time": 200.7,
           "hitter": "LZJ",
           "stroke": "Reflex Block to Space",
           "speed_kmh": 145.0,
@@ -916,7 +920,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 14,
-          "time": 199.1,
+          "time": 201.5,
           "hitter": "POPOV",
           "stroke": "Forehand Scramble Drive",
           "speed_kmh": 182.0,
@@ -933,7 +937,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 15,
-          "time": 200.0,
+          "time": 202.2,
           "hitter": "LZJ",
           "stroke": "Counter Drive Speed-Up",
           "speed_kmh": 210.0,
@@ -950,7 +954,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 16,
-          "time": 201.0,
+          "time": 202.8,
           "hitter": "POPOV",
           "stroke": "Mid-Court Block",
           "speed_kmh": 130.0,
@@ -967,7 +971,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 17,
-          "time": 202.1,
+          "time": 203.4,
           "hitter": "LZJ",
           "stroke": "Aggressive Drive Push",
           "speed_kmh": 195.0,
@@ -984,7 +988,7 @@ window.HAWKVIEW_MATCHES = {
         },
         {
           "shot_num": 18,
-          "time": 203.2,
+          "time": 204.0,
           "hitter": "POPOV",
           "stroke": "Forced Error into Net",
           "speed_kmh": 110.0,
@@ -1022,6 +1026,7 @@ window.HAWKVIEW_MATCHES = {
       "set": 2,
       "server": "POPOV",
       "winner": "LZJ",
+      "near_player": "LZJ",
       "shot_count": 20,
       "max_smash_kmh": 408.0,
       "avg_shot_speed_kmh": 178.6,
@@ -1375,403 +1380,285 @@ window.HAWKVIEW_MATCHES = {
     {
       "rally_id": 5,
       "badge": "Rally #5 \ud83c\udfc3",
-      "label": "22-Shot Marathon Defensive Scramble",
-      "timestamp_start": "06:40.00",
-      "timestamp_end": "07:02.00",
-      "seconds_start": 400.0,
-      "seconds_end": 422.0,
-      "duration_sec": 22.0,
+      "label": "Intense Mid-Game Defensive Scramble",
+      "timestamp_start": "06:49.00",
+      "timestamp_end": "07:03.00",
+      "seconds_start": 409.0,
+      "seconds_end": 423.0,
+      "duration_sec": 14.0,
       "score_before": {
-        "player_1": 14,
+        "player_1": 16,
         "player_2": 12
       },
       "score_after": {
-        "player_1": 15,
+        "player_1": 17,
         "player_2": 12
       },
       "set": 2,
-      "server": "LZJ",
+      "server": "POPOV",
       "winner": "LZJ",
-      "shot_count": 22,
-      "max_smash_kmh": 364.0,
-      "avg_shot_speed_kmh": 162.5,
-      "lzj_sprint_dist_m": 58.2,
-      "popov_sprint_dist_m": 64.1,
-      "key_moment": "LZJ sprawling defensive recovery into counter-net push",
+      "near_player": "LZJ",
+      "shot_count": 15,
+      "max_smash_kmh": 348.0,
+      "avg_shot_speed_kmh": 164.5,
+      "lzj_sprint_dist_m": 42.2,
+      "popov_sprint_dist_m": 46.1,
+      "key_moment": "LZJ sprawling defensive recovery into counter-drive winner",
       "shots": [
         {
           "shot_num": 1,
-          "time": 400.0,
-          "hitter": "LZJ",
+          "time": 409.0,
+          "hitter": "POPOV",
           "stroke": "Low Serve",
           "speed_kmh": 82.0,
           "hit_coord": [
             3.05,
-            4.72,
+            8.68,
             1.15
           ],
           "land_coord": [
             3.1,
-            8.68
+            4.72
           ],
           "trajectory_peak_z": 1.58
         },
         {
           "shot_num": 2,
-          "time": 401.1,
-          "hitter": "POPOV",
+          "time": 410.1,
+          "hitter": "LZJ",
           "stroke": "Backhand Push",
           "speed_kmh": 115.0,
           "hit_coord": [
             3.1,
-            8.68,
+            4.72,
             0.65
           ],
           "land_coord": [
             1.2,
-            1.4
+            11.4
           ],
           "trajectory_peak_z": 2.1
         },
         {
           "shot_num": 3,
-          "time": 402.3,
-          "hitter": "LZJ",
+          "time": 411.3,
+          "hitter": "POPOV",
           "stroke": "High Clear Cross",
           "speed_kmh": 175.0,
           "hit_coord": [
             1.2,
-            1.4,
+            11.4,
             2.4
           ],
           "land_coord": [
             4.9,
-            12.8
+            0.8
           ],
           "trajectory_peak_z": 7.1
         },
         {
           "shot_num": 4,
-          "time": 403.7,
-          "hitter": "POPOV",
+          "time": 412.5,
+          "hitter": "LZJ",
           "stroke": "Full Overhead Clear",
           "speed_kmh": 170.0,
           "hit_coord": [
             4.9,
-            12.8,
+            0.8,
             2.3
           ],
           "land_coord": [
             1.2,
-            0.9
+            12.5
           ],
           "trajectory_peak_z": 7.2
         },
         {
           "shot_num": 5,
-          "time": 405.0,
-          "hitter": "LZJ",
+          "time": 413.7,
+          "hitter": "POPOV",
           "stroke": "Fast Attacking Drop",
           "speed_kmh": 145.0,
           "hit_coord": [
             1.2,
-            0.9,
+            12.5,
             2.5
           ],
           "land_coord": [
             4.2,
-            7.5
+            5.8
           ],
           "trajectory_peak_z": 2.3
         },
         {
           "shot_num": 6,
-          "time": 406.2,
-          "hitter": "POPOV",
+          "time": 414.8,
+          "hitter": "LZJ",
           "stroke": "Net Lift High",
           "speed_kmh": 162.0,
           "hit_coord": [
             4.2,
-            7.5,
+            5.8,
             0.4
           ],
           "land_coord": [
             4.8,
-            1.1
+            12.3
           ],
           "trajectory_peak_z": 7.1
         },
         {
           "shot_num": 7,
-          "time": 407.5,
-          "hitter": "LZJ",
+          "time": 415.8,
+          "hitter": "POPOV",
           "stroke": "Stick Smash Down-the-Line",
           "speed_kmh": 348.0,
           "hit_coord": [
             4.8,
-            1.1,
+            12.3,
             2.75
           ],
           "land_coord": [
             4.85,
-            9.5
+            3.8
           ],
           "trajectory_peak_z": 2.75
         },
         {
           "shot_num": 8,
-          "time": 408.4,
-          "hitter": "POPOV",
+          "time": 416.7,
+          "hitter": "LZJ",
           "stroke": "Cross Defensive Block",
           "speed_kmh": 120.0,
           "hit_coord": [
             4.85,
-            9.5,
+            3.8,
             0.55
           ],
           "land_coord": [
             1.5,
-            4.5
+            8.8
           ],
           "trajectory_peak_z": 1.95
         },
         {
           "shot_num": 9,
-          "time": 409.6,
-          "hitter": "LZJ",
+          "time": 417.6,
+          "hitter": "POPOV",
           "stroke": "Lunging Net Spin",
           "speed_kmh": 65.0,
           "hit_coord": [
             1.5,
-            4.5,
+            8.8,
             0.35
           ],
           "land_coord": [
             1.8,
-            7.8
+            5.6
           ],
           "trajectory_peak_z": 1.58
         },
         {
           "shot_num": 10,
-          "time": 410.8,
-          "hitter": "POPOV",
+          "time": 418.5,
+          "hitter": "LZJ",
           "stroke": "Counter Net Tap",
           "speed_kmh": 72.0,
           "hit_coord": [
             1.8,
-            7.8,
+            5.6,
             0.32
           ],
           "land_coord": [
             3.0,
-            5.2
+            8.2
           ],
           "trajectory_peak_z": 1.56
         },
         {
           "shot_num": 11,
-          "time": 411.9,
-          "hitter": "LZJ",
+          "time": 419.4,
+          "hitter": "POPOV",
           "stroke": "Mid-Court Push Cross",
           "speed_kmh": 155.0,
           "hit_coord": [
             3.0,
-            5.2,
+            8.2,
             1.1
           ],
           "land_coord": [
             4.8,
-            10.5
+            2.8
           ],
           "trajectory_peak_z": 1.8
         },
         {
           "shot_num": 12,
-          "time": 413.0,
-          "hitter": "POPOV",
+          "time": 420.2,
+          "hitter": "LZJ",
           "stroke": "Forehand Lift to Baseline",
           "speed_kmh": 164.0,
           "hit_coord": [
             4.8,
-            10.5,
+            2.8,
             0.7
           ],
           "land_coord": [
             1.2,
-            1.0
+            12.4
           ],
           "trajectory_peak_z": 7.0
         },
         {
           "shot_num": 13,
-          "time": 414.4,
-          "hitter": "LZJ",
+          "time": 421.2,
+          "hitter": "POPOV",
           "stroke": "Jump Smash Cross",
-          "speed_kmh": 364.0,
+          "speed_kmh": 340.0,
           "hit_coord": [
             1.2,
-            1.0,
+            12.4,
             3.05
           ],
           "land_coord": [
             4.8,
-            9.8
+            3.6
           ],
           "trajectory_peak_z": 3.05
         },
         {
           "shot_num": 14,
-          "time": 415.3,
-          "hitter": "POPOV",
-          "stroke": "Diving Forehand Scramble",
-          "speed_kmh": 138.0,
+          "time": 422.0,
+          "hitter": "LZJ",
+          "stroke": "Reflex Counter Drive",
+          "speed_kmh": 195.0,
           "hit_coord": [
             4.8,
-            9.8,
-            0.35
+            3.6,
+            0.6
           ],
           "land_coord": [
-            2.5,
-            3.2
+            1.1,
+            10.2
           ],
-          "trajectory_peak_z": 2.4
+          "trajectory_peak_z": 1.7
         },
         {
           "shot_num": 15,
-          "time": 416.4,
-          "hitter": "LZJ",
-          "stroke": "Backhand Drive Cross",
-          "speed_kmh": 185.0,
-          "hit_coord": [
-            2.5,
-            3.2,
-            1.25
-          ],
-          "land_coord": [
-            1.2,
-            9.5
-          ],
-          "trajectory_peak_z": 1.68
-        },
-        {
-          "shot_num": 16,
-          "time": 417.3,
+          "time": 422.8,
           "hitter": "POPOV",
-          "stroke": "Backhand Drive Defense",
-          "speed_kmh": 165.0,
+          "stroke": "Desperate Net Reach into Net",
+          "speed_kmh": 90.0,
           "hit_coord": [
-            1.2,
-            9.5,
-            0.85
-          ],
-          "land_coord": [
-            3.8,
-            4.2
-          ],
-          "trajectory_peak_z": 1.72
-        },
-        {
-          "shot_num": 17,
-          "time": 418.2,
-          "hitter": "LZJ",
-          "stroke": "Flat Forehand Interception",
-          "speed_kmh": 190.0,
-          "hit_coord": [
-            3.8,
-            4.2,
-            1.3
-          ],
-          "land_coord": [
-            2.2,
-            10.8
-          ],
-          "trajectory_peak_z": 1.66
-        },
-        {
-          "shot_num": 18,
-          "time": 419.1,
-          "hitter": "POPOV",
-          "stroke": "Reflex Block High",
-          "speed_kmh": 140.0,
-          "hit_coord": [
-            2.2,
-            10.8,
-            1.1
-          ],
-          "land_coord": [
-            3.1,
-            2.8
-          ],
-          "trajectory_peak_z": 5.4
-        },
-        {
-          "shot_num": 19,
-          "time": 420.1,
-          "hitter": "LZJ",
-          "stroke": "Half Smash Steep",
-          "speed_kmh": 320.0,
-          "hit_coord": [
-            3.1,
-            2.8,
-            2.6
-          ],
-          "land_coord": [
-            1.5,
-            8.2
-          ],
-          "trajectory_peak_z": 2.6
-        },
-        {
-          "shot_num": 20,
-          "time": 420.9,
-          "hitter": "POPOV",
-          "stroke": "Lunging Net Return",
-          "speed_kmh": 85.0,
-          "hit_coord": [
-            1.5,
-            8.2,
+            1.1,
+            10.2,
             0.4
           ],
           "land_coord": [
-            2.8,
-            6.2
+            3.05,
+            6.7
           ],
-          "trajectory_peak_z": 1.62
-        },
-        {
-          "shot_num": 21,
-          "time": 421.5,
-          "hitter": "LZJ",
-          "stroke": "Pouncing Net Kill Push",
-          "speed_kmh": 175.0,
-          "hit_coord": [
-            2.8,
-            6.2,
-            1.45
-          ],
-          "land_coord": [
-            4.9,
-            11.8
-          ],
-          "trajectory_peak_z": 1.65
-        },
-        {
-          "shot_num": 22,
-          "time": 422.0,
-          "hitter": "POPOV",
-          "stroke": "Defensive Reach Out of Bounds",
-          "speed_kmh": 90.0,
-          "hit_coord": [
-            4.9,
-            11.8,
-            0.45
-          ],
-          "land_coord": [
-            5.9,
-            13.8
-          ],
-          "trajectory_peak_z": 2.1,
+          "trajectory_peak_z": 1.5,
           "winner": true
         }
       ]
@@ -1780,11 +1667,11 @@ window.HAWKVIEW_MATCHES = {
       "rally_id": 6,
       "badge": "Rally #6 \ud83c\udfc6",
       "label": "Championship Match Point - Decisive Down-the-Line Winner",
-      "timestamp_start": "08:00.00",
-      "timestamp_end": "08:17.00",
-      "seconds_start": 480.0,
-      "seconds_end": 497.0,
-      "duration_sec": 17.0,
+      "timestamp_start": "07:38.00",
+      "timestamp_end": "07:52.00",
+      "seconds_start": 458.0,
+      "seconds_end": 472.0,
+      "duration_sec": 14.0,
       "score_before": {
         "player_1": 20,
         "player_2": 16
@@ -1794,228 +1681,178 @@ window.HAWKVIEW_MATCHES = {
         "player_2": 16
       },
       "set": 2,
-      "server": "LZJ",
+      "server": "POPOV",
       "winner": "LZJ",
-      "shot_count": 16,
+      "near_player": "LZJ",
+      "shot_count": 12,
       "max_smash_kmh": 395.0,
       "avg_shot_speed_kmh": 175.2,
-      "lzj_sprint_dist_m": 39.5,
-      "popov_sprint_dist_m": 43.8,
+      "lzj_sprint_dist_m": 35.5,
+      "popov_sprint_dist_m": 38.8,
       "key_moment": "LZJ explosive 395 km/h jump smash down-the-line seals semifinal berth!",
       "shots": [
         {
           "shot_num": 1,
-          "time": 480.0,
-          "hitter": "LZJ",
+          "time": 458.0,
+          "hitter": "POPOV",
           "stroke": "Low Serve",
           "speed_kmh": 84.0,
           "hit_coord": [
             3.05,
-            4.72,
+            8.68,
             1.15
           ],
           "land_coord": [
             3.1,
-            8.68
+            4.72
           ],
           "trajectory_peak_z": 1.58
         },
         {
           "shot_num": 2,
-          "time": 481.2,
-          "hitter": "POPOV",
-          "stroke": "Backhand Flick to Baseline",
+          "time": 459.2,
+          "hitter": "LZJ",
+          "stroke": "Backhand Push Return",
           "speed_kmh": 160.0,
           "hit_coord": [
             3.1,
-            8.68,
+            4.72,
             0.7
           ],
           "land_coord": [
             1.2,
-            0.8
+            12.6
           ],
           "trajectory_peak_z": 6.8
         },
         {
           "shot_num": 3,
-          "time": 482.6,
-          "hitter": "LZJ",
+          "time": 460.5,
+          "hitter": "POPOV",
           "stroke": "Forehand High Clear",
           "speed_kmh": 174.0,
           "hit_coord": [
             1.2,
-            0.8,
+            12.6,
             2.4
           ],
           "land_coord": [
             4.8,
-            12.8
+            0.8
           ],
           "trajectory_peak_z": 7.0
         },
         {
           "shot_num": 4,
-          "time": 484.0,
-          "hitter": "POPOV",
+          "time": 461.8,
+          "hitter": "LZJ",
           "stroke": "Fast Slice Drop Cross",
           "speed_kmh": 140.0,
           "hit_coord": [
             4.8,
-            12.8,
+            0.8,
             2.25
           ],
           "land_coord": [
             1.5,
-            5.2
+            8.2
           ],
           "trajectory_peak_z": 2.3
         },
         {
           "shot_num": 5,
-          "time": 485.2,
-          "hitter": "LZJ",
+          "time": 463.0,
+          "hitter": "POPOV",
           "stroke": "Hairpin Net Shot",
           "speed_kmh": 68.0,
           "hit_coord": [
             1.5,
-            5.2,
+            8.2,
             0.4
           ],
           "land_coord": [
             1.8,
-            7.8
+            5.6
           ],
           "trajectory_peak_z": 1.58
         },
         {
           "shot_num": 6,
-          "time": 486.4,
-          "hitter": "POPOV",
+          "time": 464.2,
+          "hitter": "LZJ",
           "stroke": "Tight Underarm Cross Net",
           "speed_kmh": 72.0,
           "hit_coord": [
             1.8,
-            7.8,
+            5.6,
             0.35
           ],
           "land_coord": [
             4.5,
-            5.5
+            7.9
           ],
           "trajectory_peak_z": 1.56
         },
         {
           "shot_num": 7,
-          "time": 487.6,
-          "hitter": "LZJ",
+          "time": 465.4,
+          "hitter": "POPOV",
           "stroke": "Underhand Lift High",
           "speed_kmh": 166.0,
           "hit_coord": [
             4.5,
-            5.5,
+            7.9,
             0.38
           ],
           "land_coord": [
             1.2,
-            12.9
+            0.7
           ],
           "trajectory_peak_z": 7.2
         },
         {
           "shot_num": 8,
-          "time": 489.1,
-          "hitter": "POPOV",
-          "stroke": "Left-Hand Overhead Clear",
-          "speed_kmh": 165.0,
-          "hit_coord": [
-            1.2,
-            12.9,
-            2.3
-          ],
-          "land_coord": [
-            4.8,
-            0.9
-          ],
-          "trajectory_peak_z": 6.9
-        },
-        {
-          "shot_num": 9,
-          "time": 490.5,
+          "time": 466.8,
           "hitter": "LZJ",
-          "stroke": "Attacking Drop Cross",
-          "speed_kmh": 142.0,
-          "hit_coord": [
-            4.8,
-            0.9,
-            2.45
-          ],
-          "land_coord": [
-            1.4,
-            7.2
-          ],
-          "trajectory_peak_z": 2.2
-        },
-        {
-          "shot_num": 10,
-          "time": 491.7,
-          "hitter": "POPOV",
-          "stroke": "Net Lift High to Deep Corner",
-          "speed_kmh": 162.0,
-          "hit_coord": [
-            1.4,
-            7.2,
-            0.45
-          ],
-          "land_coord": [
-            5.1,
-            0.8
-          ],
-          "trajectory_peak_z": 7.1
-        },
-        {
-          "shot_num": 11,
-          "time": 493.1,
-          "hitter": "LZJ",
-          "stroke": "Steep Half Smash",
+          "stroke": "Half Smash Down-the-Line",
           "speed_kmh": 340.0,
           "hit_coord": [
-            5.1,
-            0.8,
+            1.2,
+            0.7,
             2.8
           ],
           "land_coord": [
             2.2,
-            9.8
+            10.5
           ],
           "trajectory_peak_z": 2.8
         },
         {
-          "shot_num": 12,
-          "time": 494.0,
+          "shot_num": 9,
+          "time": 467.8,
           "hitter": "POPOV",
           "stroke": "Forehand Defensive Drive",
           "speed_kmh": 168.0,
           "hit_coord": [
             2.2,
-            9.8,
+            10.5,
             0.6
           ],
           "land_coord": [
             3.5,
-            3.8
+            2.8
           ],
           "trajectory_peak_z": 1.75
         },
         {
-          "shot_num": 13,
-          "time": 494.9,
+          "shot_num": 10,
+          "time": 468.8,
           "hitter": "LZJ",
           "stroke": "Forehand Drive Push",
           "speed_kmh": 192.0,
           "hit_coord": [
             3.5,
-            3.8,
+            2.8,
             1.3
           ],
           "land_coord": [
@@ -2025,10 +1862,10 @@ window.HAWKVIEW_MATCHES = {
           "trajectory_peak_z": 1.68
         },
         {
-          "shot_num": 14,
-          "time": 495.8,
+          "shot_num": 11,
+          "time": 469.8,
           "hitter": "POPOV",
-          "stroke": "Defensive High Lift to Right Tramline",
+          "stroke": "Defensive High Lift to Right Corner",
           "speed_kmh": 155.0,
           "hit_coord": [
             1.1,
@@ -2042,25 +1879,8 @@ window.HAWKVIEW_MATCHES = {
           "trajectory_peak_z": 7.3
         },
         {
-          "shot_num": 15,
-          "time": 496.6,
-          "hitter": "LZJ",
-          "stroke": "Full Jump Approach",
-          "speed_kmh": 160.0,
-          "hit_coord": [
-            4.9,
-            1.1,
-            3.0
-          ],
-          "land_coord": [
-            4.9,
-            5.0
-          ],
-          "trajectory_peak_z": 3.1
-        },
-        {
-          "shot_num": 16,
-          "time": 497.0,
+          "shot_num": 12,
+          "time": 471.0,
           "hitter": "LZJ",
           "stroke": "MATCH POINT JUMP SMASH DOWN-THE-LINE (395 KM/H)",
           "speed_kmh": 395.0,
@@ -2863,8 +2683,8 @@ window.HAWKVIEW_MATCHES = {
 }
 };
 
-window.HAWKVIEW_ACTIVE_MATCH_KEY = "popov";
-window.HAWKVIEW_TELEMETRY = window.HAWKVIEW_MATCHES["popov"];
+window.HAWKVIEW_ACTIVE_MATCH_KEY = "sly";
+window.HAWKVIEW_TELEMETRY = window.HAWKVIEW_MATCHES["sly"];
 
 /**
  * Programmatic helper to switch active match dataset

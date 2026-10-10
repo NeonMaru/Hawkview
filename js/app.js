@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. Instantiate Subsystems
   const subDials = new SubDialManager();
   const courtView = new CourtViewManager('court-canvas');
+  window.courtViewInstance = courtView;
   const antiLagModal = new AntiLagModal();
 
   // Negative LCD Readout DOM Elements
@@ -51,10 +52,16 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update Sub-Dials and Court View
       if (data.isDowntime) {
         courtView.updateTelemetry(data);
-        if (lcdRallyBadge) lcdRallyBadge.textContent = `⏱️ BETWEEN RALLIES // READY`;
+        if (lcdRallyBadge) lcdRallyBadge.textContent = `⏱️ REPLAY / TRANSITION // READY`;
         if (lcdKeyMoment) lcdKeyMoment.textContent = `NEXT: ${data.rally ? data.rally.label.toUpperCase() : 'PREPARING SERVICE'}`;
         subDials.setSpeed(0, false);
       } else if (data.shot) {
+        if (lcdRallyBadge && data.rally) {
+          lcdRallyBadge.textContent = `${data.rally.badge} [${data.rally.shot_count} SHOTS]`;
+        }
+        if (lcdKeyMoment && data.rally) {
+          lcdKeyMoment.textContent = data.rally.key_moment.toUpperCase();
+        }
         subDials.setSpeed(data.shot.speed_kmh, data.shot.stroke.includes('Smash'));
         subDials.setShotCount(data.shot.shot_num, data.rally ? data.rally.shot_count : 24);
         courtView.updateTelemetry(data);
