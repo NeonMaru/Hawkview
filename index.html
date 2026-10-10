@@ -270,6 +270,15 @@
               </div>
             </div>
 
+            <!-- 2B. TOP-CENTER INTERMISSION & REPLAY STATUS BANNER (Dynamic HUD) -->
+            <div id="three-intermission-banner" class="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none opacity-0 transition-all duration-300 hud-glass-card border border-amber-500/50 rounded-lg px-3 py-1 flex items-center space-x-2 shadow-2xl">
+              <span class="status-led status-led-amber animate-pulse"></span>
+              <div class="flex flex-col text-left">
+                <span id="intermission-main-text" class="text-[9px] font-mono text-amber-300 font-bold uppercase tracking-wider">⏸️ POINT CONCLUDED // INTERMISSION</span>
+                <span id="intermission-sub-text" class="text-[8px] font-mono text-slate-400">3D Simulation Paused • Players Resting</span>
+              </div>
+            </div>
+
             <!-- 3. BOTTOM-LEFT CAMERA PRESET SELECTOR MICRO-BAR (Interactive) -->
             <div class="absolute bottom-2 left-2 z-20 pointer-events-auto hud-glass-card rounded-lg px-1.5 py-1 shadow-xl flex items-center space-x-1 text-[10px] font-mono">
               <i data-lucide="camera" class="w-3 h-3 text-cyan-400 mr-0.5 shrink-0"></i>

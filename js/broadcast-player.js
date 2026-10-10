@@ -233,36 +233,77 @@ class BroadcastPlayer {
   getRallyAtTime(time) {
     if (!this.rallies || this.rallies.length === 0) return null;
 
-    // Check if directly inside a rally [seconds_start, seconds_end]
+    // Check if directly inside an active point [seconds_start, seconds_end]
     for (let i = 0; i < this.rallies.length; i++) {
       const r = this.rallies[i];
       if (time >= r.seconds_start && time <= r.seconds_end) {
-        return { rally: r, index: i, isDowntime: false };
+        return {
+          rally: r,
+          index: i,
+          isDowntime: false,
+          intermissionTitle: '',
+          intermissionSub: ''
+        };
       }
     }
 
-    // Between rallies or in transition/replay downtime:
-    // If before first rally:
+    // Between points or in broadcast downtime/replay/interval:
+    // 1. Before first rally (Match Intro)
     if (time < this.rallies[0].seconds_start) {
-      return { rally: this.rallies[0], index: 0, isDowntime: true };
+      return {
+        rally: this.rallies[0],
+        index: 0,
+        isDowntime: true,
+        intermissionTitle: '⏸️ MATCH INTRO // PLAYERS ENTERING COURT',
+        intermissionSub: `3D Simulation Paused • Resumes at Serve (${this.rallies[0].timestamp_start || '00:15'})`
+      };
     }
 
-    // Find the contextual rally between points
+    // 2. Between rallies
     for (let i = 0; i < this.rallies.length - 1; i++) {
       const curr = this.rallies[i];
       const next = this.rallies[i + 1];
       if (time > curr.seconds_end && time < next.seconds_start) {
-        const mid = curr.seconds_end + (next.seconds_start - curr.seconds_end) * 0.45;
-        if (time >= mid) {
-          return { rally: next, index: i + 1, isDowntime: true };
+        // Special detection: Game 1 conclusion / Game interval (between rally 10 and 11, around 219s - 230s)
+        const isGameInterval = (curr.set === 1 && next.set === 2) || (time >= 219.0 && time <= 230.0);
+        
+        let title, sub;
+        if (isGameInterval) {
+          title = '⏸️ GAME 1 INTERVAL // 2-MIN REST & SIDE SWAP';
+          sub = `Game 1 Won by LZJ (21-11) • Players Change Ends for Game 2`;
         } else {
-          return { rally: curr, index: i, isDowntime: true };
+          const winnerName = curr.winner === 'POPOV' ? 'Popov' : 'Lee Zii Jia';
+          const scoreStr = curr.score_after 
+            ? `(MAS ${curr.score_after.player_1} - ${curr.score_after.player_2} FRA)` 
+            : '';
+          title = `⏸️ POINT CONCLUDED // INTERMISSION`;
+          sub = `Point to ${winnerName} ${scoreStr} • Next: Rally #${next.rally_id} (Serve at ${next.timestamp_start || ''})`;
         }
+
+        const mid = curr.seconds_end + (next.seconds_start - curr.seconds_end) * 0.45;
+        const activeRally = time >= mid ? next : curr;
+        const activeIdx = time >= mid ? i + 1 : i;
+
+        return {
+          rally: activeRally,
+          index: activeIdx,
+          isDowntime: true,
+          intermissionTitle: title,
+          intermissionSub: sub
+        };
       }
     }
 
+    // 3. After last rally (Match Point Concluded)
     const lastIdx = this.rallies.length - 1;
-    return { rally: this.rallies[lastIdx], index: lastIdx, isDowntime: true };
+    const lastRally = this.rallies[lastIdx];
+    return {
+      rally: lastRally,
+      index: lastIdx,
+      isDowntime: true,
+      intermissionTitle: '🏆 MATCH CONCLUDED // LEE ZII JIA WINS (2-0)',
+      intermissionSub: 'Match Concluded (21-11, 21-16) • Handshake & Review'
+    };
   }
 
   seekTo(targetSeconds, instant = false) {
@@ -1155,11 +1196,13 @@ class BroadcastPlayer {
       // In downtime between rallies (or before/after points)
       telemetryPacket = {
         time: this.currentTime,
-        elapsed: Math.max(0, this.currentTime - rally.seconds_start),
+        elapsed: 0,
         rally: rally,
         shotIndex: -1,
         shot: null,
         isDowntime: true,
+        intermissionTitle: state.intermissionTitle,
+        intermissionSub: state.intermissionSub,
         instant: instant
       };
     } else {
@@ -1200,22 +1243,45 @@ class BroadcastPlayer {
       this.threeViewer.updateTelemetryState(telemetryPacket, instant);
     }
 
-    // Update live broadcast HUD status badge, LED, and video feed label
+    // Update live broadcast HUD status badge, LED, dedicated Intermission Banner, and video feed label
     const hudBadge = document.getElementById('hud-status-badge');
     const hudLed = document.getElementById('hud-status-led');
     const feedLabel = document.getElementById('video-feed-label');
+    const intermissionBanner = document.getElementById('three-intermission-banner');
+    const intermissionMain = document.getElementById('intermission-main-text');
+    const intermissionSub = document.getElementById('intermission-sub-text');
 
     if (isDowntime) {
-      if (hudBadge) hudBadge.textContent = 'REPLAY / TRANSITION // READY';
+      if (hudBadge) hudBadge.textContent = 'INTERMISSION // RESTING';
       if (hudLed) hudLed.className = 'status-led status-led-amber';
       if (feedLabel && !this.isYouTubeActive) {
-        feedLabel.textContent = 'BWF BROADCAST CAM 01 // REPLAY / TRANSITION // READY';
+        feedLabel.textContent = '🎬 BWF BROADCAST // REPLAY & INTERMISSION // SIMULATION PAUSED';
+      }
+      if (intermissionBanner) {
+        intermissionBanner.classList.remove('opacity-0', 'pointer-events-none');
+        intermissionBanner.classList.add('opacity-100');
+        if (intermissionMain) intermissionMain.textContent = state.intermissionTitle || '⏸️ POINT CONCLUDED // INTERMISSION';
+        if (intermissionSub) intermissionSub.textContent = state.intermissionSub || '3D Simulation Paused • Players Resting';
+      }
+      // Immediately hide speed radar overlay during downtime/intermissions
+      const speedBanner = document.getElementById('speed-radar-overlay');
+      if (speedBanner) {
+        speedBanner.classList.add('opacity-0', 'pointer-events-none');
+        speedBanner.classList.remove('opacity-100');
+      }
+      if (this.radarTimer) {
+        clearTimeout(this.radarTimer);
+        this.radarTimer = null;
       }
     } else {
       if (hudBadge) hudBadge.textContent = `LIVE 60FPS // RALLY #${rally.rally_id}`;
       if (hudLed) hudLed.className = 'status-led status-led-red';
       if (feedLabel && !this.isYouTubeActive) {
         feedLabel.textContent = `BWF BROADCAST CAM 01 // LIVE // RALLY #${rally.rally_id}`;
+      }
+      if (intermissionBanner) {
+        intermissionBanner.classList.add('opacity-0', 'pointer-events-none');
+        intermissionBanner.classList.remove('opacity-100');
       }
     }
 

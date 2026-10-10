@@ -883,7 +883,13 @@ class ThreeCourtViewer {
     const nearId = (rally && rally.near_player) ? rally.near_player : 'LZJ';
     this.setPlayerSides(nearId);
 
-    // In downtime between rallies (or transitions), pose near and far players in ready stances on their respective sides
+    // Strict simulation freeze: cancel any active smash or jumps
+    this.isSmashActive = false;
+    this.p1Jump = 0;
+    this.p2Jump = 0;
+    this.clearTrail();
+
+    // In downtime / intermission, position near and far players in resting / baseline stance
     const nearReady = new THREE.Vector3(0, 0, -4.8);
     const farReady = new THREE.Vector3(0, 0, 4.8);
 
@@ -891,14 +897,14 @@ class ThreeCourtViewer {
       this.nearPlayer.group.position.copy(nearReady);
       this.farPlayer.group.position.copy(farReady);
     } else {
-      this.nearPlayer.group.position.lerp(nearReady, 0.15);
-      this.farPlayer.group.position.lerp(farReady, 0.15);
+      this.nearPlayer.group.position.lerp(nearReady, 0.25);
+      this.farPlayer.group.position.lerp(farReady, 0.25);
     }
 
     this.nearPlayer.group.rotation.y = 0; // facing net (+Z)
     this.farPlayer.group.rotation.y = Math.PI; // facing net (-Z)
 
-    // Reset jump & arm swing to athletic ready stance
+    // Reset jump & arm swing to calm resting posture (arms at sides)
     this.nearPlayer.torso.position.y = 1.25;
     this.farPlayer.torso.position.y = 1.25;
     if (this.nearPlayer.racketArm) this.nearPlayer.racketArm.rotation.x = 0;
@@ -906,21 +912,21 @@ class ThreeCourtViewer {
     this.nearPlayer.shadow.scale.set(1, 1, 1);
     this.farPlayer.shadow.scale.set(1, 1, 1);
 
-    // Shuttlecock placed with server in ready position
+    // Shuttlecock placed stationary on court / with server (simulation frozen)
     const isNearServer = !rally || (rally.server === nearId) || (!rally.server && nearId === 'LZJ');
-    const shuttleReady = isNearServer 
-      ? new THREE.Vector3(0, 1.15, -4.2)
-      : new THREE.Vector3(0, 1.15, 4.2);
+    const shuttleRest = isNearServer 
+      ? new THREE.Vector3(0.5, 0.05, -4.5)
+      : new THREE.Vector3(-0.5, 0.05, 4.5);
 
     if (instant) {
-      this.shuttleGroup.position.copy(shuttleReady);
+      this.shuttleGroup.position.copy(shuttleRest);
     } else {
-      this.shuttleGroup.position.lerp(shuttleReady, 0.18);
+      this.shuttleGroup.position.lerp(shuttleRest, 0.25);
     }
-    this.shuttleShadow.position.set(shuttleReady.x, 0.003, shuttleReady.z);
+    this.shuttleShadow.position.set(shuttleRest.x, 0.003, shuttleRest.z);
+    this.shuttleShadow.scale.set(0.6, 0.6, 0.6);
     this.shuttleGlowMat.color.setHex(0x00f0ff);
     this.trailMat.color.setHex(0x00f0ff);
-    this.clearTrail();
   }
 
   /**

@@ -52,9 +52,20 @@ document.addEventListener('DOMContentLoaded', () => {
       // Update Sub-Dials and Court View
       if (data.isDowntime) {
         courtView.updateTelemetry(data);
-        if (lcdRallyBadge) lcdRallyBadge.textContent = `⏱️ REPLAY / TRANSITION // READY`;
-        if (lcdKeyMoment) lcdKeyMoment.textContent = `NEXT: ${data.rally ? data.rally.label.toUpperCase() : 'PREPARING SERVICE'}`;
+        if (lcdRallyBadge) {
+          lcdRallyBadge.textContent = data.intermissionTitle || `⏸️ INTERMISSION // PLAYERS RESTING`;
+        }
+        if (lcdKeyMoment) {
+          lcdKeyMoment.textContent = data.intermissionSub 
+            ? data.intermissionSub.toUpperCase()
+            : `NEXT: ${data.rally ? data.rally.label.toUpperCase() : 'PREPARING SERVICE'}`;
+        }
         subDials.setSpeed(0, false);
+        // During intermission, sprint burst speed is 0! Simulation does not run!
+        const lzjDist = 2.84 + ((data.rally?.rally_id || 1) * 0.08);
+        subDials.setCoverage(lzjDist, 0.0);
+        if (lcdStopwatch) lcdStopwatch.textContent = '00:00.00';
+        if (lcdShotFreq) lcdShotFreq.textContent = '0.00 S/S';
       } else if (data.shot) {
         if (lcdRallyBadge && data.rally) {
           lcdRallyBadge.textContent = `${data.rally.badge} [${data.rally.shot_count} SHOTS]`;
@@ -71,14 +82,14 @@ document.addEventListener('DOMContentLoaded', () => {
           const freq = (data.shot.shot_num / elapsed).toFixed(2);
           lcdShotFreq.textContent = `${freq} S/S`;
         }
-      }
 
-      // Cumulative coverage sprint interpolation
-      if (data.rally) {
-        const dur = data.rally.duration_sec || 20;
-        const pct = Math.min(1, elapsed / dur);
-        const lzjDist = 2.84 + (data.rally.lzj_sprint_dist_m / 1000) * pct;
-        subDials.setCoverage(lzjDist, 18.5 + Math.sin(totalSecs) * 6.5);
+        // Cumulative coverage sprint interpolation (ONLY active during point)
+        if (data.rally) {
+          const dur = data.rally.duration_sec || 20;
+          const pct = Math.min(1, elapsed / dur);
+          const lzjDist = 2.84 + (data.rally.lzj_sprint_dist_m / 1000) * pct;
+          subDials.setCoverage(lzjDist, 18.5 + Math.sin(totalSecs) * 6.5);
+        }
       }
     }
   });

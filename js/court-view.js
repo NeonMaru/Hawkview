@@ -197,22 +197,26 @@ class CourtViewManager {
     this.activeShot = shot;
 
     const nearId = this.getNearPlayerId();
-    const isLZJNear = nearId === 'LZJ';
+    this.isDowntime = !!isDowntime;
 
     if (isDowntime) {
-      // In downtime between rallies, place players in ready service stance
+      // In downtime between rallies, clear trails and place players in ready service stance
+      this.player1Trail = [];
+      this.player2Trail = [];
+      this.shuttleTrail = [];
+
       const p1Target = isLZJNear ? { x: 3.05, y: 1.80 } : { x: 3.05, y: 11.60 };
       const p2Target = isLZJNear ? { x: 3.05, y: 11.60 } : { x: 3.05, y: 1.80 };
-      this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.15;
-      this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.15;
-      this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.15;
-      this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.15;
+      this.player1Pos.x += (p1Target.x - this.player1Pos.x) * 0.25;
+      this.player1Pos.y += (p1Target.y - this.player1Pos.y) * 0.25;
+      this.player2Pos.x += (p2Target.x - this.player2Pos.x) * 0.25;
+      this.player2Pos.y += (p2Target.y - this.player2Pos.y) * 0.25;
 
       const isServerNear = (rally && rally.server) ? (rally.server === nearId) : (nearId === 'LZJ');
       this.shuttlePos = {
         x: 3.05,
         y: isServerNear ? 1.80 : 11.60,
-        z: 1.15
+        z: 0.1
       };
       return;
     }
@@ -373,7 +377,12 @@ class CourtViewManager {
     // 7. Shuttlecock & Landing Trajectory
     this.drawShuttlecockAndShots();
 
-    // 8. Hover Crosshair & Coordinate Marker
+    // 8. Intermission / Resting Watermark Badge
+    if (this.isDowntime) {
+      this.drawIntermissionWatermark();
+    }
+
+    // 9. Hover Crosshair & Coordinate Marker
     if (this.hoverCoord) {
       const sp = this.courtToScreen(this.hoverCoord.x, this.hoverCoord.y);
       ctx.strokeStyle = 'rgba(0, 240, 255, 0.7)';
@@ -392,6 +401,44 @@ class CourtViewManager {
       ctx.fillStyle = '#00f0ff';
       ctx.fill();
     }
+  }
+
+  drawIntermissionWatermark() {
+    const ctx = this.ctx;
+    ctx.save();
+    
+    // Draw subtle semi-transparent pill across the center net area
+    const netPos = this.courtToScreen(3.05, 6.70);
+    const badgeW = 186;
+    const badgeH = 26;
+    const badgeX = netPos.x - badgeW / 2;
+    const badgeY = netPos.y - badgeH / 2;
+
+    ctx.fillStyle = 'rgba(8, 13, 20, 0.90)';
+    ctx.strokeStyle = 'rgba(245, 158, 11, 0.65)'; // Amber
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 6);
+    } else {
+      ctx.rect(badgeX, badgeY, badgeW, badgeH);
+    }
+    ctx.fill();
+    ctx.stroke();
+
+    // Pulse amber indicator
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.arc(badgeX + 13, badgeY + 13, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Label text
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = 'bold 9px "Orbitron", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('INTERMISSION // RESTING', badgeX + 22, badgeY + 16.5);
+
+    ctx.restore();
   }
 
   drawBWFLines(scale) {
