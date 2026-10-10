@@ -79,14 +79,20 @@ class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
         if hasattr(self, 'range_length') and self.range_length is not None:
             remaining = self.range_length
             bufsize = 64 * 1024
-            while remaining > 0:
-                chunk = source.read(min(remaining, bufsize))
-                if not chunk:
-                    break
-                outputfile.write(chunk)
-                remaining -= len(chunk)
+            try:
+                while remaining > 0:
+                    chunk = source.read(min(remaining, bufsize))
+                    if not chunk:
+                        break
+                    outputfile.write(chunk)
+                    remaining -= len(chunk)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
         else:
-            super().copyfile(source, outputfile)
+            try:
+                super().copyfile(source, outputfile)
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
 def run(port=8123):
     server_address = ('', port)
