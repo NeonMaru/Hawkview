@@ -14,17 +14,17 @@ class SubDialManager {
 
     // Current animated values (for smooth spring physics)
     this.currentSpeed = 0;
-    this.targetSpeed = 412; // Start highlighting LZJ's 412 km/h smash
-    this.peakSpeed = 412;
+    this.targetSpeed = 0;
+    this.peakSpeed = 0;
 
     this.currentShots = 0;
-    this.targetShots = 24;
-    this.avgShots = 21.5;
+    this.targetShots = 0;
+    this.avgShots = 0;
 
     this.currentSprintKm = 0;
-    this.targetSprintKm = 2.84;
+    this.targetSprintKm = 0;
     this.currentSprintKmh = 0;
-    this.targetSprintKmh = 22.4;
+    this.targetSprintKmh = 0;
 
     this.activePlayer = 'LZJ';
 
@@ -50,44 +50,54 @@ class SubDialManager {
     window.addEventListener('resize', () => {
       this.initCanvases();
     });
-
-    if (this.speedometerCanvas) {
-      this.speedometerCanvas.addEventListener('click', () => {
-        // Toggle test speed pulse
-        const testSpeeds = [412, 388, 365, 342, 395, 404, 180];
-        const nextSpeed = testSpeeds[Math.floor(Math.random() * testSpeeds.length)];
-        this.setSpeed(nextSpeed);
-      });
-    }
   }
 
   setSpeed(speedKmh, isSmash = false) {
+    const lcdVal = document.getElementById('subdial-speed-lcd');
+    const peakLcd = document.getElementById('subdial-speed-peak');
+
+    if (speedKmh === null || speedKmh === undefined || isNaN(speedKmh)) {
+      this.targetSpeed = 0;
+      if (lcdVal) lcdVal.textContent = "— KM/H";
+      if (peakLcd) peakLcd.textContent = this.peakSpeed > 0 ? `PEAK ${this.peakSpeed.toFixed(0)}` : "PEAK —";
+      return;
+    }
+
     this.targetSpeed = Math.min(500, Math.max(0, speedKmh));
     if (this.targetSpeed > this.peakSpeed) {
       this.peakSpeed = this.targetSpeed;
     }
-    const lcdVal = document.getElementById('subdial-speed-lcd');
     if (lcdVal) {
       lcdVal.textContent = `${this.targetSpeed.toFixed(0)} KM/H`;
     }
-    const peakLcd = document.getElementById('subdial-speed-peak');
     if (peakLcd) {
-      peakLcd.textContent = `PEAK ${this.peakSpeed.toFixed(0)}`;
+      peakLcd.textContent = this.peakSpeed > 0 ? `PEAK ${this.peakSpeed.toFixed(0)}` : "PEAK —";
     }
   }
 
-  setShotCount(shots, totalInRally = 24) {
-    this.targetShots = Math.min(60, Math.max(0, shots));
+  setShotCount(shots, totalInRally = null) {
     const lcdVal = document.getElementById('subdial-shots-lcd');
+    if (shots === null || shots === undefined) {
+      this.targetShots = 0;
+      if (lcdVal) lcdVal.textContent = "— / —";
+      return;
+    }
+    this.targetShots = Math.min(60, Math.max(0, shots));
     if (lcdVal) {
-      lcdVal.textContent = `${shots} / ${totalInRally}`;
+      lcdVal.textContent = totalInRally ? `${shots} / ${totalInRally}` : `${shots}`;
     }
   }
 
-  setCoverage(km, burstKmh = 18.5) {
+  setCoverage(km, burstKmh = 0) {
+    const lcdVal = document.getElementById('subdial-coverage-lcd');
+    if (km === null || km === undefined) {
+      this.targetSprintKm = 0;
+      this.targetSprintKmh = 0;
+      if (lcdVal) lcdVal.textContent = "— KM";
+      return;
+    }
     this.targetSprintKm = km;
     this.targetSprintKmh = burstKmh;
-    const lcdVal = document.getElementById('subdial-coverage-lcd');
     if (lcdVal) {
       lcdVal.textContent = `${km.toFixed(2)} KM`;
     }

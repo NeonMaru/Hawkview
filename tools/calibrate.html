@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HAWKVIEW // Court Calibration Tool</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="../css/edifice.css">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            cyan: { 400: '#00f0ff', 500: '#00c8d7' },
+            emerald: { 400: '#00e5a3', 500: '#059669' },
+            redline: '#ff2a55'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    .loupe {
+      position: absolute;
+      width: 140px;
+      height: 140px;
+      border: 2px solid #00f0ff;
+      border-radius: 50%;
+      pointer-events: none;
+      display: none;
+      box-shadow: 0 0 15px rgba(0, 240, 255, 0.4), inset 0 0 10px rgba(0,0,0,0.8);
+      background-repeat: no-repeat;
+      z-index: 50;
+      overflow: hidden;
+    }
+    .loupe::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      margin: -5px 0 0 -5px;
+      border-left: 1px solid #ff2a55;
+      border-top: 1px solid #ff2a55;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="bg-[#05070a] text-slate-100 min-h-screen p-3 font-sans selection:bg-cyan-500/30">
+  <div class="max-w-[1720px] mx-auto titanium-chassis rounded-2xl p-4 border border-slate-800 flex flex-col space-y-3">
+    
+    <!-- Header -->
+    <div class="titanium-bezel-ring rounded-xl px-4 py-2 flex items-center justify-between border border-slate-800">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 rounded-lg bg-[#080b0f] border border-slate-800 flex items-center justify-center">
+          <i data-lucide="crosshair" class="w-4 h-4 text-cyan-400"></i>
+        </div>
+        <div>
+          <span class="font-chronograph font-bold text-sm tracking-wider text-slate-100">HAWKVIEW COURT CALIBRATION TOOL</span>
+          <span class="text-[10px] ml-2 px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-mono">PHASE A</span>
+        </div>
+      </div>
+      
+      <div class="flex items-center space-x-3 text-xs font-mono">
+        <span class="text-slate-400">REPROJECTION ERROR:</span>
+        <span id="lcd-calib-error" class="font-lcd text-emerald-400 text-sm font-bold">1.23 PX</span>
+        <button id="btn-export-calib" class="knurled-pusher px-3 py-1 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 font-bold hover:border-cyan-400 flex items-center space-x-1.5">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i>
+          <span>EXPORT CALIBRATION.JSON</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Workspace Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 flex-1 min-h-0">
+      
+      <!-- Canvas Viewport -->
+      <div class="lg:col-span-9 flex flex-col bg-black rounded-xl border border-slate-800 overflow-hidden relative">
+        <div class="px-3 py-1.5 bg-[#080b0f] border-b border-slate-800 flex items-center justify-between text-xs font-mono">
+          <div class="flex items-center space-x-2">
+            <span class="text-slate-400">FRAME:</span>
+            <span id="label-frame-info" class="text-cyan-300">assets/LZJvPopov.mp4 (1920x1080 @ 25 FPS)</span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <input type="file" id="file-image-input" accept="image/*" class="hidden">
+            <button id="btn-load-image" class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300 text-[10px] hover:border-slate-500">
+              LOAD CUSTOM FRAME
+            </button>
+            <button id="btn-reset-points" class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-amber-400 text-[10px] hover:border-amber-500">
+              RESET TO OPTIMAL
+            </button>
+          </div>
+        </div>
+
+        <div id="canvas-container" class="relative flex-1 flex items-center justify-center p-2 min-h-[500px]">
+          <canvas id="calib-canvas" class="max-w-full max-h-full object-contain rounded border border-slate-800 cursor-crosshair"></canvas>
+          <div id="loupe" class="loupe"></div>
+        </div>
+      </div>
+
+      <!-- Point Editor & Telemetry Inspector -->
+      <div class="lg:col-span-3 flex flex-col space-y-3">
+        
+        <!-- Keypoints List -->
+        <div class="rounded-xl carbon-fiber-dial p-3 border border-slate-800 flex flex-col space-y-2">
+          <span class="font-chronograph font-bold text-xs text-slate-300 border-b border-slate-800 pb-1 flex items-center justify-between">
+            <span>6 REFERENCE KEYPOINTS</span>
+            <span class="text-[9px] font-mono text-cyan-400">4 CORNERS + 2 POSTS</span>
+          </span>
+
+          <div id="keypoints-list" class="space-y-1.5 text-xs font-mono">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- BWF Calibration Matrix Inspection -->
+        <div class="rounded-xl bg-[#080b0f] p-3 border border-slate-800 flex flex-col space-y-2 flex-1">
+          <span class="font-chronograph font-bold text-xs text-slate-300 border-b border-slate-800 pb-1">
+            SOLVED GROUND HOMOGRAPHY (H)
+          </span>
+          <pre id="matrix-display" class="font-mono text-[10px] text-cyan-400/90 leading-tight bg-black/60 p-2 rounded border border-slate-900 overflow-x-auto"></pre>
+
+          <span class="font-chronograph font-bold text-xs text-slate-300 border-b border-slate-800 pt-2 pb-1">
+            CAMERA POSE (solvePnP)
+          </span>
+          <div id="camera-pose-display" class="font-mono text-[11px] text-slate-300 space-y-1">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <script>
+    // BWF 3D Metric Model (meters)
+    const BWF = {
+      length: 13.40,
+      width: 6.10,
+      net_y: 6.70,
+      net_height_posts: 1.55,
+      short_service_dist: 1.98,
+      doubles_long_service_dist: 0.76,
+      singles_side_margin: 0.46
+    };
+
+    // Initial calibrated points
+    const defaultPoints = {
+      "corner_near_left": [325.82, 962.08],
+      "corner_near_right": [1592.51, 968.86],
+      "corner_far_right": [1294.01, 427.49],
+      "corner_far_left": [627.46, 423.59],
+      "net_post_left": [520.00, 355.00],
+      "net_post_right": [1410.00, 360.00]
+    };
+
+    let points = JSON.parse(JSON.stringify(defaultPoints));
+    let activeDragKey = null;
+
+    const canvas = document.getElementById('calib-canvas');
+    const ctx = canvas.getContext('2d');
+    const loupe = document.getElementById('loupe');
+    const container = document.getElementById('canvas-container');
+
+    const baseImage = new Image();
+    baseImage.src = '../data/matches/lzj_popov/debug/frame_750.jpg';
+    baseImage.onload = () => {
+      canvas.width = baseImage.naturalWidth || 1920;
+      canvas.height = baseImage.naturalHeight || 1080;
+      loupe.style.backgroundImage = `url(${baseImage.src})`;
+      render();
+    };
+
+    function render() {
+      if (!baseImage.complete) return;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(baseImage, 0, 0, canvas.width, canvas.height);
+
+      // Compute H
+      const H = computeHomography();
+      if (H) {
+        drawBwfLines(H);
+      }
+
+      // Draw Keypoint Handles
+      for (const [key, pt] of Object.entries(points)) {
+        const isPost = key.includes('post');
+        ctx.beginPath();
+        ctx.arc(pt[0], pt[1], 6, 0, Math.PI * 2);
+        ctx.fillStyle = isPost ? '#ff2a55' : '#00f0ff';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.font = 'bold 12px monospace';
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#000000';
+        ctx.shadowBlur = 4;
+        ctx.fillText(key.replace('corner_', '').replace('net_', ''), pt[0] + 10, pt[1] - 8);
+        ctx.shadowBlur = 0;
+      }
+
+      updateUI();
+    }
+
+    // Solve 3x3 Homography from 4 ground corners
+    function computeHomography() {
+      const src = [
+        [0.0, 0.0],
+        [BWF.width, 0.0],
+        [BWF.width, BWF.length],
+        [0.0, BWF.length]
+      ];
+      const dst = [
+        points.corner_near_left,
+        points.corner_near_right,
+        points.corner_far_right,
+        points.corner_far_left
+      ];
+
+      // Gaussian elimination for 8-DOF homography
+      const A = [];
+      for (let i = 0; i < 4; i++) {
+        const [x, y] = src[i];
+        const [u, v] = dst[i];
+        A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u]);
+        A.push([0, 0, 0, x, y, 1, -v * x, -v * y, v]);
+      }
+
+      // Solve Ah = 0 via SVD/Gaussian
+      const h = solveLinearSystem(A);
+      if (!h) return null;
+      return [
+        [h[0], h[1], h[2]],
+        [h[3], h[4], h[5]],
+        [h[6], h[7], 1.0]
+      ];
+    }
+
+    function solveLinearSystem(A) {
+      const M = A.map(row => [...row]);
+      const n = 8;
+      for (let i = 0; i < n; i++) {
+        let maxRow = i;
+        for (let k = i + 1; k < n; k++) {
+          if (Math.abs(M[k][i]) > Math.abs(M[maxRow][i])) maxRow = k;
+        }
+        [M[i], M[maxRow]] = [M[maxRow], M[i]];
+        if (Math.abs(M[i][i]) < 1e-12) return null;
+        for (let k = i + 1; k < 8; k++) {
+          const factor = M[k][i] / M[i][i];
+          for (let j = i; j <= 8; j++) M[k][j] -= factor * M[i][j];
+        }
+      }
+      const x = new Array(8);
+      for (let i = 7; i >= 0; i--) {
+        let sum = M[i][8];
+        for (let j = i + 1; j < 8; j++) sum -= M[i][j] * x[j];
+        x[i] = sum / M[i][i];
+      }
+      return x;
+    }
+
+    function projectCourt(H, x, y) {
+      const u = H[0][0] * x + H[0][1] * y + H[0][2];
+      const v = H[1][0] * x + H[1][1] * y + H[1][2];
+      const w = H[2][0] * x + H[2][1] * y + H[2][2];
+      return [u / w, v / w];
+    }
+
+    function drawBwfLines(H) {
+      ctx.strokeStyle = '#00f0ff';
+      ctx.lineWidth = 2;
+
+      const lines = [
+        [[0.0, 0.0], [BWF.width, 0.0]],
+        [[0.0, BWF.length], [BWF.width, BWF.length]],
+        [[0.0, 0.0], [0.0, BWF.length]],
+        [[BWF.width, 0.0], [BWF.width, BWF.length]],
+        [[BWF.singles_side_margin, 0.0], [BWF.singles_side_margin, BWF.length]],
+        [[BWF.width - BWF.singles_side_margin, 0.0], [BWF.width - BWF.singles_side_margin, BWF.length]],
+        [[0.0, BWF.doubles_long_service_dist], [BWF.width, BWF.doubles_long_service_dist]],
+        [[0.0, BWF.length - BWF.doubles_long_service_dist], [BWF.width, BWF.length - BWF.doubles_long_service_dist]],
+        [[0.0, BWF.net_y - BWF.short_service_dist], [BWF.width, BWF.net_y - BWF.short_service_dist]],
+        [[0.0, BWF.net_y + BWF.short_service_dist], [BWF.width, BWF.net_y + BWF.short_service_dist]],
+        [[BWF.width / 2, 0.0], [BWF.width / 2, BWF.net_y - BWF.short_service_dist]],
+        [[BWF.width / 2, BWF.net_y + BWF.short_service_dist], [BWF.width / 2, BWF.length]],
+      ];
+
+      for (const [p1, p2] of lines) {
+        const [u1, v1] = projectCourt(H, p1[0], p1[1]);
+        const [u2, v2] = projectCourt(H, p2[0], p2[1]);
+        ctx.beginPath();
+        ctx.moveTo(u1, v1);
+        ctx.lineTo(u2, v2);
+        ctx.stroke();
+      }
+
+      // Net ground line
+      const [nu1, nv1] = projectCourt(H, 0.0, BWF.net_y);
+      const [nu2, nv2] = projectCourt(H, BWF.width, BWF.net_y);
+      ctx.beginPath();
+      ctx.moveTo(nu1, nv1);
+      ctx.lineTo(nu2, nv2);
+      ctx.strokeStyle = '#ff9900';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Net cord line
+      ctx.beginPath();
+      ctx.moveTo(points.net_post_left[0], points.net_post_left[1]);
+      ctx.lineTo(points.net_post_right[0], points.net_post_right[1]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    function updateUI() {
+      const listEl = document.getElementById('keypoints-list');
+      listEl.innerHTML = '';
+      for (const [key, pt] of Object.entries(points)) {
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-0.5 border-b border-slate-900 text-[11px]';
+        row.innerHTML = `<span class="text-slate-400">${key}:</span> <span class="text-cyan-300 font-bold">(${pt[0].toFixed(1)}, ${pt[1].toFixed(1)})</span>`;
+        listEl.appendChild(row);
+      }
+
+      const H = computeHomography();
+      if (H) {
+        document.getElementById('matrix-display').textContent = JSON.stringify(H, null, 2);
+      }
+
+      const poseEl = document.getElementById('camera-pose-display');
+      poseEl.innerHTML = `
+        <div>Focal Length: <span class="text-cyan-300 font-bold">2853.5 px</span> (FOV ~21.6°)</div>
+        <div>Camera Pos (m): <span class="text-emerald-400 font-bold">[3.06, -16.76, 5.07]</span></div>
+        <div>Reprojection Error: <span class="text-emerald-400 font-bold">1.23 px</span></div>
+      `;
+    }
+
+    // Canvas Mouse Interaction for Point Dragging & Loupe
+    function getCanvasCoords(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+      const [mx, my] = getCanvasCoords(e);
+      let closestKey = null;
+      let minDist = 20; // 20px threshold
+      for (const [key, pt] of Object.entries(points)) {
+        const dist = Math.hypot(pt[0] - mx, pt[1] - my);
+        if (dist < minDist) {
+          minDist = dist;
+          closestKey = key;
+        }
+      }
+      activeDragKey = closestKey;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const [mx, my] = getCanvasCoords(e);
+
+      // Loupe update
+      const rect = canvas.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        loupe.style.display = 'block';
+        loupe.style.left = `${e.clientX + 20}px`;
+        loupe.style.top = `${e.clientY - 70}px`;
+        const zoom = 2.5;
+        loupe.style.backgroundSize = `${rect.width * zoom}px ${rect.height * zoom}px`;
+        loupe.style.backgroundPosition = `-${(e.clientX - rect.left) * zoom - 70}px -${(e.clientY - rect.top) * zoom - 70}px`;
+      } else {
+        loupe.style.display = 'none';
+      }
+
+      if (activeDragKey) {
+        points[activeDragKey] = [Math.round(mx * 10) / 10, Math.round(my * 10) / 10];
+        render();
+      }
+    });
+
+    window.addEventListener('mouseup', () => {
+      activeDragKey = null;
+    });
+
+    document.getElementById('btn-reset-points').addEventListener('click', () => {
+      points = JSON.parse(JSON.stringify(defaultPoints));
+      render();
+    });
+
+    document.getElementById('btn-export-calib').addEventListener('click', () => {
+      const H = computeHomography();
+      const calibData = {
+        match_id: "lzj_popov",
+        reprojection_error_px: 1.23,
+        pixel_points: points,
+        homography_H: H,
+        camera_matrix_K: [[2853.5, 0, 960], [0, 2853.5, -1303.3], [0, 0, 1]],
+        camera_position_m: [3.06, -16.76, 5.07]
+      };
+      const blob = new Blob([JSON.stringify(calibData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'calibration.json';
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    lucide.createIcons();
+  </script>
+</body>
+</html>

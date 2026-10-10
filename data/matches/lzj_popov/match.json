@@ -1,0 +1,36 @@
+{
+  "match_id": "lzj_popov",
+  "tournament": "BWF Arctic Open 2024 Super 500",
+  "round": "Quarter-Final Men's Singles",
+  "venue": "Energia Areena, Vantaa, Finland",
+  "date": "2024-10-11",
+  "court_id": "Court 1 (TV Court)",
+  "surface": "Yonex Official Pro Mat (Green)",
+  "shuttle_type": "Yonex Aerosensa 50 (Speed 77)",
+  "video_source": "assets/LZJvPopov.mp4",
+  "youtube_id": "EhN9qzVe7_g",
+  "players": {
+    "LZJ": {
+      "id": "LZJ",
+      "name": "Lee Zii Jia",
+      "display_name": "LEE Z.J.",
+      "country": "MAS",
+      "flag": "🇲🇾",
+      "world_ranking": 7,
+      "dominant_hand": "Right",
+      "height_cm": 186,
+      "jersey_color": "#00f0ff"
+    },
+    "POPOV": {
+      "id": "POPOV",
+      "name": "Christo Popov",
+      "display_name": "C. POPOV",
+      "country": "FRA",
+      "flag": "🇫🇷",
+      "world_ranking": 28,
+      "dominant_hand": "Left",
+      "height_cm": 181,
+      "jersey_color": "#ff2a55"
+    }
+  }
+}

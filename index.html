@@ -233,8 +233,8 @@
                   <span id="overlay-p1-name" class="text-slate-200 font-semibold text-[9px] truncate max-w-[50px]">LZJ</span>
                 </div>
                 <div class="flex items-center">
-                  <span id="overlay-p1-score" class="font-lcd text-cyan-400 font-black text-xs sm:text-sm tabular-nums leading-none">11</span>
-                  <span id="lcd-score-mas" class="hidden">11</span>
+                  <span id="overlay-p1-score" class="font-lcd text-cyan-400 font-black text-xs sm:text-sm tabular-nums leading-none">—</span>
+                  <span id="lcd-score-mas" class="hidden">—</span>
                 </div>
               </div>
               <div class="flex items-center justify-between py-0.5">
@@ -245,12 +245,12 @@
                   <span id="overlay-p2-serve" class="text-[8px] text-amber-400 font-mono leading-none hidden">●</span>
                 </div>
                 <div class="flex items-center">
-                  <span id="overlay-p2-score" class="font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none">08</span>
-                  <span id="lcd-score-tpe" class="hidden">08</span>
+                  <span id="overlay-p2-score" class="font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none">—</span>
+                  <span id="lcd-score-tpe" class="hidden">—</span>
                 </div>
               </div>
               <div class="mt-1 pt-0.5 border-t border-slate-800/80">
-                <span id="lcd-rally-badge" class="lcd-emerald text-[8px] sm:text-[9px] font-bold truncate block">RALLY #4 🔥 [20 SHOTS]</span>
+                <span id="lcd-rally-badge" class="lcd-emerald text-[8px] sm:text-[9px] font-bold truncate block">—</span>
               </div>
             </div>
 
@@ -261,12 +261,12 @@
                 <span id="hud-status-badge" class="text-[8px] text-slate-200">LIVE 60FPS</span>
               </div>
               <div class="flex items-baseline justify-between py-0.5">
-                <span id="lcd-stopwatch-timer" class="font-lcd text-xs sm:text-sm font-black lcd-emerald tabular-nums leading-none">00:19.10</span>
+                <span id="lcd-stopwatch-timer" class="font-lcd text-xs sm:text-sm font-black lcd-emerald tabular-nums leading-none">00:00.00</span>
                 <span class="text-[8px] text-emerald-500/80 font-mono font-bold">SEC</span>
               </div>
               <div class="flex items-center justify-between text-[8px] text-slate-400 pt-0.5 border-t border-slate-800/60">
-                <span>CAD: <span id="lcd-shot-freq" class="lcd-cyan font-bold">1.42</span></span>
-                <span class="text-cyan-400 font-bold" id="lcd-split-timer">05:25</span>
+                <span>CAD: <span id="lcd-shot-freq" class="lcd-cyan font-bold">—</span></span>
+                <span class="text-cyan-400 font-bold" id="lcd-split-timer">00:00</span>
               </div>
             </div>
 
@@ -294,8 +294,8 @@
             <!-- 4. BOTTOM-RIGHT SPEED RADAR BANNER (Flashes on Smash, Auto-Fades) -->
             <div id="speed-radar-overlay" class="absolute bottom-2 right-2 z-20 pointer-events-none opacity-0 transition-opacity duration-300 hud-glass-card border border-red-500/70 rounded-lg px-2.5 py-1 text-right shadow-2xl">
               <div id="speed-radar-title" class="text-[8px] font-mono font-bold text-red-400 tracking-wider uppercase">⚡ BWF SMASH RADAR</div>
-              <div id="speed-radar-value" class="font-lcd text-sm sm:text-base font-black text-red-400 tabular-nums leading-tight">412 KM/H</div>
-              <div id="lcd-key-moment" class="text-[8px] text-red-300 font-mono truncate max-w-[140px] sm:max-w-[200px] hidden sm:block">412 KM/H NUCLEAR SMASH!</div>
+              <div id="speed-radar-value" class="font-lcd text-sm sm:text-base font-black text-red-400 tabular-nums leading-tight">— KM/H</div>
+              <div id="lcd-key-moment" class="text-[8px] text-red-300 font-mono truncate max-w-[140px] sm:max-w-[200px] hidden sm:block">—</div>
             </div>
           </div>
 
@@ -363,24 +363,7 @@
                 <i data-lucide="bookmark" class="w-3 h-3 text-cyan-400 mr-1"></i> RALLIES:
               </span>
               <div id="rally-chips-container" class="flex items-center space-x-1.5 min-w-0">
-                <button data-rally-id="1" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                  🏸 Rally #1 (00:25)
-                </button>
-                <button data-rally-id="2" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                  💥 Rally #2 (01:18)
-                </button>
-                <button data-rally-id="3" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                  ⚡ Rally #3 (03:05)
-                </button>
-                <button data-rally-id="4" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 font-bold text-xs whitespace-nowrap shrink-0 transition-all">
-                  🔥 LZJ 408km/h (05:12)
-                </button>
-                <button data-rally-id="5" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                  🏃 Rally #5 (06:40)
-                </button>
-                <button data-rally-id="6" class="rally-chip-btn min-h-[32px] px-3 py-1 rounded-lg bg-slate-900/90 border border-slate-800 text-slate-400 hover:border-slate-600 hover:bg-slate-800/90 text-xs whitespace-nowrap shrink-0 transition-all">
-                  🏆 Rally #6 (08:00)
-                </button>
+                <!-- Dynamically populated from computed match telemetry -->
               </div>
             </div>
 
@@ -445,16 +428,16 @@
               <div class="bg-[#080b0f] rounded-lg p-1.5 border border-slate-800 flex flex-col items-center">
                 <div class="w-full flex items-center justify-between text-[8px] font-mono text-slate-400 mb-0.5">
                   <span class="text-red-400 font-bold">SUB.01</span>
-                  <span id="subdial-speed-peak" class="lcd-cyan font-bold text-[8px]">PEAK 412</span>
+                  <span id="subdial-speed-peak" class="lcd-cyan font-bold text-[8px]">PEAK —</span>
                 </div>
 
-                <div class="relative w-full aspect-square max-w-[85px] sm:max-w-[100px] flex items-center justify-center cursor-pointer" title="Click to test speed pulses">
+                <div class="relative w-full aspect-square max-w-[85px] sm:max-w-[100px] flex items-center justify-center cursor-pointer" title="Smash Speedometer">
                   <canvas id="speedometer-canvas" class="w-full h-full"></canvas>
                 </div>
 
                 <!-- Embedded LCD Readout -->
                 <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-speed-lcd" class="font-lcd text-xs font-black lcd-redline">412 KM/H</div>
+                  <div id="subdial-speed-lcd" class="font-lcd text-xs font-black lcd-redline">— KM/H</div>
                 </div>
               </div>
 
@@ -471,7 +454,7 @@
 
                 <!-- Embedded LCD Readout -->
                 <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-shots-lcd" class="font-lcd text-xs font-black lcd-cyan">16 / 16</div>
+                  <div id="subdial-shots-lcd" class="font-lcd text-xs font-black lcd-cyan">— / —</div>
                 </div>
               </div>
 
@@ -488,7 +471,7 @@
 
                 <!-- Embedded LCD Readout -->
                 <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-coverage-lcd" class="font-lcd text-xs font-black lcd-emerald">2.84 KM</div>
+                  <div id="subdial-coverage-lcd" class="font-lcd text-xs font-black lcd-emerald">— KM</div>
                 </div>
               </div>
             </div>
@@ -796,7 +779,7 @@
               <span class="text-xs font-semibold text-cyan-300 group-hover:text-cyan-200">🇲🇾 Lee Zii Jia vs 🇫🇷 Christo Popov</span>
               <span class="text-[9px] text-cyan-400 font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-500/40">QF [EhN9qzVe7_g]</span>
             </div>
-            <div class="text-[9px] text-slate-400 mt-0.5">8:18 match clip • 6 verified rallies • 408 km/h jump smash climax</div>
+            <div class="text-[9px] text-slate-400 mt-0.5">8:18 broadcast highlight • Arctic Open 2024 Men's Singles QF</div>
           </button>
 
           <!-- Preset 2: Lee Zii Jia vs Su Li Yang (Full Match) -->
@@ -806,7 +789,7 @@
               <span class="text-xs font-semibold text-slate-200 group-hover:text-orange-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
               <span class="text-[9px] text-orange-400 font-bold bg-orange-950/60 px-1.5 py-0.5 rounded border border-orange-500/30">R16 FULL MATCH</span>
             </div>
-            <div class="text-[9px] text-slate-500 mt-0.5">Game 2: 412 km/h smash & rapid exchange (Rally #18 sync)</div>
+            <div class="text-[9px] text-slate-500 mt-0.5">Arctic Open 2024 Men's Singles R16 (Full Match)</div>
           </button>
 
           <!-- Preset 3: Lee Zii Jia vs Su Li Yang (Highlights) -->

@@ -58,23 +58,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (lcdKeyMoment) {
           lcdKeyMoment.textContent = data.intermissionSub 
             ? data.intermissionSub.toUpperCase()
-            : `NEXT: ${data.rally ? data.rally.label.toUpperCase() : 'PREPARING SERVICE'}`;
+            : `NEXT: ${data.rally ? (data.rally.label || 'PREPARING SERVICE').toUpperCase() : 'PREPARING SERVICE'}`;
         }
-        subDials.setSpeed(0, false);
-        // During intermission, sprint burst speed is 0! Simulation does not run!
-        const lzjDist = 2.84 + ((data.rally?.rally_id || 1) * 0.08);
-        subDials.setCoverage(lzjDist, 0.0);
+        subDials.setSpeed(null, false);
+        subDials.setCoverage(null, 0.0);
         if (lcdStopwatch) lcdStopwatch.textContent = '00:00.00';
-        if (lcdShotFreq) lcdShotFreq.textContent = '0.00 S/S';
+        if (lcdShotFreq) lcdShotFreq.textContent = '— S/S';
       } else if (data.shot) {
         if (lcdRallyBadge && data.rally) {
-          lcdRallyBadge.textContent = `${data.rally.badge} [${data.rally.shot_count} SHOTS]`;
+          lcdRallyBadge.textContent = `${data.rally.badge || 'RALLY'} [${data.rally.shot_count || '—'} SHOTS]`;
         }
         if (lcdKeyMoment && data.rally) {
-          lcdKeyMoment.textContent = data.rally.key_moment.toUpperCase();
+          lcdKeyMoment.textContent = (data.rally.key_moment || '—').toUpperCase();
         }
-        subDials.setSpeed(data.shot.speed_kmh, data.shot.stroke.includes('Smash'));
-        subDials.setShotCount(data.shot.shot_num, data.rally ? data.rally.shot_count : 24);
+        subDials.setSpeed(data.shot.speed_kmh, data.shot.stroke ? data.shot.stroke.includes('Smash') : false);
+        subDials.setShotCount(data.shot.shot_num, data.rally ? data.rally.shot_count : null);
         courtView.updateTelemetry(data);
 
         // Shot frequency
@@ -83,12 +81,14 @@ document.addEventListener('DOMContentLoaded', () => {
           lcdShotFreq.textContent = `${freq} S/S`;
         }
 
-        // Cumulative coverage sprint interpolation (ONLY active during point)
-        if (data.rally) {
+        // Distance covered
+        if (data.rally && data.rally.lzj_sprint_dist_m) {
           const dur = data.rally.duration_sec || 20;
           const pct = Math.min(1, elapsed / dur);
-          const lzjDist = 2.84 + (data.rally.lzj_sprint_dist_m / 1000) * pct;
-          subDials.setCoverage(lzjDist, 18.5 + Math.sin(totalSecs) * 6.5);
+          const lzjDist = (data.rally.lzj_sprint_dist_m / 1000) * pct;
+          subDials.setCoverage(lzjDist, 0.0);
+        } else {
+          subDials.setCoverage(null);
         }
       }
     }
@@ -96,9 +96,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 3. Update LCD Scoreboard & Banner
   function updateRallyLCD(rally) {
-    if (!rally) return;
-    const masScore = rally.score_after.player_1.toString().padStart(2, '0');
-    const p2Score = rally.score_after.player_2.toString().padStart(2, '0');
+    if (!rally) {
+      if (lcdScoreMAS) lcdScoreMAS.textContent = "—";
+      if (lcdScoreTPE) lcdScoreTPE.textContent = "—";
+      const p1Overlay = document.getElementById('overlay-p1-score');
+      const p2Overlay = document.getElementById('overlay-p2-score');
+      if (p1Overlay) p1Overlay.textContent = "—";
+      if (p2Overlay) p2Overlay.textContent = "—";
+      if (lcdRallyBadge) lcdRallyBadge.textContent = "—";
+      if (lcdKeyMoment) lcdKeyMoment.textContent = "—";
+      subDials.setSpeed(null);
+      subDials.setShotCount(null);
+      return;
+    }
+    const masScore = rally.score_after?.player_1 !== undefined ? rally.score_after.player_1.toString().padStart(2, '0') : "—";
+    const p2Score = rally.score_after?.player_2 !== undefined ? rally.score_after.player_2.toString().padStart(2, '0') : "—";
     if (lcdScoreMAS) lcdScoreMAS.textContent = masScore;
     if (lcdScoreTPE) lcdScoreTPE.textContent = p2Score;
     const p1Overlay = document.getElementById('overlay-p1-score');
@@ -111,12 +123,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ? "font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none"
         : "font-lcd text-orange-400 font-black text-xs sm:text-sm tabular-nums leading-none";
     }
-    if (lcdRallyBadge) lcdRallyBadge.textContent = `${rally.badge} [${rally.shot_count} SHOTS]`;
-    if (lcdKeyMoment) lcdKeyMoment.textContent = rally.key_moment.toUpperCase();
+    if (lcdRallyBadge) lcdRallyBadge.textContent = `${rally.badge || 'RALLY'} [${rally.shot_count || '—'} SHOTS]`;
+    if (lcdKeyMoment) lcdKeyMoment.textContent = (rally.key_moment || '—').toUpperCase();
 
     // Set dial targets
-    subDials.setSpeed(rally.max_smash_kmh, true);
-    subDials.setShotCount(rally.shot_count, rally.shot_count);
+    subDials.setSpeed(rally.max_smash_kmh || null, true);
+    subDials.setShotCount(rally.shot_count || null, rally.shot_count || null);
   }
 
   // 4. Dynamic Rally Bookmark Chips
