@@ -20,4 +20,6 @@ npm-debug.log*
 .env
 .venv
 env/
-venv/
+# Media assets
+assets/*.mp4
+assets/*.mov
