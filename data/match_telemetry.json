@@ -7,6 +7,8 @@
     "video_id": "EhN9qzVe7_g",
     "video_url": "https://www.youtube.com/watch?v=EhN9qzVe7_g",
     "video_duration_sec": 498.44,
+    "broadcast_fps": 25.0,
+    "total_broadcast_frames": 12461,
     "court_id": "Court 1 (TV Court)",
     "surface": "Yonex Official Pro Mat (Green)",
     "ambient_temp_c": 21.5,
