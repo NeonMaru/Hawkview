@@ -78,7 +78,14 @@ class CourtCalibrator:
         self.H_court_to_pixel = H
         self.H_pixel_to_court = np.linalg.inv(H)
 
-        # 2. 3D Camera Pose via solvePnP using all 6 points
+        # 2. 3D Camera Pose with fixed optical center (cx=960, cy=540)
+        self._solve_camera_pose()
+
+    def _solve_camera_pose(self):
+        """
+        Solves focal length f and 3D camera pose (R, t) with the principal point
+        strictly fixed at the image center (cx = 960.0, cy = 540.0).
+        """
         obj_pts = np.array([
             self.ref_3d_points["corner_near_left"],
             self.ref_3d_points["corner_near_right"],
@@ -98,29 +105,42 @@ class CourtCalibrator:
         ], dtype=np.float64)
 
         w, h = 1920, 1080
+        cx, cy = w / 2.0, h / 2.0
 
-        def pnp_loss(params):
-            f, cy = params[0], params[1]
-            rvec = params[2:5]
-            tvec = params[5:8]
-            K = np.array([[f, 0, w / 2.0], [0, f, cy], [0, 0, 1.0]], dtype=np.float64)
+        def residuals(params):
+            f = params[0]
+            rvec = params[1:4]
+            tvec = params[4:7]
+            K = np.array([[f, 0, cx], [0, f, cy], [0, 0, 1.0]], dtype=np.float64)
             proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, np.zeros(5))
-            diff = proj.reshape(-1, 2) - img_pts
-            return np.sum(diff ** 2)
+            return (proj.reshape(-1, 2) - img_pts).ravel()
 
-        K_guess = np.array([[2800.0, 0, w / 2.0], [0, 2800.0, h / 2.0], [0, 0, 1.0]], dtype=np.float64)
-        _, rvec0, tvec0 = cv2.solvePnP(obj_pts, img_pts, K_guess, np.zeros(5))
-        x0 = np.concatenate([[2800.0, h / 2.0], rvec0.ravel(), tvec0.ravel()])
+        best_f = 2800.0
+        best_rvec, best_tvec = None, None
+        best_err = float("inf")
+        for f_try in np.linspace(2000.0, 3600.0, 33):
+            K_try = np.array([[f_try, 0, cx], [0, f_try, cy], [0, 0, 1.0]], dtype=np.float64)
+            ok, r_try, t_try = cv2.solvePnP(obj_pts, img_pts, K_try, np.zeros(5), flags=cv2.SOLVEPNP_ITERATIVE)
+            if ok:
+                proj, _ = cv2.projectPoints(obj_pts, r_try, t_try, K_try, np.zeros(5))
+                err = np.sum((proj.reshape(-1, 2) - img_pts) ** 2)
+                if err < best_err:
+                    best_err = err
+                    best_f = f_try
+                    best_rvec = r_try
+                    best_tvec = t_try
 
-        res = minimize(pnp_loss, x0, method="Nelder-Mead", options={"maxiter": 3000})
-        f_opt, cy_opt = res.x[0], res.x[1]
-        self.rvec = res.x[2:5]
-        self.tvec = res.x[5:8]
-        self.K = np.array([[f_opt, 0, w / 2.0], [0, f_opt, cy_opt], [0, 0, 1.0]], dtype=np.float64)
+        x0 = np.concatenate([[best_f], best_rvec.ravel(), best_tvec.ravel()])
+        from scipy.optimize import least_squares
+        res = least_squares(residuals, x0, method="lm")
+        f_opt = float(res.x[0])
+        self.rvec = res.x[1:4]
+        self.tvec = res.x[4:7]
+        self.K = np.array([[f_opt, 0, cx], [0, f_opt, cy], [0, 0, 1.0]], dtype=np.float64)
         self.R, _ = cv2.Rodrigues(self.rvec)
         self.camera_position = -self.R.T @ self.tvec
 
-        # Compute initial measured reprojection error across all 6 points
+        # Compute measured reprojection error across all 6 points
         proj, _ = cv2.projectPoints(obj_pts, self.rvec, self.tvec, self.K, np.zeros(5))
         proj = proj.reshape(-1, 2)
         errors = np.linalg.norm(proj - img_pts, axis=1)
@@ -218,6 +238,9 @@ class CourtCalibrator:
                 self.pixel_points["corner_near_right"] = (float(p_corners[1, 0]), float(p_corners[1, 1]))
                 self.pixel_points["corner_far_right"] = (float(p_corners[2, 0]), float(p_corners[2, 1]))
                 self.pixel_points["corner_far_left"] = (float(p_corners[3, 0]), float(p_corners[3, 1]))
+
+                # Update 3D camera pose and reprojection error with refined points
+                self._solve_camera_pose()
 
                 # Calculate inlier line RMSE
                 proj_lines = cv2.perspectiveTransform(sample_court_pts.reshape(-1, 1, 2), H_ref).reshape(-1, 2)
@@ -354,19 +377,24 @@ def main():
         "corner_near_right": (1593.97, 969.17),
         "corner_far_right": (1293.95, 427.56),
         "corner_far_left": (627.76, 423.47),
-        "net_post_left": (520.0, 355.0),
-        "net_post_right": (1410.0, 360.0),
+        "net_post_left": (521.80, 354.62),
+        "net_post_right": (1401.50, 362.56),
     }
 
     calibrator.set_keypoints(initial_keypoints)
     print(f"📐 Initial Reprojection Error (6 3D Keypoints): {calibrator.reprojection_error_px:.2f} px")
 
-    # Refine against clear rally frame (frame 750)
-    img_path = "data/matches/lzj_popov/debug/frame_750.jpg"
-    if os.path.exists(img_path):
-        frame = cv2.imread(img_path)
-        calibrator.refine_with_white_lines(frame)
-        print(f"✨ White-Line Refinement RMSE: {calibrator.line_sample_rmse_px:.2f} px")
+    # Refine against clear rally frame (frame 450 / 750)
+    video_path = "assets/LZJvPopov.mp4"
+    if os.path.exists(video_path):
+        cap = cv2.VideoCapture(video_path)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 450)
+        ret, frame = cap.read()
+        cap.release()
+        if ret:
+            calibrator.refine_with_white_lines(frame)
+            print(f"✨ White-Line Refinement RMSE: {calibrator.line_sample_rmse_px:.2f} px")
+            print(f"📐 Post-Refinement Reprojection Error: {calibrator.reprojection_error_px:.2f} px")
 
     out_json = calibrator.save_calibration()
     print(f"💾 Calibration saved to: {out_json}")

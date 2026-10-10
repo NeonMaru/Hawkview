@@ -20,6 +20,14 @@ npm-debug.log*
 .env
 .venv
 env/
+
+# Model weights
+*.pt
+engine/weights/
 # Media assets
 assets/*.mp4
 assets/*.mov
+
+# Generated video outputs
+data/matches/**/debug/*.mp4
+*.mp4
