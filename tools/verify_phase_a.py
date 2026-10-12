@@ -55,7 +55,7 @@ def verify_phase_a(
     print(f"  • Ground Homography H Solved: det(H) = {np.linalg.det(calibrator.H_court_to_pixel):.4f}")
     print(f"  • Camera Matrix K: Focal Length = {calibrator.K[0, 0]:.1f} px, Principal Point = ({calibrator.K[0, 2]:.1f}, {calibrator.K[1, 2]:.1f})")
     print(f"  • Camera Position (solvePnP): X={calibrator.camera_position[0]:.2f}m, Y={calibrator.camera_position[1]:.2f}m, Z={calibrator.camera_position[2]:.2f}m")
-    print(f"  • Measured 6-Point Reprojection Error: {calibrator.reprojection_error_px:.2f} px")
+    print(f"  • Measured 3D Reprojection Error: {calibrator.reprojection_error_px:.2f} px")
     print(f"  • Measured White-Line Refinement RMSE: {calibrator.line_sample_rmse_px:.2f} px")
 
     # 3. 5 In-Rally Frame Overlays & Acceptance Metric Measurement
