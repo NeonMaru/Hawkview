@@ -575,6 +575,71 @@ class ThreeCourtViewer {
     document.addEventListener('fullscreenchange', () => {
       setTimeout(() => this.onResize(), 60);
     });
+
+    // Vertical court height slider & bottom-right drag resizer (#court-resizable-row)
+    const courtRow = document.getElementById('court-resizable-row') || (this.container && this.container.closest('.hv-court-row'));
+    const heightSlider = document.getElementById('court-height-slider');
+    const resizeHandle = document.getElementById('court-resize-handle');
+
+    const applyCourtHeight = (pxVal, save = false) => {
+      if (!courtRow) return;
+      const clamped = Math.max(280, Math.min(860, Math.round(Number(pxVal) || 440)));
+      courtRow.style.setProperty('--court-height', `${clamped}px`);
+      if (heightSlider && Number(heightSlider.value) !== clamped) {
+        heightSlider.value = String(clamped);
+      }
+      if (save) {
+        try {
+          localStorage.setItem('hawkview_court_height_px', String(clamped));
+        } catch (e) {}
+      }
+      this.onResize();
+    };
+
+    try {
+      const savedH = localStorage.getItem('hawkview_court_height_px');
+      if (savedH) {
+        applyCourtHeight(Number(savedH), false);
+      }
+    } catch (e) {}
+
+    if (heightSlider) {
+      heightSlider.addEventListener('input', (e) => applyCourtHeight(e.target.value, false));
+      heightSlider.addEventListener('change', (e) => applyCourtHeight(e.target.value, true));
+    }
+
+    if (resizeHandle && courtRow) {
+      let dragging = false;
+      let startY = 0;
+      let startH = 440;
+
+      resizeHandle.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        dragging = true;
+        startY = e.clientY;
+        startH = courtRow.clientHeight || 440;
+        if (resizeHandle.setPointerCapture) {
+          try { resizeHandle.setPointerCapture(e.pointerId); } catch (err) {}
+        }
+      });
+
+      resizeHandle.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const dy = e.clientY - startY;
+        applyCourtHeight(startH + dy, false);
+      });
+
+      const stopDrag = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        const dy = e.clientY - startY;
+        applyCourtHeight(startH + dy, true);
+      };
+
+      resizeHandle.addEventListener('pointerup', stopDrag);
+      resizeHandle.addEventListener('pointercancel', stopDrag);
+    }
   }
 
   toggleFullscreen() {

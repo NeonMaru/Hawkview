@@ -74,7 +74,7 @@ class PlayerCard {
     const f = this.explorer.filters;
     const isCurrentlyActive = (f.player === this.activePlayerId && f.shotType === familyKey);
     if (isCurrentlyActive) {
-      this.explorer.setFilters({ player: 'all', shotType: 'all' });
+      this.explorer.clearFilters();
     } else {
       this.explorer.setFilters({
         player: this.activePlayerId,
@@ -94,10 +94,11 @@ class PlayerCard {
       f.lateralZone === lateralZone
     );
     if (isCurrentlyActive) {
-      this.explorer.setFilters({ contactZone: 'all', lateralZone: 'all' });
+      this.explorer.clearFilters();
     } else {
       this.explorer.setFilters({
         player: this.activePlayerId,
+        shotType: 'all',
         contactZone: depthZone,
         lateralZone: lateralZone
       });
@@ -303,6 +304,9 @@ class PlayerCard {
       <div style="margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
           <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase;">Speed by Shot Type (km/h est.)</span>
+          ${this.explorer && this.explorer.hasActiveFilters()
+            ? '<button type="button" class="hv-btn" data-clear-player-filters="1" style="padding:1px 7px; font-size:10.5px;">✕ Clear 3D</button>'
+            : ''}
         </div>
         <table class="hv-table">
           <thead>
@@ -321,9 +325,14 @@ class PlayerCard {
 
       <!-- 3x3 Half-Court Contact Map -->
       <div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; gap:6px;">
           <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase;">Contact Map (3×3 Half-Court)</span>
-          <span style="font-size:10.5px; color:var(--muted);">↑ Net</span>
+          <div style="display:inline-flex; align-items:center; gap:6px;">
+            ${this.explorer && this.explorer.hasActiveFilters()
+              ? '<button type="button" class="hv-btn" data-clear-player-filters="1" style="padding:1px 7px; font-size:10.5px;" title="Clear active zone/type filter on 3D court">✕ Clear</button>'
+              : ''}
+            <span style="font-size:10.5px; color:var(--muted);">↑ Net</span>
+          </div>
         </div>
         <div class="hv-contact-map-grid">
           ${contactCellsHtml}
@@ -335,6 +344,12 @@ class PlayerCard {
     this.container.querySelectorAll('[data-select-player]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.selectPlayer(btn.getAttribute('data-select-player'));
+      });
+    });
+
+    this.container.querySelectorAll('[data-clear-player-filters]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (this.explorer) this.explorer.clearFilters();
       });
     });
 

@@ -20,7 +20,7 @@
   </script>
 
   <!-- Clean PB-Vision Style Sheet (Spec Section 2.2) -->
-  <link rel="stylesheet" href="css/hawkview.css?v=2.5">
+  <link rel="stylesheet" href="css/hawkview.css?v=2.6">
 </head>
 <body>
 
@@ -68,6 +68,7 @@
             <button id="mode-btn-playback" class="hv-btn active" style="padding:3px 8px; font-size:11px;" title="Follow rally playback (last 4 shots with fade)">Playback</button>
             <button id="mode-btn-explorer" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Show all matching shots across the match">Explorer</button>
             <span id="explorer-shot-count-badge" class="hv-badge">R1: 1 / 4 shots</span>
+            <button id="btn-clear-3d-clutter" type="button" class="hv-btn hidden" style="padding:2px 8px; font-size:11px; color:var(--shot-error); border-color:var(--shot-error);" title="Clear all filters and return to clean rally playback">✕ Clear Clutter</button>
           </div>
 
           <div class="hv-court-legend">
@@ -79,7 +80,7 @@
           </div>
         </div>
 
-        <div class="hv-court-row">
+        <div class="hv-court-row" id="court-resizable-row">
           <div class="hv-court-stage">
             <!-- Three.js Canvas Mount (strictly absolute so canvas never mutates parent layout size) -->
             <div id="three-viewport-container" class="hv-three-mount"></div>
@@ -99,6 +100,12 @@
             <div class="hv-cam-btn-spacer"></div>
             <button id="cam-btn-fullscreen" class="hv-cam-btn" title="Toggle fullscreen court">⛶</button>
           </aside>
+
+          <!-- Bottom Bar + Bottom-Right Corner Grip to Vertically Resize 3D Court Container -->
+          <div id="court-resize-handle" class="hv-court-resize-handle" title="Drag up/down to resize 3D court height">
+            <span class="hv-crh-pill"></span>
+            <span class="hv-crh-corner" title="Drag corner to resize court height">◢</span>
+          </div>
         </div>
 
         <!-- Dedicated Rally Scrubber & Trail Fade Bar at the Bottom of the 3D Court -->
@@ -106,6 +113,11 @@
           <div class="hv-crb-top">
             <span id="court-shot-dir-text" class="hv-crb-dir">🏸 R1 · Shot #1/4: 🇫🇷 POPOV (NEAR) ──► 🇲🇾 LZJ (FAR) · smash 208 km/h est.</span>
             <div class="hv-crb-actions">
+              <label class="hv-crb-height-ctrl" title="Adjust 3D court container vertical height">
+                <span>Height</span>
+                <input id="court-height-slider" type="range" min="280" max="860" step="4" value="440"
+                       class="hv-slider" style="width:68px;">
+              </label>
               <button id="btn-show-full-rally" type="button" class="hv-btn hv-crb-full-btn"
                       title="Hover or click to view all shots in this rally at once (instead of last 4 fading shots)">
                 👁 Full Rally
@@ -298,15 +310,15 @@
   </div>
 
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=2.5"></script>
-  <script src="js/three-viewport.js?v=2.5"></script>
-  <script src="js/shot-explorer.js?v=2.5"></script>
-  <script src="js/filter-bar.js?v=2.5"></script>
-  <script src="js/player-card.js?v=2.5"></script>
-  <script src="js/rally-deck.js?v=2.5"></script>
-  <script src="js/analytics-cards.js?v=2.5"></script>
-  <script src="js/broadcast-player.js?v=2.5"></script>
-  <script src="js/anti-lag-modal.js?v=2.5"></script>
-  <script src="js/app.js?v=2.5"></script>
+  <script src="js/telemetry-data.js?v=2.6"></script>
+  <script src="js/three-viewport.js?v=2.6"></script>
+  <script src="js/shot-explorer.js?v=2.6"></script>
+  <script src="js/filter-bar.js?v=2.6"></script>
+  <script src="js/player-card.js?v=2.6"></script>
+  <script src="js/rally-deck.js?v=2.6"></script>
+  <script src="js/analytics-cards.js?v=2.6"></script>
+  <script src="js/broadcast-player.js?v=2.6"></script>
+  <script src="js/anti-lag-modal.js?v=2.6"></script>
+  <script src="js/app.js?v=2.6"></script>
 </body>
 </html>

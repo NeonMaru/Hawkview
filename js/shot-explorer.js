@@ -57,6 +57,7 @@ class ShotExplorer {
     this.dirTextEl = document.getElementById('court-shot-dir-text');
     this.modePlaybackBtn = document.getElementById('mode-btn-playback');
     this.modeExplorerBtn = document.getElementById('mode-btn-explorer');
+    this.clearClutterBtn = document.getElementById('btn-clear-3d-clutter');
 
     // Bottom 3D Court Rally Scrubber & Full-Rally Hover/Toggle controls
     this.fullRallyBtn = document.getElementById('btn-show-full-rally');
@@ -73,6 +74,8 @@ class ShotExplorer {
 
     this.lastPlaybackState = null;
     this.activeAnimRec = null;
+    this._lastSingleFlightShotId = null;
+    this._singleFlightStartMs = 0;
 
     this.buildAnimatedShuttle();
     this.buildSceneShots();
@@ -89,6 +92,7 @@ class ShotExplorer {
 
     // Authentic 3D Badminton Shuttlecock (cork nose at +Z, 16-feather skirt flaring backward toward -Z)
     this.shuttleMarker = new THREE.Group();
+    this.shuttleMarker.scale.set(0.82, 0.82, 0.82); // 18% smaller per user feedback
 
     // 1. Rounded white polyurethane/leather cork tip pointing in flight direction (+Z)
     const corkTipGeo = new THREE.SphereGeometry(0.082, 18, 18);
@@ -635,6 +639,10 @@ class ShotExplorer {
     if (this.modeExplorerBtn) {
       this.modeExplorerBtn.classList.toggle('active', effective === 'explorer');
     }
+    if (this.clearClutterBtn) {
+      const showClear = (effective === 'explorer') || this.hasActiveFilters() || this.showFullRallyPinned;
+      this.clearClutterBtn.classList.toggle('hidden', !showClear);
+    }
   }
 
   shotMatchesFilters(rec) {
@@ -680,6 +688,8 @@ class ShotExplorer {
       terminalOnly: false
     };
     this.selectedShotId = null;
+    this.userForcedMode = 'playback';
+    this.mode = 'playback';
     this.updateModeButtonsUI();
     this.refreshVisibility();
 
@@ -953,25 +963,31 @@ class ShotExplorer {
     const pts = rec.worldPts;
     const n = pts.length;
 
-    // Determine normalized flight progress u in [0, 1]
-    let u = 0;
-    const isPlayingVideo = Boolean(this.player && this.player.isPlaying && this.getEffectiveMode() === 'playback');
+    // Trigger a single one-shot flight whenever the active shot changes (NO looping!)
+    if (rec.shotId !== this._lastSingleFlightShotId) {
+      this._lastSingleFlightShotId = rec.shotId;
+      this._singleFlightStartMs = performance.now();
+    }
+
+    let u = 1.0;
+    const isPlayingOrScrubbing = Boolean(
+      this.getEffectiveMode() === 'playback' &&
+      this.player &&
+      (this.player.isPlaying || this.isScrubbingRallyBar || this.player.isUserScrubbing)
+    );
     const isHoverOrSelected = (rec.shotId === this.hoveredShotId) || (rec.shotId === this.selectedShotId);
 
-    if (isPlayingVideo && !isHoverOrSelected) {
+    if (isPlayingOrScrubbing && !isHoverOrSelected) {
       const nowT = this.player.currentTime || 0;
       const tStart = rec.shot.time || 0;
       const dur = Math.max(0.25, rec.shot.duration_sec || 0.85);
-      const rawU = (nowT - tStart) / dur;
-      if (rawU >= 0 && rawU <= 1.05) {
-        u = Math.min(1.0, Math.max(0.0, rawU));
-      } else {
-        // When between shots, loop gently so direction is always visible
-        u = ((performance.now() * 0.00085) % 1.0);
-      }
+      // Strictly clamped [0, 1] — once the shot finishes, the shuttlecock rests at u = 1.0 without looping
+      u = Math.min(1.0, Math.max(0.0, (nowT - tStart) / dur));
     } else {
-      // Smooth repeating flight loop (0 -> 1 over ~1.18s) so human eye immediately sees travel direction
-      u = ((performance.now() * 0.00085) % 1.0);
+      // Single one-shot flight from 0 -> 1 over the shot's duration, then holds at 1.0 (no loop)
+      const durMs = Math.max(400, Math.min(1150, (rec.shot.duration_sec || 0.75) * 1000));
+      const elapsedMs = performance.now() - (this._singleFlightStartMs || 0);
+      u = Math.min(1.0, Math.max(0.0, elapsedMs / durMs));
     }
 
     const exactIdx = u * (n - 1);
@@ -983,25 +999,28 @@ class ShotExplorer {
     this.shuttleMarker.position.copy(pos);
 
     // Orient 3D shuttlecock cork nose (+Z) toward tangent direction and feather skirt (-Z) trailing behind
-    this.shuttleMarker.lookAt(pts[i1]);
-    if (this.viewer && this.viewer.camera && this.shuttleHaloMesh) {
-      this.shuttleHaloMesh.lookAt(this.viewer.camera.position);
-    }
+    const tangentTarget = pos.clone().add(pts[i1].clone().sub(pts[i0]));
+    this.shuttleMarker.lookAt(tangentTarget);
 
-    // Update trailing comet tail behind the flying shuttlecock
+    // Update trailing comet tail while in flight; hide comet tail once resting at destination (u >= 0.995)
     if (this.cometTailLine && this.cometTailGeo) {
-      const posAttr = this.cometTailGeo.attributes.position;
-      const tailSpan = 0.28; // 28% of arc length behind shuttle head
-      for (let k = 0; k < this.cometTailCount; k++) {
-        const uk = Math.max(0, u - (k / (this.cometTailCount - 1)) * tailSpan);
-        const fIdx = uk * (n - 1);
-        const ti0 = Math.min(n - 2, Math.max(0, Math.floor(fIdx)));
-        const ti1 = ti0 + 1;
-        const tFrac = fIdx - ti0;
-        const tp = pts[ti0].clone().lerp(pts[ti1], tFrac);
-        posAttr.setXYZ(k, tp.x, tp.y, tp.z);
+      if (u >= 0.995) {
+        this.cometTailLine.visible = false;
+      } else {
+        this.cometTailLine.visible = true;
+        const posAttr = this.cometTailGeo.attributes.position;
+        const tailSpan = 0.24;
+        for (let k = 0; k < this.cometTailCount; k++) {
+          const uk = Math.max(0, u - (k / (this.cometTailCount - 1)) * tailSpan);
+          const fIdx = uk * (n - 1);
+          const ti0 = Math.min(n - 2, Math.max(0, Math.floor(fIdx)));
+          const ti1 = ti0 + 1;
+          const tFrac = fIdx - ti0;
+          const tp = pts[ti0].clone().lerp(pts[ti1], tFrac);
+          posAttr.setXYZ(k, tp.x, tp.y, tp.z);
+        }
+        posAttr.needsUpdate = true;
       }
-      posAttr.needsUpdate = true;
     }
   }
 
@@ -1028,6 +1047,7 @@ class ShotExplorer {
 
   selectShot(shotId, seekVideo = true) {
     this.selectedShotId = shotId;
+    this._lastSingleFlightShotId = null; // trigger fresh single-shot flight
     const rec = this.shotById.get(shotId);
     this.refreshVisibility();
 
@@ -1048,10 +1068,24 @@ class ShotExplorer {
 
   bindEvents() {
     if (this.modePlaybackBtn) {
-      this.modePlaybackBtn.addEventListener('click', () => this.setMode('playback', true));
+      this.modePlaybackBtn.addEventListener('click', () => {
+        if (this.hasActiveFilters()) {
+          this.clearFilters();
+        } else {
+          this.setMode('playback', true);
+        }
+      });
     }
     if (this.modeExplorerBtn) {
       this.modeExplorerBtn.addEventListener('click', () => this.setMode('explorer', true));
+    }
+    if (this.clearClutterBtn) {
+      this.clearClutterBtn.addEventListener('click', () => {
+        this.showFullRallyPinned = false;
+        this.showFullRallyHover = false;
+        if (this.fullRallyBtn) this.fullRallyBtn.classList.remove('active');
+        this.clearFilters();
+      });
     }
 
     // Hover or click '👁 Full Rally' button to reveal all shots of the rally vs last 3-4 fading trail

@@ -364,13 +364,70 @@ th,
 .hv-court-row {
   display: flex;
   align-items: stretch;
-  flex: 0 0 385px;
-  height: 385px;
-  min-height: 385px;
-  max-height: 385px;
+  flex: 0 0 var(--court-height, 440px);
+  height: var(--court-height, 440px);
+  min-height: 280px;
+  max-height: 860px;
   gap: 0;
   position: relative;
   overflow: hidden;
+}
+
+.hv-court-resize-handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  z-index: 25;
+  user-select: none;
+  touch-action: none;
+  background: transparent;
+}
+
+.hv-court-resize-handle:hover .hv-crh-pill {
+  background-color: var(--shot-winner);
+  opacity: 0.95;
+}
+
+.hv-crh-pill {
+  width: 44px;
+  height: 4px;
+  border-radius: 999px;
+  background-color: var(--muted);
+  opacity: 0.45;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.hv-crh-corner {
+  position: absolute;
+  right: 46px;
+  bottom: 1px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  opacity: 0.75;
+  cursor: nwse-resize;
+  padding: 2px 4px;
+}
+
+.hv-court-resize-handle:hover .hv-crh-corner {
+  color: var(--shot-winner);
+  opacity: 1;
+}
+
+.hv-crb-height-ctrl {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
 }
 
 .hv-court-stage {
