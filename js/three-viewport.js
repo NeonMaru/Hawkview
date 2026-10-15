@@ -86,14 +86,19 @@ class ThreeCourtViewer {
 
     this.lineMeshes = [];
     this.onBeforeRenderCallbacks = [];
+    this._lastW = 0;
+    this._lastH = 0;
+    this.activeRallyForHUD = null;
 
     try {
       this.initScene();
       this.buildLighting();
       this.buildCourtFloorAndLines();
       this.buildNet();
+      this.buildCourtEndAprons();
       this.setupEvents();
       this.applyThemeColors();
+      this.updateCourtSideHUD(null);
       this.animate();
     } catch (e) {
       console.warn('[ThreeCourtViewer] WebGL initialization fallback:', e);
@@ -110,6 +115,8 @@ class ThreeCourtViewer {
     return {
       bg: read('--bg', '#f5f6f8'),
       panel: read('--panel', '#ffffff'),
+      text: read('--text', '#1c1f24'),
+      border: read('--border', '#e2e5ea'),
       courtFloor: read('--court-floor', '#dcdfe4'),
       courtLine: read('--court-line', '#2b2f36'),
       netHex: read('--net-hex', '#6b7280'),
@@ -126,9 +133,10 @@ class ThreeCourtViewer {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(tokens.bg);
 
-    const rect = this.container.getBoundingClientRect();
-    const width = rect.width || 760;
-    const height = rect.height || 430;
+    const width = Math.max(100, Math.floor(this.container.clientWidth || 760));
+    const height = Math.max(100, Math.floor(this.container.clientHeight || 435));
+    this._lastW = width;
+    this._lastH = height;
     const aspect = width / height;
 
     // Perspective camera
@@ -149,12 +157,10 @@ class ThreeCourtViewer {
     this.camera = this.perspCamera;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-    this.renderer.setSize(width, height, false);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(width, height, true);
 
     this.renderer.domElement.id = 'three-canvas';
-    this.renderer.domElement.style.width = '100%';
-    this.renderer.domElement.style.height = '100%';
     this.renderer.domElement.style.display = 'block';
     this.container.appendChild(this.renderer.domElement);
 
@@ -348,6 +354,188 @@ class ThreeCourtViewer {
     this.scene.add(this.netGroup);
   }
 
+  buildCourtEndAprons() {
+    // 3D Floor Apron Nameplates right outside Near Baseline (Z = -7.25) and Far Baseline (Z = +7.25)
+    this.nearApronCanvas = document.createElement('canvas');
+    this.nearApronCanvas.width = 640;
+    this.nearApronCanvas.height = 104;
+    this.nearApronTex = new THREE.CanvasTexture(this.nearApronCanvas);
+
+    this.farApronCanvas = document.createElement('canvas');
+    this.farApronCanvas.width = 640;
+    this.farApronCanvas.height = 104;
+    this.farApronTex = new THREE.CanvasTexture(this.farApronCanvas);
+
+    const apronGeo = new THREE.PlaneGeometry(5.18, 0.84);
+
+    this.nearApronMat = new THREE.MeshBasicMaterial({
+      map: this.nearApronTex,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    this.nearApronMesh = new THREE.Mesh(apronGeo, this.nearApronMat);
+    this.nearApronMesh.rotation.x = -Math.PI / 2;
+    this.nearApronMesh.rotation.z = Math.PI; // readable from default 3D camera at Z = -15.6 looking toward +Z
+    this.nearApronMesh.position.set(0, 0.004, -7.25);
+    this.scene.add(this.nearApronMesh);
+
+    this.farApronMat = new THREE.MeshBasicMaterial({
+      map: this.farApronTex,
+      transparent: true,
+      side: THREE.DoubleSide
+    });
+    this.farApronMesh = new THREE.Mesh(apronGeo, this.farApronMat);
+    this.farApronMesh.rotation.x = -Math.PI / 2;
+    this.farApronMesh.rotation.z = Math.PI;
+    this.farApronMesh.position.set(0, 0.004, 7.25);
+    this.scene.add(this.farApronMesh);
+  }
+
+  paintApronCanvas(canvas, tex, labelText, scoreText, isServer, accentHex) {
+    if (!canvas || !tex) return;
+    const ctx = canvas.getContext('2d');
+    const tokens = this.getThemeTokens();
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+
+    // Pill background on court apron
+    ctx.fillStyle = tokens.panel;
+    ctx.strokeStyle = accentHex || tokens.courtLine;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.roundRect(8, 8, w - 16, h - 16, 14);
+    ctx.fill();
+    ctx.stroke();
+
+    // Player name + side
+    ctx.fillStyle = tokens.text;
+    ctx.font = 'bold 30px -apple-system, Inter, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    const srvTag = isServer ? ' 🏸' : '';
+    ctx.fillText(`${labelText}${srvTag}`, 28, h / 2);
+
+    // Score pill on right
+    ctx.fillStyle = accentHex || tokens.shotWinner;
+    ctx.font = '800 34px -apple-system, Inter, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.fillText(scoreText, w - 28, h / 2);
+
+    tex.needsUpdate = true;
+  }
+
+  updateCourtSideHUD(rally) {
+    const telemetry = window.HAWKVIEW_TELEMETRY;
+    const rallies = (telemetry && telemetry.rallies) || [];
+    const r = rally || this.activeRallyForHUD || rallies[0];
+    if (!r) return;
+    this.activeRallyForHUD = r;
+
+    const nearId = r.near_player || (r.game === 2 ? 'LZJ' : 'POPOV');
+    const farId = r.far_player || (nearId === 'LZJ' ? 'POPOV' : 'LZJ');
+
+    const formatFlagName = (pid) => (pid === 'LZJ' ? '🇲🇾 LZJ' : '🇫🇷 POPOV');
+    const formatFullApron = (pid, sideLabel) =>
+      pid === 'LZJ' ? `🇲🇾 LEE ZII JIA (${sideLabel})` : `🇫🇷 C. POPOV (${sideLabel})`;
+
+    // Score before/after for the active rally
+    const sb = r.score_before || { LZJ: 0, POPOV: 0 };
+    const nearPts = sb[nearId] !== undefined ? sb[nearId] : 0;
+    const farPts = sb[farId] !== undefined ? sb[farId] : 0;
+
+    // Sets won before this game (Game 1 was won by LZJ 21-11, so in Game 2 LZJ has 1 set)
+    const gameNum = r.game || 1;
+    const lzjSets = gameNum >= 2 ? 1 : 0;
+    const popovSets = 0;
+    const nearSets = nearId === 'LZJ' ? lzjSets : popovSets;
+    const farSets = farId === 'LZJ' ? lzjSets : popovSets;
+
+    const nearServing = r.server === nearId;
+    const farServing = r.server === farId;
+    const srvCourt = r.service_court ? ` (${r.service_court})` : '';
+
+    // Update DOM Court-Side Plates (#court-side-far & #court-side-near)
+    const farNameEl = document.getElementById('cs-far-name');
+    const farServeEl = document.getElementById('cs-far-serve');
+    const farScoreEl = document.getElementById('cs-far-score');
+    const farSubEl = document.getElementById('cs-far-sub');
+
+    if (farNameEl) farNameEl.textContent = formatFlagName(farId);
+    if (farServeEl) farServeEl.classList.toggle('hidden', !farServing);
+    if (farScoreEl) farScoreEl.textContent = String(farPts);
+    if (farSubEl) {
+      farSubEl.textContent = `R${r.rally_id} · G${gameNum} · Sets: ${farSets}${farServing ? ' · Serve' + srvCourt : ''}`;
+    }
+
+    const nearNameEl = document.getElementById('cs-near-name');
+    const nearServeEl = document.getElementById('cs-near-serve');
+    const nearScoreEl = document.getElementById('cs-near-score');
+    const nearSubEl = document.getElementById('cs-near-sub');
+
+    if (nearNameEl) nearNameEl.textContent = formatFlagName(nearId);
+    if (nearServeEl) nearServeEl.classList.toggle('hidden', !nearServing);
+    if (nearScoreEl) nearScoreEl.textContent = String(nearPts);
+    if (nearSubEl) {
+      nearSubEl.textContent = `R${r.rally_id} · G${gameNum} · Sets: ${nearSets}${nearServing ? ' · Serve' + srvCourt : ''}`;
+    }
+
+    // Update 3D Floor Apron Canvases
+    const tokens = this.getThemeTokens();
+    this.paintApronCanvas(
+      this.nearApronCanvas,
+      this.nearApronTex,
+      formatFullApron(nearId, 'NEAR'),
+      `${nearPts} PTS`,
+      nearServing,
+      tokens.shotContinue
+    );
+    this.paintApronCanvas(
+      this.farApronCanvas,
+      this.farApronTex,
+      formatFullApron(farId, 'FAR'),
+      `${farPts} PTS`,
+      farServing,
+      tokens.shotWinner
+    );
+  }
+
+  updateCourtSideProjections() {
+    if (!this.camera || !this.container) return;
+    const farPlate = document.getElementById('court-side-far');
+    const nearPlate = document.getElementById('court-side-near');
+    if (!farPlate || !nearPlate) return;
+
+    const w = this._lastW || this.container.clientWidth || 760;
+    const h = this._lastH || this.container.clientHeight || 435;
+
+    // Project 3D court sideline midpoints for Far Court (cy = 10.2m) and Near Court (cy = 3.2m)
+    const farWorld = this.courtToWorld(-0.2, 10.2, 0.25);
+    const nearWorld = this.courtToWorld(-0.2, 3.2, 0.25);
+
+    const projectY = (worldVec, fallbackY) => {
+      const v = worldVec.clone().project(this.camera);
+      if (v.z > 1.0) return fallbackY;
+      const py = (1 - v.y) * 0.5 * h;
+      return Math.max(10, Math.min(h - 90, py - 26));
+    };
+
+    const farY = projectY(farWorld, 14);
+    const nearY = projectY(nearWorld, h - 102);
+
+    // Keep the two side-plates clearly separated along the left sideline of the 3D court
+    if (Math.abs(nearY - farY) < 68) {
+      farPlate.style.top = '12px';
+      nearPlate.style.top = `${Math.max(82, h - 98)}px`;
+      nearPlate.style.bottom = 'auto';
+    } else {
+      farPlate.style.top = `${Math.round(farY)}px`;
+      nearPlate.style.top = `${Math.round(nearY)}px`;
+      nearPlate.style.bottom = 'auto';
+    }
+  }
+
   applyThemeColors() {
     if (this.webglFailed || !this.scene) return;
     const tokens = this.getThemeTokens();
@@ -361,11 +549,20 @@ class ThreeCourtViewer {
       this.netPanelMat.color.set(tokens.netHex);
       this.netPanelMat.opacity = 0.45;
     }
+    this.updateCourtSideHUD(this.activeRallyForHUD);
   }
 
   setupEvents() {
     window.addEventListener('resize', () => this.onResize());
     window.addEventListener('hawkview:themeChanged', () => this.applyThemeColors());
+    window.addEventListener('hawkview:rallyChanged', (e) => {
+      if (e.detail && e.detail.rally) {
+        this.updateCourtSideHUD(e.detail.rally);
+      }
+    });
+    window.addEventListener('hawkview:matchChanged', () => {
+      this.updateCourtSideHUD(this.activeRallyForHUD);
+    });
 
     if (typeof ResizeObserver !== 'undefined' && this.container) {
       this.resizeObserver = new ResizeObserver(() => this.onResize());
@@ -416,9 +613,8 @@ class ThreeCourtViewer {
     this.activePreset = name;
     this.updatePresetButtonsUI(name);
 
-    const rect = this.container.getBoundingClientRect();
-    const width = rect.width || 760;
-    const height = rect.height || 430;
+    const width = this._lastW || this.container.clientWidth || 760;
+    const height = this._lastH || this.container.clientHeight || 435;
 
     if (p.ortho) {
       this.updateOrthoFrustum(width, height);
@@ -490,9 +686,15 @@ class ThreeCourtViewer {
 
   onResize() {
     if (this.webglFailed || !this.container || !this.renderer) return;
-    const rect = this.container.getBoundingClientRect();
-    const width = Math.max(100, Math.floor(rect.width || this.container.clientWidth || 320));
-    const height = Math.max(100, Math.floor(rect.height || this.container.clientHeight || 260));
+    const width = Math.max(100, Math.floor(this.container.clientWidth || 320));
+    const height = Math.max(100, Math.floor(this.container.clientHeight || 260));
+
+    // Deadband guard: prevents any ResizeObserver feedback loop
+    if (Math.abs(width - this._lastW) <= 1 && Math.abs(height - this._lastH) <= 1) {
+      return;
+    }
+    this._lastW = width;
+    this._lastH = height;
 
     if (this.perspCamera) {
       this.perspCamera.aspect = width / height;
@@ -501,7 +703,7 @@ class ThreeCourtViewer {
     if (this.orthoCamera) {
       this.updateOrthoFrustum(width, height);
     }
-    this.renderer.setSize(width, height, false);
+    this.renderer.setSize(width, height, true);
   }
 
   /**
@@ -519,6 +721,9 @@ class ThreeCourtViewer {
   updatePlayersFromTelemetry() {}
   clearTrail() {}
   updateTelemetryState(packet) {
+    if (packet && packet.rally && packet.rally !== this.activeRallyForHUD) {
+      this.updateCourtSideHUD(packet.rally);
+    }
     if (this.shotExplorer) {
       this.shotExplorer.onPlaybackUpdate(packet);
     }
@@ -544,6 +749,8 @@ class ThreeCourtViewer {
     } else if (this.controls) {
       this.controls.update();
     }
+
+    this.updateCourtSideProjections();
 
     for (let i = 0; i < this.onBeforeRenderCallbacks.length; i++) {
       this.onBeforeRenderCallbacks[i]();

@@ -62,6 +62,9 @@ class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-type", ctype)
             self.send_header("Content-Length", str(total_length))
             self.send_header("Last-Modified", self.date_time_string(int(fs.st_mtime)))
+            if not ctype.startswith("video/"):
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                self.send_header("Pragma", "no-cache")
             self.send_header("Accept-Ranges", "bytes")
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()

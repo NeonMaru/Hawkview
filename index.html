@@ -20,7 +20,7 @@
   </script>
 
   <!-- Clean PB-Vision Style Sheet (Spec Section 2.2) -->
-  <link rel="stylesheet" href="css/hawkview.css">
+  <link rel="stylesheet" href="css/hawkview.css?v=2.3">
 </head>
 <body>
 
@@ -81,8 +81,34 @@
 
         <div class="hv-court-row">
           <div class="hv-court-stage">
-            <!-- Three.js Canvas Mount -->
-            <div id="three-viewport-container" style="width:100%; height:100%; position:relative;"></div>
+            <!-- Three.js Canvas Mount (strictly absolute so canvas never mutates parent layout size) -->
+            <div id="three-viewport-container" class="hv-three-mount"></div>
+
+            <!-- 3D Court-Side Player & Score Plates (anchored to Far and Near halves of the 3D court) -->
+            <div id="court-side-far" class="hv-court-side-plate hv-court-side-far">
+              <div class="hv-cs-side-tag">FAR SIDE</div>
+              <div class="hv-cs-main">
+                <span id="cs-far-name" class="hv-cs-name">🇲🇾 LZJ</span>
+                <span id="cs-far-serve" class="hv-cs-serve hidden" title="Serving this rally">🏸</span>
+                <span id="cs-far-score" class="hv-cs-score tabular-nums">3</span>
+              </div>
+              <div id="cs-far-sub" class="hv-cs-sub tabular-nums">Game 1 · 0 sets</div>
+            </div>
+
+            <div id="court-side-near" class="hv-court-side-plate hv-court-side-near">
+              <div class="hv-cs-side-tag">NEAR SIDE</div>
+              <div class="hv-cs-main">
+                <span id="cs-near-name" class="hv-cs-name">🇫🇷 POPOV</span>
+                <span id="cs-near-serve" class="hv-cs-serve" title="Serving this rally">🏸</span>
+                <span id="cs-near-score" class="hv-cs-score tabular-nums">2</span>
+              </div>
+              <div id="cs-near-sub" class="hv-cs-sub tabular-nums">Game 1 · 0 sets</div>
+            </div>
+
+            <!-- Active Shot Direction Banner (Bottom-Center of 3D Court) -->
+            <div id="court-shot-direction-pill" class="hv-shot-dir-pill">
+              <span id="court-shot-dir-text">▶ R1 · Shot #1: POPOV (Near) ──► LZJ (Far) · Smash 208 km/h est.</span>
+            </div>
 
             <!-- Floating Hover Tooltip -->
             <div id="shot-hover-tooltip" class="hv-shot-tooltip hidden"></div>
@@ -274,15 +300,15 @@
   </div>
 
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js"></script>
-  <script src="js/three-viewport.js"></script>
-  <script src="js/shot-explorer.js"></script>
-  <script src="js/filter-bar.js"></script>
-  <script src="js/player-card.js"></script>
-  <script src="js/rally-deck.js"></script>
-  <script src="js/analytics-cards.js"></script>
-  <script src="js/broadcast-player.js"></script>
-  <script src="js/anti-lag-modal.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/telemetry-data.js?v=2.3"></script>
+  <script src="js/three-viewport.js?v=2.3"></script>
+  <script src="js/shot-explorer.js?v=2.3"></script>
+  <script src="js/filter-bar.js?v=2.3"></script>
+  <script src="js/player-card.js?v=2.3"></script>
+  <script src="js/rally-deck.js?v=2.3"></script>
+  <script src="js/analytics-cards.js?v=2.3"></script>
+  <script src="js/broadcast-player.js?v=2.3"></script>
+  <script src="js/anti-lag-modal.js?v=2.3"></script>
+  <script src="js/app.js?v=2.3"></script>
 </body>
 </html>

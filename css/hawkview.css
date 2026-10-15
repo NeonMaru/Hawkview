@@ -295,12 +295,24 @@ th,
 .hv-court-card {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 0 0 auto;
   background-color: var(--panel);
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  min-height: 430px;
+}
+
+.hv-court-card:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border-radius: 0;
+}
+
+.hv-court-card:fullscreen .hv-court-row {
+  height: calc(100vh - 42px);
+  min-height: calc(100vh - 42px);
+  max-height: none;
+  flex: 1;
 }
 
 /* Non-overlapping Header Strip above the 3D Canvas */
@@ -314,6 +326,7 @@ th,
   background-color: var(--panel);
   border-bottom: 1px solid var(--border);
   z-index: 10;
+  flex-shrink: 0;
 }
 
 .hv-court-mode-bar,
@@ -351,24 +364,133 @@ th,
 .hv-court-row {
   display: flex;
   align-items: stretch;
-  flex: 1;
+  flex: 0 0 435px;
+  height: 435px;
+  min-height: 435px;
+  max-height: 435px;
   gap: 0;
-  min-height: 390px;
-  height: 100%;
   position: relative;
+  overflow: hidden;
 }
 
 .hv-court-stage {
   flex: 1;
   position: relative;
   min-width: 0;
-  min-height: 390px;
+  height: 100%;
   overflow: hidden;
   background-color: var(--bg);
 }
 
+.hv-three-mount {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
 canvas {
   max-width: 100%;
+}
+
+/* 3D Court-Side Player & Live Score Plates (Anchored to Near & Far Court Halves) */
+.hv-court-side-plate {
+  position: absolute;
+  left: 10px;
+  z-index: 20;
+  pointer-events: none;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 5px 9px;
+  min-width: 132px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
+  transition: top 0.08s linear, left 0.08s linear, border-color 0.15s ease;
+}
+
+.hv-court-side-far {
+  top: 14px;
+  border-left: 3px solid var(--shot-winner);
+}
+
+.hv-court-side-near {
+  bottom: 42px;
+  border-left: 3px solid var(--shot-continue);
+}
+
+.hv-cs-side-tag {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 1px;
+}
+
+.hv-cs-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hv-cs-name {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.hv-cs-serve {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.hv-cs-serve.hidden {
+  display: none;
+}
+
+.hv-cs-score {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 0 6px;
+  border-radius: 4px;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+}
+
+.hv-cs-sub {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* Active Shot Flight Direction Banner (Bottom of 3D Court) */
+.hv-shot-dir-pill {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  pointer-events: none;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+}
+
+.hv-shot-dir-pill.hidden {
+  display: none;
 }
 
 .hv-cam-stack {
@@ -414,19 +536,30 @@ canvas {
 }
 
 @media (max-width: 859px) {
-  .hv-court-card {
-    min-height: 0;
-  }
   .hv-court-overlay-top {
     padding: 5px 8px;
     gap: 4px 8px;
   }
   .hv-court-row {
-    min-height: 250px;
-    height: 265px;
+    flex: 0 0 275px;
+    height: 275px;
+    min-height: 275px;
+    max-height: 275px;
   }
-  .hv-court-stage {
-    min-height: 250px;
+  .hv-court-side-plate {
+    min-width: 108px;
+    padding: 3px 6px;
+  }
+  .hv-cs-name {
+    font-size: 11px;
+  }
+  .hv-cs-score {
+    font-size: 13px;
+    padding: 0 4px;
+  }
+  .hv-shot-dir-pill {
+    font-size: 10px;
+    padding: 3px 8px;
   }
   .hv-cam-stack {
     width: 40px;
