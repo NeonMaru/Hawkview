@@ -38,8 +38,8 @@ class ThreeCourtViewer {
     //   Z: -6.70 (near baseline y=0) to +6.70 (far baseline y=13.40), net at Z=0
     this.presets = {
       '3d': {
-        pos: new THREE.Vector3(0, 8.8, -15.6),
-        target: new THREE.Vector3(0, 1.85, 0.4),
+        pos: new THREE.Vector3(0, 9.3, -16.8),
+        target: new THREE.Vector3(0, 1.40, -0.20),
         fov: 45,
         ortho: false
       },
@@ -207,8 +207,8 @@ class ThreeCourtViewer {
   buildCourtFloorAndLines() {
     const tokens = this.getThemeTokens();
 
-    // Flat court floor with 1.2m apron around the 6.10 x 13.40 m boundary
-    const apronMargin = 1.1;
+    // Flat court floor with 1.45m apron around the 6.10 x 13.40 m boundary for 3D floor-pinned scoreboards
+    const apronMargin = 1.45;
     const floorGeo = new THREE.PlaneGeometry(
       this.BWF.width + apronMargin * 2,
       this.BWF.length + apronMargin * 2
@@ -355,18 +355,24 @@ class ThreeCourtViewer {
   }
 
   buildCourtEndAprons() {
-    // 3D Floor Apron Nameplates right outside Near Baseline (Z = -7.25) and Far Baseline (Z = +7.25)
+    // 3D Floor-Pinned Scoreboards right outside Near Baseline (Z = -7.32) and Far Baseline (Z = +7.32)
     this.nearApronCanvas = document.createElement('canvas');
-    this.nearApronCanvas.width = 640;
-    this.nearApronCanvas.height = 104;
+    this.nearApronCanvas.width = 1024;
+    this.nearApronCanvas.height = 168;
     this.nearApronTex = new THREE.CanvasTexture(this.nearApronCanvas);
+    if (this.renderer && this.renderer.capabilities) {
+      this.nearApronTex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    }
 
     this.farApronCanvas = document.createElement('canvas');
-    this.farApronCanvas.width = 640;
-    this.farApronCanvas.height = 104;
+    this.farApronCanvas.width = 1024;
+    this.farApronCanvas.height = 168;
     this.farApronTex = new THREE.CanvasTexture(this.farApronCanvas);
+    if (this.renderer && this.renderer.capabilities) {
+      this.farApronTex.anisotropy = Math.min(8, this.renderer.capabilities.getMaxAnisotropy());
+    }
 
-    const apronGeo = new THREE.PlaneGeometry(5.18, 0.84);
+    const apronGeo = new THREE.PlaneGeometry(5.36, 0.92);
 
     this.nearApronMat = new THREE.MeshBasicMaterial({
       map: this.nearApronTex,
@@ -375,8 +381,8 @@ class ThreeCourtViewer {
     });
     this.nearApronMesh = new THREE.Mesh(apronGeo, this.nearApronMat);
     this.nearApronMesh.rotation.x = -Math.PI / 2;
-    this.nearApronMesh.rotation.z = Math.PI; // readable from default 3D camera at Z = -15.6 looking toward +Z
-    this.nearApronMesh.position.set(0, 0.004, -7.25);
+    this.nearApronMesh.rotation.z = Math.PI; // readable from default 3D camera at Z < 0 looking toward +Z
+    this.nearApronMesh.position.set(0, 0.004, -7.32);
     this.scene.add(this.nearApronMesh);
 
     this.farApronMat = new THREE.MeshBasicMaterial({
@@ -387,11 +393,11 @@ class ThreeCourtViewer {
     this.farApronMesh = new THREE.Mesh(apronGeo, this.farApronMat);
     this.farApronMesh.rotation.x = -Math.PI / 2;
     this.farApronMesh.rotation.z = Math.PI;
-    this.farApronMesh.position.set(0, 0.004, 7.25);
+    this.farApronMesh.position.set(0, 0.004, 7.32);
     this.scene.add(this.farApronMesh);
   }
 
-  paintApronCanvas(canvas, tex, labelText, scoreText, isServer, accentHex) {
+  paintApronCanvas(canvas, tex, labelText, subText, scoreText, isServer, accentHex) {
     if (!canvas || !tex) return;
     const ctx = canvas.getContext('2d');
     const tokens = this.getThemeTokens();
@@ -403,25 +409,37 @@ class ThreeCourtViewer {
     // Pill background on court apron
     ctx.fillStyle = tokens.panel;
     ctx.strokeStyle = accentHex || tokens.courtLine;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 6;
     ctx.beginPath();
-    ctx.roundRect(8, 8, w - 16, h - 16, 14);
+    ctx.roundRect(10, 10, w - 20, h - 20, 22);
     ctx.fill();
     ctx.stroke();
 
-    // Player name + side
+    // Left accent bar inside floor board
+    ctx.fillStyle = accentHex || tokens.shotWinner;
+    ctx.beginPath();
+    ctx.roundRect(18, 22, 10, h - 44, 5);
+    ctx.fill();
+
+    // Player name + side + serve badge
     ctx.fillStyle = tokens.text;
-    ctx.font = 'bold 30px -apple-system, Inter, sans-serif';
+    ctx.font = '800 44px -apple-system, Inter, sans-serif';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'left';
-    const srvTag = isServer ? ' 🏸' : '';
-    ctx.fillText(`${labelText}${srvTag}`, 28, h / 2);
+    const srvTag = isServer ? '  🏸' : '';
+    ctx.fillText(`${labelText}${srvTag}`, 46, subText ? h * 0.39 : h * 0.5);
+
+    if (subText) {
+      ctx.fillStyle = tokens.muted;
+      ctx.font = '600 27px -apple-system, Inter, sans-serif';
+      ctx.fillText(subText, 48, h * 0.74);
+    }
 
     // Score pill on right
     ctx.fillStyle = accentHex || tokens.shotWinner;
-    ctx.font = '800 34px -apple-system, Inter, sans-serif';
+    ctx.font = '800 54px -apple-system, Inter, sans-serif';
     ctx.textAlign = 'right';
-    ctx.fillText(scoreText, w - 28, h / 2);
+    ctx.fillText(scoreText, w - 42, h * 0.5);
 
     tex.needsUpdate = true;
   }
@@ -436,7 +454,6 @@ class ThreeCourtViewer {
     const nearId = r.near_player || (r.game === 2 ? 'LZJ' : 'POPOV');
     const farId = r.far_player || (nearId === 'LZJ' ? 'POPOV' : 'LZJ');
 
-    const formatFlagName = (pid) => (pid === 'LZJ' ? '🇲🇾 LZJ' : '🇫🇷 POPOV');
     const formatFullApron = (pid, sideLabel) =>
       pid === 'LZJ' ? `🇲🇾 LEE ZII JIA (${sideLabel})` : `🇫🇷 C. POPOV (${sideLabel})`;
 
@@ -456,37 +473,19 @@ class ThreeCourtViewer {
     const farServing = r.server === farId;
     const srvCourt = r.service_court ? ` (${r.service_court})` : '';
 
-    // Update DOM Court-Side Plates (#court-side-far & #court-side-near)
-    const farNameEl = document.getElementById('cs-far-name');
-    const farServeEl = document.getElementById('cs-far-serve');
-    const farScoreEl = document.getElementById('cs-far-score');
-    const farSubEl = document.getElementById('cs-far-sub');
+    // Hide redundant floating DOM overlays so only the 3D floor-pinned boards on the court apron are shown
+    const farPlate = document.getElementById('court-side-far');
+    const nearPlate = document.getElementById('court-side-near');
+    if (farPlate) farPlate.classList.add('hidden');
+    if (nearPlate) nearPlate.classList.add('hidden');
 
-    if (farNameEl) farNameEl.textContent = formatFlagName(farId);
-    if (farServeEl) farServeEl.classList.toggle('hidden', !farServing);
-    if (farScoreEl) farScoreEl.textContent = String(farPts);
-    if (farSubEl) {
-      farSubEl.textContent = `R${r.rally_id} · G${gameNum} · Sets: ${farSets}${farServing ? ' · Serve' + srvCourt : ''}`;
-    }
-
-    const nearNameEl = document.getElementById('cs-near-name');
-    const nearServeEl = document.getElementById('cs-near-serve');
-    const nearScoreEl = document.getElementById('cs-near-score');
-    const nearSubEl = document.getElementById('cs-near-sub');
-
-    if (nearNameEl) nearNameEl.textContent = formatFlagName(nearId);
-    if (nearServeEl) nearServeEl.classList.toggle('hidden', !nearServing);
-    if (nearScoreEl) nearScoreEl.textContent = String(nearPts);
-    if (nearSubEl) {
-      nearSubEl.textContent = `R${r.rally_id} · G${gameNum} · Sets: ${nearSets}${nearServing ? ' · Serve' + srvCourt : ''}`;
-    }
-
-    // Update 3D Floor Apron Canvases
+    // Update 3D Floor Apron Canvases (pinned directly on the court floor apron, Screenshot 3)
     const tokens = this.getThemeTokens();
     this.paintApronCanvas(
       this.nearApronCanvas,
       this.nearApronTex,
       formatFullApron(nearId, 'NEAR'),
+      `R${r.rally_id} · Game ${gameNum} · Sets: ${nearSets}${nearServing ? ' · Serving' + srvCourt : ''}`,
       `${nearPts} PTS`,
       nearServing,
       tokens.shotContinue
@@ -495,6 +494,7 @@ class ThreeCourtViewer {
       this.farApronCanvas,
       this.farApronTex,
       formatFullApron(farId, 'FAR'),
+      `R${r.rally_id} · Game ${gameNum} · Sets: ${farSets}${farServing ? ' · Serving' + srvCourt : ''}`,
       `${farPts} PTS`,
       farServing,
       tokens.shotWinner
@@ -502,37 +502,19 @@ class ThreeCourtViewer {
   }
 
   updateCourtSideProjections() {
-    if (!this.camera || !this.container) return;
-    const farPlate = document.getElementById('court-side-far');
-    const nearPlate = document.getElementById('court-side-near');
-    if (!farPlate || !nearPlate) return;
+    if (!this.camera) return;
 
-    const w = this._lastW || this.container.clientWidth || 760;
-    const h = this._lastH || this.container.clientHeight || 435;
+    // Auto-orient 3D floor-pinned apron boards relative to camera view direction in screen space
+    // so as the user rotates the 3D court, the floor boards never appear upside-down
+    const target = this.controls ? this.controls.target : new THREE.Vector3(0, 0, 0);
+    const dz = this.camera.position.z - target.z;
+    const targetRotZ = dz <= 0 ? Math.PI : 0;
 
-    // Project 3D court sideline midpoints for Far Court (cy = 10.2m) and Near Court (cy = 3.2m)
-    const farWorld = this.courtToWorld(-0.2, 10.2, 0.25);
-    const nearWorld = this.courtToWorld(-0.2, 3.2, 0.25);
-
-    const projectY = (worldVec, fallbackY) => {
-      const v = worldVec.clone().project(this.camera);
-      if (v.z > 1.0) return fallbackY;
-      const py = (1 - v.y) * 0.5 * h;
-      return Math.max(10, Math.min(h - 90, py - 26));
-    };
-
-    const farY = projectY(farWorld, 14);
-    const nearY = projectY(nearWorld, h - 102);
-
-    // Keep the two side-plates clearly separated along the left sideline of the 3D court
-    if (Math.abs(nearY - farY) < 68) {
-      farPlate.style.top = '12px';
-      nearPlate.style.top = `${Math.max(82, h - 98)}px`;
-      nearPlate.style.bottom = 'auto';
-    } else {
-      farPlate.style.top = `${Math.round(farY)}px`;
-      nearPlate.style.top = `${Math.round(nearY)}px`;
-      nearPlate.style.bottom = 'auto';
+    if (this.nearApronMesh && this.nearApronMesh.rotation.z !== targetRotZ) {
+      this.nearApronMesh.rotation.z = targetRotZ;
+    }
+    if (this.farApronMesh && this.farApronMesh.rotation.z !== targetRotZ) {
+      this.farApronMesh.rotation.z = targetRotZ;
     }
   }
 

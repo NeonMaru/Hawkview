@@ -20,7 +20,7 @@
   </script>
 
   <!-- Clean PB-Vision Style Sheet (Spec Section 2.2) -->
-  <link rel="stylesheet" href="css/hawkview.css?v=2.3">
+  <link rel="stylesheet" href="css/hawkview.css?v=2.5">
 </head>
 <body>
 
@@ -59,15 +59,15 @@
     <!-- 3.1 3D COURT (SHOT EXPLORER) + CAMERA BUTTON STACK + 3.2 FILTER BAR -->
     <section class="hv-area-explorer">
 
-      <!-- 3D Court Panel (Header Strip + 3D Canvas + Right Vertical Camera Stack) -->
+      <!-- 3D Court Panel (Header Strip + 3D Canvas + Right Vertical Camera Stack + Bottom Rally Scrubber) -->
       <div class="hv-court-card">
         <!-- Non-overlapping Top Bar: Playback vs Explorer Mode + Shot Legend -->
         <div class="hv-court-overlay-top">
           <div class="hv-court-mode-bar">
             <span style="font-weight:600; color:var(--muted);">Mode:</span>
-            <button id="mode-btn-playback" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Follow video playback (current shot 100%, earlier in rally 30%)">Playback</button>
-            <button id="mode-btn-explorer" class="hv-btn active" style="padding:3px 8px; font-size:11px;" title="Show all matching shots across the match">Explorer</button>
-            <span id="explorer-shot-count-badge" class="hv-badge">223 / 223 shots</span>
+            <button id="mode-btn-playback" class="hv-btn active" style="padding:3px 8px; font-size:11px;" title="Follow rally playback (last 4 shots with fade)">Playback</button>
+            <button id="mode-btn-explorer" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Show all matching shots across the match">Explorer</button>
+            <span id="explorer-shot-count-badge" class="hv-badge">R1: 1 / 4 shots</span>
           </div>
 
           <div class="hv-court-legend">
@@ -84,32 +84,6 @@
             <!-- Three.js Canvas Mount (strictly absolute so canvas never mutates parent layout size) -->
             <div id="three-viewport-container" class="hv-three-mount"></div>
 
-            <!-- 3D Court-Side Player & Score Plates (anchored to Far and Near halves of the 3D court) -->
-            <div id="court-side-far" class="hv-court-side-plate hv-court-side-far">
-              <div class="hv-cs-side-tag">FAR SIDE</div>
-              <div class="hv-cs-main">
-                <span id="cs-far-name" class="hv-cs-name">🇲🇾 LZJ</span>
-                <span id="cs-far-serve" class="hv-cs-serve hidden" title="Serving this rally">🏸</span>
-                <span id="cs-far-score" class="hv-cs-score tabular-nums">3</span>
-              </div>
-              <div id="cs-far-sub" class="hv-cs-sub tabular-nums">Game 1 · 0 sets</div>
-            </div>
-
-            <div id="court-side-near" class="hv-court-side-plate hv-court-side-near">
-              <div class="hv-cs-side-tag">NEAR SIDE</div>
-              <div class="hv-cs-main">
-                <span id="cs-near-name" class="hv-cs-name">🇫🇷 POPOV</span>
-                <span id="cs-near-serve" class="hv-cs-serve" title="Serving this rally">🏸</span>
-                <span id="cs-near-score" class="hv-cs-score tabular-nums">2</span>
-              </div>
-              <div id="cs-near-sub" class="hv-cs-sub tabular-nums">Game 1 · 0 sets</div>
-            </div>
-
-            <!-- Active Shot Direction Banner (Bottom-Center of 3D Court) -->
-            <div id="court-shot-direction-pill" class="hv-shot-dir-pill">
-              <span id="court-shot-dir-text">▶ R1 · Shot #1: POPOV (Near) ──► LZJ (Far) · Smash 208 km/h est.</span>
-            </div>
-
             <!-- Floating Hover Tooltip -->
             <div id="shot-hover-tooltip" class="hv-shot-tooltip hidden"></div>
           </div>
@@ -125,6 +99,30 @@
             <div class="hv-cam-btn-spacer"></div>
             <button id="cam-btn-fullscreen" class="hv-cam-btn" title="Toggle fullscreen court">⛶</button>
           </aside>
+        </div>
+
+        <!-- Dedicated Rally Scrubber & Trail Fade Bar at the Bottom of the 3D Court -->
+        <div class="hv-court-rally-bar">
+          <div class="hv-crb-top">
+            <span id="court-shot-dir-text" class="hv-crb-dir">🏸 R1 · Shot #1/4: 🇫🇷 POPOV (NEAR) ──► 🇲🇾 LZJ (FAR) · smash 208 km/h est.</span>
+            <div class="hv-crb-actions">
+              <button id="btn-show-full-rally" type="button" class="hv-btn hv-crb-full-btn"
+                      title="Hover or click to view all shots in this rally at once (instead of last 4 fading shots)">
+                👁 Full Rally
+              </button>
+            </div>
+          </div>
+
+          <div class="hv-crb-slider-row">
+            <span id="court-rally-label" class="hv-badge tabular-nums" style="min-width:44px; justify-content:center;">R1</span>
+            <div class="hv-crb-track-wrap">
+              <div id="court-rally-shot-ticks" class="hv-crb-shot-ticks"></div>
+              <input id="court-rally-slider" type="range" min="0" max="1000" step="1" value="0"
+                     class="hv-slider hv-crb-slider"
+                     title="Scrub through the current rally shot-by-shot">
+            </div>
+            <span id="court-rally-time" class="hv-crb-time tabular-nums">0.0s / 4.2s</span>
+          </div>
         </div>
       </div>
 
@@ -300,15 +298,15 @@
   </div>
 
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=2.3"></script>
-  <script src="js/three-viewport.js?v=2.3"></script>
-  <script src="js/shot-explorer.js?v=2.3"></script>
-  <script src="js/filter-bar.js?v=2.3"></script>
-  <script src="js/player-card.js?v=2.3"></script>
-  <script src="js/rally-deck.js?v=2.3"></script>
-  <script src="js/analytics-cards.js?v=2.3"></script>
-  <script src="js/broadcast-player.js?v=2.3"></script>
-  <script src="js/anti-lag-modal.js?v=2.3"></script>
-  <script src="js/app.js?v=2.3"></script>
+  <script src="js/telemetry-data.js?v=2.5"></script>
+  <script src="js/three-viewport.js?v=2.5"></script>
+  <script src="js/shot-explorer.js?v=2.5"></script>
+  <script src="js/filter-bar.js?v=2.5"></script>
+  <script src="js/player-card.js?v=2.5"></script>
+  <script src="js/rally-deck.js?v=2.5"></script>
+  <script src="js/analytics-cards.js?v=2.5"></script>
+  <script src="js/broadcast-player.js?v=2.5"></script>
+  <script src="js/anti-lag-modal.js?v=2.5"></script>
+  <script src="js/app.js?v=2.5"></script>
 </body>
 </html>

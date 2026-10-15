@@ -364,10 +364,10 @@ th,
 .hv-court-row {
   display: flex;
   align-items: stretch;
-  flex: 0 0 435px;
-  height: 435px;
-  min-height: 435px;
-  max-height: 435px;
+  flex: 0 0 385px;
+  height: 385px;
+  min-height: 385px;
+  max-height: 385px;
   gap: 0;
   position: relative;
   overflow: hidden;
@@ -394,103 +394,154 @@ canvas {
   max-width: 100%;
 }
 
-/* 3D Court-Side Player & Live Score Plates (Anchored to Near & Far Court Halves) */
-.hv-court-side-plate {
+/* Compact 3D Floor-Pinned Corner Score Pills (Track 3D Court Baseline Corners in Screen Space) */
+.hv-floor-pin {
   position: absolute;
-  left: 10px;
-  z-index: 20;
+  z-index: 18;
   pointer-events: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
   background-color: var(--panel);
   border: 1px solid var(--border);
-  border-radius: 7px;
-  padding: 5px 9px;
-  min-width: 132px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.14);
-  transition: top 0.08s linear, left 0.08s linear, border-color 0.15s ease;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  opacity: 0.94;
 }
 
-.hv-court-side-far {
-  top: 14px;
+.hv-floor-pin-far {
   border-left: 3px solid var(--shot-winner);
 }
 
-.hv-court-side-near {
-  bottom: 42px;
+.hv-floor-pin-near {
   border-left: 3px solid var(--shot-continue);
 }
 
-.hv-cs-side-tag {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted);
-  margin-bottom: 1px;
-}
-
-.hv-cs-main {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.hv-cs-name {
-  font-size: 12.5px;
+.hv-fp-name {
   font-weight: 700;
   color: var(--text);
-  white-space: nowrap;
 }
 
-.hv-cs-serve {
+.hv-fp-serve {
   font-size: 11px;
   line-height: 1;
 }
 
-.hv-cs-serve.hidden {
+.hv-fp-serve.hidden {
   display: none;
 }
 
-.hv-cs-score {
-  font-size: 15px;
+.hv-fp-score {
+  font-size: 12.5px;
   font-weight: 800;
-  color: var(--text);
-  padding: 0 6px;
+  padding: 0 5px;
   border-radius: 4px;
   background-color: var(--surface-subtle);
   border: 1px solid var(--border);
+  color: var(--text);
 }
 
-.hv-cs-sub {
-  font-size: 10px;
-  color: var(--muted);
-  margin-top: 1px;
-}
-
-/* Active Shot Flight Direction Banner (Bottom of 3D Court) */
-.hv-shot-dir-pill {
-  position: absolute;
-  bottom: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 20;
-  pointer-events: none;
+/* Dedicated Rally Scrubber & Trail Fade Bar at Bottom of 3D Court */
+.hv-court-rally-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 6px 10px 8px;
   background-color: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  padding: 4px 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.hv-crb-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hv-crb-dir {
   font-size: 11px;
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
-  max-width: calc(100% - 20px);
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  min-width: 0;
+  flex: 1;
 }
 
-.hv-shot-dir-pill.hidden {
-  display: none;
+.hv-crb-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.hv-crb-full-btn {
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.hv-crb-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hv-crb-track-wrap {
+  position: relative;
+  flex: 1;
+  height: 20px;
+  display: flex;
+  align-items: center;
+}
+
+.hv-crb-shot-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 3px;
+  bottom: 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.hv-crb-tick {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  width: 3px;
+  border-radius: 2px;
+  background-color: var(--shot-continue);
+  opacity: 0.7;
+  transform: translateX(-50%);
+}
+
+.hv-crb-tick.active-tick {
+  background-color: var(--shot-selected);
+  width: 4px;
+  opacity: 1;
+}
+
+.hv-crb-slider {
+  position: relative;
+  z-index: 3;
+  width: 100%;
+}
+
+.hv-crb-time {
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 68px;
+  text-align: right;
 }
 
 .hv-cam-stack {
@@ -541,25 +592,14 @@ canvas {
     gap: 4px 8px;
   }
   .hv-court-row {
-    flex: 0 0 275px;
-    height: 275px;
-    min-height: 275px;
-    max-height: 275px;
+    flex: 0 0 255px;
+    height: 255px;
+    min-height: 255px;
+    max-height: 255px;
   }
-  .hv-court-side-plate {
-    min-width: 108px;
-    padding: 3px 6px;
-  }
-  .hv-cs-name {
-    font-size: 11px;
-  }
-  .hv-cs-score {
-    font-size: 13px;
-    padding: 0 4px;
-  }
-  .hv-shot-dir-pill {
-    font-size: 10px;
-    padding: 3px 8px;
+  .hv-floor-pin {
+    font-size: 10.5px;
+    padding: 2px 6px;
   }
   .hv-cam-stack {
     width: 40px;

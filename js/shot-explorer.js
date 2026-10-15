@@ -54,10 +54,22 @@ class ShotExplorer {
     this.pointerDownPos = { x: 0, y: 0 };
 
     this.tooltipEl = document.getElementById('shot-hover-tooltip');
-    this.dirPillEl = document.getElementById('court-shot-direction-pill');
     this.dirTextEl = document.getElementById('court-shot-dir-text');
     this.modePlaybackBtn = document.getElementById('mode-btn-playback');
     this.modeExplorerBtn = document.getElementById('mode-btn-explorer');
+
+    // Bottom 3D Court Rally Scrubber & Full-Rally Hover/Toggle controls
+    this.fullRallyBtn = document.getElementById('btn-show-full-rally');
+    this.rallyLabelEl = document.getElementById('court-rally-label');
+    this.rallySliderEl = document.getElementById('court-rally-slider');
+    this.rallyTicksEl = document.getElementById('court-rally-shot-ticks');
+    this.rallyTimeEl = document.getElementById('court-rally-time');
+    this._renderedRallyTicksId = null;
+    this.isScrubbingRallyBar = false;
+
+    // Fading trail state: show last 3-4 shots by default; hover or toggle #btn-show-full-rally to reveal entire rally
+    this.showFullRallyHover = false;
+    this.showFullRallyPinned = false;
 
     this.lastPlaybackState = null;
     this.activeAnimRec = null;
@@ -75,36 +87,83 @@ class ShotExplorer {
   buildAnimatedShuttle() {
     if (!this.viewer || this.viewer.webglFailed) return;
 
-    // 1. Bright glowing shuttlecock head (cork + skirt cone)
+    // Authentic 3D Badminton Shuttlecock (cork nose at +Z, 16-feather skirt flaring backward toward -Z)
     this.shuttleMarker = new THREE.Group();
 
-    const corkGeo = new THREE.SphereGeometry(0.11, 16, 16);
-    this.shuttleCorkMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
-    const corkMesh = new THREE.Mesh(corkGeo, this.shuttleCorkMat);
-    this.shuttleMarker.add(corkMesh);
+    // 1. Rounded white polyurethane/leather cork tip pointing in flight direction (+Z)
+    const corkTipGeo = new THREE.SphereGeometry(0.082, 18, 18);
+    this.shuttleCorkMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const corkTipMesh = new THREE.Mesh(corkTipGeo, this.shuttleCorkMat);
+    corkTipMesh.position.set(0, 0, 0.085);
+    this.shuttleMarker.add(corkTipMesh);
 
-    // Outer halo ring so human eye tracks the moving shuttle effortlessly
-    const haloGeo = new THREE.RingGeometry(0.14, 0.21, 20);
-    this.shuttleHaloMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
+    const corkBaseGeo = new THREE.CylinderGeometry(0.082, 0.072, 0.075, 18);
+    corkBaseGeo.rotateX(Math.PI / 2);
+    const corkBaseMesh = new THREE.Mesh(corkBaseGeo, this.shuttleCorkMat);
+    corkBaseMesh.position.set(0, 0, 0.045);
+    this.shuttleMarker.add(corkBaseMesh);
+
+    // 2. Classic BWF royal-blue/gold collar ribbon at cork-to-skirt junction
+    const collarGeo = new THREE.CylinderGeometry(0.077, 0.079, 0.032, 18);
+    collarGeo.rotateX(Math.PI / 2);
+    const collarMat = new THREE.MeshBasicMaterial({ color: 0x2563eb });
+    const collarMesh = new THREE.Mesh(collarGeo, collarMat);
+    collarMesh.position.set(0, 0, 0.004);
+    this.shuttleMarker.add(collarMesh);
+
+    // 3. Flared white feathered skirt frustum flaring backward (-Z) behind the cork
+    const rNeck = 0.072;
+    const rCrown = 0.205;
+    const skirtLen = 0.34;
+    // CylinderGeometry(radiusTop at +Y, radiusBottom at -Y). After rotateX(PI/2), +Y becomes +Z (neck) and -Y becomes -Z (crown)
+    const skirtGeo = new THREE.CylinderGeometry(rNeck, rCrown, skirtLen, 16, 2, true);
+    skirtGeo.rotateX(Math.PI / 2);
+    this.shuttleSkirtMat = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.9
+      opacity: 0.92
     });
-    this.shuttleHaloMesh = new THREE.Mesh(haloGeo, this.shuttleHaloMat);
-    this.shuttleMarker.add(this.shuttleHaloMesh);
+    const skirtMesh = new THREE.Mesh(skirtGeo, this.shuttleSkirtMat);
+    skirtMesh.position.set(0, 0, -skirtLen * 0.5);
+    this.shuttleMarker.add(skirtMesh);
 
-    // Forward directional cone pointing in flight direction
-    const noseConeGeo = new THREE.ConeGeometry(0.12, 0.34, 12);
-    noseConeGeo.rotateX(Math.PI / 2); // align cone tip with +Z for lookAt()
-    this.shuttleConeMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
-    this.shuttleNoseCone = new THREE.Mesh(noseConeGeo, this.shuttleConeMat);
-    this.shuttleNoseCone.position.set(0, 0, 0.14);
-    this.shuttleMarker.add(this.shuttleNoseCone);
+    // 4. 16 individual feather quills + 2 horizontal thread binding rings (crisp wireframe detail)
+    const quillCoords = [];
+    const numFeathers = 16;
+    for (let i = 0; i < numFeathers; i++) {
+      const a0 = (i / numFeathers) * Math.PI * 2;
+      const a1 = ((i + 1) / numFeathers) * Math.PI * 2;
+      // Quill shaft from collar (z = 0) to feather tip crown (z = -skirtLen)
+      quillCoords.push(
+        Math.cos(a0) * rNeck, Math.sin(a0) * rNeck, 0,
+        Math.cos(a0) * rCrown, Math.sin(a0) * rCrown, -skirtLen
+      );
+      // Crown tip zig-zag rim
+      quillCoords.push(
+        Math.cos(a0) * rCrown, Math.sin(a0) * rCrown, -skirtLen,
+        Math.cos(a1) * rCrown, Math.sin(a1) * rCrown, -skirtLen
+      );
+      // Mid-skirt thread binding ring at z = -0.14
+      const rMid = rNeck + (rCrown - rNeck) * (0.14 / skirtLen);
+      quillCoords.push(
+        Math.cos(a0) * rMid, Math.sin(a0) * rMid, -0.14,
+        Math.cos(a1) * rMid, Math.sin(a1) * rMid, -0.14
+      );
+    }
+    const quillGeo = new THREE.BufferGeometry();
+    quillGeo.setAttribute('position', new THREE.Float32BufferAttribute(quillCoords, 3));
+    const quillMat = new THREE.LineBasicMaterial({
+      color: 0x64748b,
+      transparent: true,
+      opacity: 0.85
+    });
+    const quillLines = new THREE.LineSegments(quillGeo, quillMat);
+    this.shuttleMarker.add(quillLines);
 
     this.shuttleAnimGroup.add(this.shuttleMarker);
 
-    // 2. Trailing comet tail (16 points along the recent segment of the arc)
+    // 6. Trailing comet tail (16 points along the recent segment of the arc)
     this.cometTailCount = 16;
     const tailPositions = new Float32Array(this.cometTailCount * 3);
     this.cometTailGeo = new THREE.BufferGeometry();
@@ -112,7 +171,7 @@ class ShotExplorer {
     this.cometTailMat = new THREE.LineBasicMaterial({
       color: 0xfbbf24,
       transparent: true,
-      opacity: 0.95
+      opacity: 0.90
     });
     this.cometTailLine = new THREE.Line(this.cometTailGeo, this.cometTailMat);
     this.shuttleAnimGroup.add(this.cometTailLine);
@@ -202,24 +261,78 @@ class ShotExplorer {
     this.shotById.clear();
   }
 
+  /**
+   * Builds Blender 3D NURBS-style skinny hairline chevron arrows (`THREE.LineSegments`)
+   * directly on the trajectory curve.
+   * Faster shots (e.g. 330+ km/h smash) incur fewer, widely-spaced hairline arrows (2-3),
+   * while slower shots (e.g. 70-130 km/h drop/lift/clear) incur more, closely-spaced arrows (7-13).
+   */
+  buildNurbsArrowCoords(worldPts, speedKmh) {
+    const coords = [];
+    if (!worldPts || worldPts.length < 2) return coords;
+
+    const spd = Math.max(55, Number(speedKmh) || 140);
+    // Fast smash (350 km/h) -> 3 arrows; Drive (220 km/h) -> 4 arrows; Clear (135 km/h) -> 7 arrows; Net/Drop (75 km/h) -> 12 arrows
+    const numArrows = Math.max(2, Math.min(13, Math.round(920 / spd)));
+    const barbLen = 0.21;
+    const barbSpread = 0.064; // Sleek ~17° Blender NURBS normal chevron angle
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const fallbackAxis = new THREE.Vector3(1, 0, 0);
+
+    const n = worldPts.length;
+    for (let m = 0; m < numArrows; m++) {
+      // Distribute arrows cleanly along [0.14 .. 0.88] of the curve
+      const u = 0.14 + ((m + 0.5) / numArrows) * 0.74;
+      const exactIdx = u * (n - 1);
+      const i0 = Math.min(n - 2, Math.max(0, Math.floor(exactIdx)));
+      const i1 = i0 + 1;
+      const frac = exactIdx - i0;
+
+      const tip = worldPts[i0].clone().lerp(worldPts[i1], frac);
+      const tangent = worldPts[i1].clone().sub(worldPts[i0]);
+      if (tangent.lengthSq() < 1e-7) continue;
+      tangent.normalize();
+
+      // Orthogonal wing axes B1 (horizontal court plane) and B2 (vertical elevation plane)
+      let b1 = new THREE.Vector3().crossVectors(tangent, worldUp);
+      if (b1.lengthSq() < 1e-5) {
+        b1 = new THREE.Vector3().crossVectors(tangent, fallbackAxis);
+      }
+      b1.normalize();
+      const b2 = new THREE.Vector3().crossVectors(tangent, b1).normalize();
+
+      const baseCenter = tip.clone().addScaledVector(tangent, -barbLen);
+
+      // 4 skinny hairline chevron barbs (2 horizontal + 2 vertical so the '>' chevron reads from every 3D/Top/Side camera angle)
+      const wLeft = baseCenter.clone().addScaledVector(b1, barbSpread);
+      const wRight = baseCenter.clone().addScaledVector(b1, -barbSpread);
+      const wUp = baseCenter.clone().addScaledVector(b2, barbSpread * 0.85);
+      const wDown = baseCenter.clone().addScaledVector(b2, -barbSpread * 0.85);
+
+      coords.push(
+        tip.x, tip.y, tip.z, wLeft.x, wLeft.y, wLeft.z,
+        tip.x, tip.y, tip.z, wRight.x, wRight.y, wRight.z,
+        tip.x, tip.y, tip.z, wUp.x, wUp.y, wUp.z,
+        tip.x, tip.y, tip.z, wDown.x, wDown.y, wDown.z
+      );
+    }
+    return coords;
+  }
+
   buildSceneShots() {
     this.clearSceneShots();
 
     const telemetry = window.HAWKVIEW_TELEMETRY;
     if (!telemetry || !Array.isArray(telemetry.rallies)) return;
 
-    const webglReady = Boolean(this.viewer && !this.viewer.webglFailed);
     const colors = this.getThemeColors();
 
-    // Shared small geometries for contact rings, directional arrow cones, and landing discs
+    // Shared small geometries for contact rings and landing discs
     const contactRingGeo = new THREE.RingGeometry(0.055, 0.095, 20);
     contactRingGeo.rotateX(-Math.PI / 2);
 
     const destTargetRingGeo = new THREE.RingGeometry(0.09, 0.145, 24);
     destTargetRingGeo.rotateX(-Math.PI / 2);
-
-    const arrowConeGeo = new THREE.ConeGeometry(0.095, 0.28, 10);
-    arrowConeGeo.rotateX(Math.PI / 2); // tip points along +Z when lookAt() is used
 
     const landDiscGeo = new THREE.CircleGeometry(0.11, 24);
     landDiscGeo.rotateX(-Math.PI / 2);
@@ -275,21 +388,18 @@ class ShotExplorer {
         group.add(arcLine);
         hitables.push(arcLine);
 
-        // 1b. 3D Directional Arrow Cone at ~65% along the trajectory pointing toward destination
-        const arrowIdx = Math.min(worldPts.length - 2, Math.max(0, Math.floor(worldPts.length * 0.65)));
-        const pFrom = worldPts[arrowIdx];
-        const pTo = worldPts[Math.min(worldPts.length - 1, arrowIdx + 1)];
-        const arrowMat = new THREE.MeshBasicMaterial({
+        // 1b. Blender 3D NURBS-style skinny hairline chevron arrows along the curve (speed-dependent count)
+        const nurbsCoords = this.buildNurbsArrowCoords(worldPts, shot.speed_kmh);
+        const nurbsGeo = new THREE.BufferGeometry();
+        nurbsGeo.setAttribute('position', new THREE.Float32BufferAttribute(nurbsCoords, 3));
+        const nurbsMat = new THREE.LineBasicMaterial({
           color: baseColor.clone(),
           transparent: true,
           opacity: lowConf ? 0.40 : 0.95
         });
-        const arrowCone = new THREE.Mesh(arrowConeGeo, arrowMat);
-        arrowCone.position.copy(pFrom).lerp(pTo, 0.5);
-        arrowCone.lookAt(pTo);
-        arrowCone.userData = { shotId: shot.shot_id };
-        group.add(arrowCone);
-        hitables.push(arrowCone);
+        const nurbsArrows = new THREE.LineSegments(nurbsGeo, nurbsMat);
+        nurbsArrows.userData = { shotId: shot.shot_id };
+        group.add(nurbsArrows);
 
         // 2. Contact Ring + Thin Vertical Stem to Floor (z = 0)
         const contactPt = shot.contact || shot.start_3d || path[0];
@@ -410,9 +520,10 @@ class ShotExplorer {
           colorKey,
           lowConf,
           worldPts,
+          nurbsCoords,
           group,
           arcLine,
-          arrowCone,
+          nurbsArrows,
           stemLine,
           contactRing,
           nextContactObjects,
@@ -462,6 +573,11 @@ class ShotExplorer {
       for (let k = 0; k < pts.length - 1; k++) {
         arr.push(pts[k].x, pts[k].y, pts[k].z);
         arr.push(pts[k + 1].x, pts[k + 1].y, pts[k + 1].z);
+      }
+      if (rec.nurbsCoords && rec.nurbsCoords.length > 0) {
+        for (let c = 0; c < rec.nurbsCoords.length; c++) {
+          arr.push(rec.nurbsCoords[c]);
+        }
       }
     }
 
@@ -591,11 +707,9 @@ class ShotExplorer {
     rec.arcLine.material.color.copy(targetColor);
     rec.arcLine.material.opacity = isHighlighted ? 1.0 : effOpacity;
 
-    if (rec.arrowCone) {
-      rec.arrowCone.material.color.copy(targetColor);
-      rec.arrowCone.material.opacity = isHighlighted ? 1.0 : effOpacity;
-      const scale = (isHighlighted || isPrimaryActive) ? 1.35 : 0.95;
-      rec.arrowCone.scale.set(scale, scale, scale);
+    if (rec.nurbsArrows) {
+      rec.nurbsArrows.material.color.copy(targetColor);
+      rec.nurbsArrows.material.opacity = isHighlighted ? 1.0 : Math.min(1.0, effOpacity * 1.05);
     }
 
     rec.stemLine.material.color.copy(targetColor);
@@ -618,7 +732,7 @@ class ShotExplorer {
         destStemLine.material.opacity = isHighlighted ? 0.75 : 0.45;
       }
       if (destTargetRing) {
-        destTargetRing.visible = showDest || (this.getEffectiveMode() === 'playback');
+        destTargetRing.visible = showDest || (this.getEffectiveMode() === 'playback' && effOpacity >= 0.30);
         destTargetRing.material.color.copy(targetColor);
         destTargetRing.material.opacity = isHighlighted ? 1.0 : effOpacity;
       }
@@ -668,6 +782,9 @@ class ShotExplorer {
       this.updateDirectionPill(this.activeAnimRec);
       this.rebuildMergedLineSegments();
       this.updateCountBadge(matchingCount, this.shotRecords.length);
+      if (this.activeAnimRec && this.activeAnimRec.rally) {
+        this.syncRallyBarUI(this.activeAnimRec.rally, this.activeAnimRec.shotIndexInRally, null);
+      }
     } else {
       this.mergedGroup.visible = false;
       this.applyPlaybackVisibility(this.lastPlaybackState);
@@ -679,6 +796,15 @@ class ShotExplorer {
     const activeRallyId = activeRally ? activeRally.rally_id : 1;
     const isDowntime = packet ? Boolean(packet.isDowntime) : false;
     const shotIndex = (packet && typeof packet.shotIndex === 'number') ? packet.shotIndex : -1;
+
+    const totalInRally = activeRally && activeRally.shots ? activeRally.shots.length : 0;
+    const effectiveShotIdx = (isDowntime || shotIndex < 0)
+      ? Math.max(0, totalInRally - 1)
+      : shotIndex;
+
+    const showFullRally = Boolean(this.showFullRallyHover || this.showFullRallyPinned);
+    // Progressive 4-shot fading trail: [current: 100%, -1: 62%, -2: 34%, -3: 16%], older shots hidden unless Full Rally is hovered/pinned
+    const fadeWeights = [1.0, 0.62, 0.34, 0.16];
 
     let visibleCount = 0;
     let primaryRec = null;
@@ -696,17 +822,24 @@ class ShotExplorer {
       const isHighlighted = (rec.shotId === this.selectedShotId) || (rec.shotId === this.hoveredShotId);
       if (isHighlighted) hoveredOrSelectedRec = rec;
 
-      const effectiveShotIdx = (isDowntime || shotIndex < 0)
-        ? (rec.rally.shots ? rec.rally.shots.length - 1 : 0)
-        : shotIndex;
-
-      if (rec.shotIndexInRally < effectiveShotIdx) {
-        visibleCount++;
-        this.applyRecStyle(rec, true, 0.30, isHighlighted, false);
-      } else if (rec.shotIndexInRally === effectiveShotIdx) {
-        visibleCount++;
+      const delta = effectiveShotIdx - rec.shotIndexInRally;
+      if (rec.shotIndexInRally === effectiveShotIdx) {
         primaryRec = rec;
-        this.applyRecStyle(rec, true, 1.0, isHighlighted, true);
+      }
+
+      if (showFullRally) {
+        // Show all shots in the active rally when Full Rally is hovered or toggled
+        visibleCount++;
+        const isCurrent = rec.shotIndexInRally === effectiveShotIdx;
+        this.applyRecStyle(rec, true, isCurrent ? 1.0 : 0.48, isHighlighted, isCurrent);
+      } else if (delta >= 0 && delta < fadeWeights.length) {
+        // Show only the last 3-4 shots with smooth progressive opacity fade
+        visibleCount++;
+        const fadeOp = fadeWeights[delta];
+        this.applyRecStyle(rec, true, fadeOp, isHighlighted, delta === 0);
+      } else if (isHighlighted) {
+        visibleCount++;
+        this.applyRecStyle(rec, true, 1.0, true, true);
       } else {
         this.applyRecStyle(rec, false, 0, false, false);
       }
@@ -714,15 +847,84 @@ class ShotExplorer {
 
     this.activeAnimRec = hoveredOrSelectedRec || primaryRec;
     this.updateDirectionPill(this.activeAnimRec);
-
-    const totalInRally = activeRally && activeRally.shots ? activeRally.shots.length : 0;
     this.updateCountBadge(visibleCount, totalInRally, `R${activeRallyId}`);
+    if (activeRally) {
+      this.syncRallyBarUI(activeRally, effectiveShotIdx, packet ? packet.time : null);
+    }
+  }
+
+  renderRallyBarTicks(rally) {
+    if (!this.rallyTicksEl || !rally) return;
+    if (this._renderedRallyTicksId === rally.rally_id) return;
+    this._renderedRallyTicksId = rally.rally_id;
+
+    this.rallyTicksEl.innerHTML = '';
+    const shots = rally.shots || [];
+    if (shots.length === 0) return;
+
+    const rStart = typeof rally.start_sec === 'number' ? rally.start_sec : (shots[0].time || 0);
+    const rEnd = typeof rally.end_sec === 'number'
+      ? rally.end_sec
+      : ((shots[shots.length - 1].time || rStart) + (shots[shots.length - 1].duration_sec || 0.8));
+    const rDur = Math.max(0.5, rEnd - rStart);
+
+    shots.forEach((shot, idx) => {
+      const rel = Math.max(0, Math.min(1, ((shot.time || rStart) - rStart) / rDur));
+      const tick = document.createElement('div');
+      let cls = 'hv-crb-tick';
+      if (shot.outcome === 'winner') cls += ' tick-winner';
+      else if (shot.outcome === 'error_out' || shot.outcome === 'error_net') cls += ' tick-error';
+      tick.className = cls;
+      tick.style.left = `${(rel * 100).toFixed(1)}%`;
+      tick.setAttribute('data-shot-idx', String(idx));
+      this.rallyTicksEl.appendChild(tick);
+    });
+  }
+
+  syncRallyBarUI(rally, activeShotIdx, currentTimeSec) {
+    if (!rally) return;
+    this.renderRallyBarTicks(rally);
+
+    if (this.rallyLabelEl) {
+      this.rallyLabelEl.textContent = `R${rally.rally_id}`;
+    }
+
+    const shots = rally.shots || [];
+    const rStart = typeof rally.start_sec === 'number' ? rally.start_sec : (shots[0] ? shots[0].time : 0);
+    const rEnd = typeof rally.end_sec === 'number'
+      ? rally.end_sec
+      : (shots.length > 0 ? (shots[shots.length - 1].time + (shots[shots.length - 1].duration_sec || 0.8)) : rStart + 4.0);
+    const rDur = Math.max(0.5, rEnd - rStart);
+
+    let elapsed = 0;
+    if (typeof currentTimeSec === 'number' && currentTimeSec >= rStart && currentTimeSec <= rEnd + 0.25) {
+      elapsed = Math.max(0, Math.min(rDur, currentTimeSec - rStart));
+    } else if (shots[activeShotIdx]) {
+      elapsed = Math.max(0, Math.min(rDur, (shots[activeShotIdx].time || rStart) - rStart));
+    }
+
+    if (this.rallySliderEl && !this.isScrubbingRallyBar) {
+      this.rallySliderEl.value = String(Math.round((elapsed / rDur) * 1000));
+    }
+
+    if (this.rallyTimeEl) {
+      const shotBadge = shots.length > 0 ? ` · #${Math.min(shots.length, Math.max(1, activeShotIdx + 1))}/${shots.length}` : '';
+      this.rallyTimeEl.textContent = `${elapsed.toFixed(1)}s / ${rDur.toFixed(1)}s${shotBadge}`;
+    }
+
+    if (this.rallyTicksEl) {
+      const ticks = this.rallyTicksEl.querySelectorAll('.hv-crb-tick');
+      ticks.forEach((t) => {
+        const idx = parseInt(t.getAttribute('data-shot-idx'), 10);
+        t.classList.toggle('active-tick', idx === activeShotIdx);
+      });
+    }
   }
 
   updateDirectionPill(rec) {
-    if (!this.dirPillEl || !this.dirTextEl) return;
+    if (!this.dirTextEl) return;
     if (!rec) {
-      this.dirTextEl.textContent = 'Hover or click any 3D shot arc (or switch to Playback) to watch shuttle flight direction';
+      this.dirTextEl.textContent = 'Hover or click any 3D shot arc (or scrub the rally bar) to watch shuttle flight';
       return;
     }
     const { shot, rally, shotIndexInRally } = rec;
@@ -736,7 +938,7 @@ class ShotExplorer {
     const spdStr = typeof shot.speed_kmh === 'number' ? `${shot.speed_kmh.toFixed(0)} km/h est.` : '';
 
     this.dirTextEl.textContent =
-      `▶ R${rally.rally_id} · Shot #${shotIndexInRally + 1}/${totalShots}: ${flagFrom} (${fromSide}) ──► ${flagTo} (${toSide}) · ${typeStr} ${spdStr}`;
+      `🏸 R${rally.rally_id} · Shot #${shotIndexInRally + 1}/${totalShots}: ${flagFrom} (${fromSide}) ──► ${flagTo} (${toSide}) · ${typeStr} ${spdStr}`;
   }
 
   updateAnimatedShuttle() {
@@ -780,13 +982,13 @@ class ShotExplorer {
     const pos = pts[i0].clone().lerp(pts[i1], frac);
     this.shuttleMarker.position.copy(pos);
 
-    // Orient shuttle cone toward tangent direction and billboard halo toward camera
+    // Orient 3D shuttlecock cork nose (+Z) toward tangent direction and feather skirt (-Z) trailing behind
     this.shuttleMarker.lookAt(pts[i1]);
     if (this.viewer && this.viewer.camera && this.shuttleHaloMesh) {
       this.shuttleHaloMesh.lookAt(this.viewer.camera.position);
     }
 
-    // Update trailing comet tail behind the flying shuttle
+    // Update trailing comet tail behind the flying shuttlecock
     if (this.cometTailLine && this.cometTailGeo) {
       const posAttr = this.cometTailGeo.attributes.position;
       const tailSpan = 0.28; // 28% of arc length behind shuttle head
@@ -852,11 +1054,74 @@ class ShotExplorer {
       this.modeExplorerBtn.addEventListener('click', () => this.setMode('explorer', true));
     }
 
+    // Hover or click '👁 Full Rally' button to reveal all shots of the rally vs last 3-4 fading trail
+    if (this.fullRallyBtn) {
+      this.fullRallyBtn.addEventListener('mouseenter', () => {
+        this.showFullRallyHover = true;
+        this.refreshVisibility();
+      });
+      this.fullRallyBtn.addEventListener('mouseleave', () => {
+        this.showFullRallyHover = false;
+        this.refreshVisibility();
+      });
+      this.fullRallyBtn.addEventListener('click', () => {
+        this.showFullRallyPinned = !this.showFullRallyPinned;
+        this.fullRallyBtn.classList.toggle('active', this.showFullRallyPinned);
+        this.refreshVisibility();
+      });
+    }
+
+    // Dedicated 3D Court Rally Scrubber slider
+    if (this.rallySliderEl) {
+      const handleRallyScrub = (val) => {
+        const rally = (this.lastPlaybackState && this.lastPlaybackState.rally) ||
+          (this.player && this.player.currentRally) ||
+          (this.activeAnimRec && this.activeAnimRec.rally);
+        if (!rally || !this.player) return;
+
+        const shots = rally.shots || [];
+        const rStart = typeof rally.start_sec === 'number' ? rally.start_sec : (shots[0] ? shots[0].time : 0);
+        const rEnd = typeof rally.end_sec === 'number'
+          ? rally.end_sec
+          : (shots.length > 0 ? (shots[shots.length - 1].time + (shots[shots.length - 1].duration_sec || 0.8)) : rStart + 4.0);
+        const rDur = Math.max(0.5, rEnd - rStart);
+
+        const frac = Math.max(0, Math.min(1, Number(val) / 1000));
+        const targetSec = rStart + frac * rDur;
+
+        // Ensure we are in Playback mode so the 4-shot fading rally scrubber updates live
+        if (this.getEffectiveMode() !== 'playback') {
+          this.userForcedMode = 'playback';
+          this.mode = 'playback';
+          this.updateModeButtonsUI();
+        }
+        this.player.seekTo(targetSec, true);
+      };
+
+      this.rallySliderEl.addEventListener('input', (e) => {
+        this.isScrubbingRallyBar = true;
+        handleRallyScrub(e.target.value);
+      });
+      this.rallySliderEl.addEventListener('change', (e) => {
+        handleRallyScrub(e.target.value);
+        setTimeout(() => {
+          this.isScrubbingRallyBar = false;
+        }, 80);
+      });
+    }
+
+    window.addEventListener('hawkview:rallyChanged', (e) => {
+      if (e.detail && e.detail.rally) {
+        this.syncRallyBarUI(e.detail.rally, 0, e.detail.rally.start_sec);
+      }
+    });
+
     window.addEventListener('hawkview:themeChanged', () => {
       this.refreshVisibility();
     });
 
     window.addEventListener('hawkview:matchChanged', () => {
+      this._renderedRallyTicksId = null;
       this.buildSceneShots();
       this.refreshVisibility();
     });
