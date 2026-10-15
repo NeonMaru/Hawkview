@@ -27,6 +27,7 @@ engine/weights/
 # Media assets
 assets/*.mp4
 assets/*.mov
+assets/uploads/
 
 # Generated video outputs
 data/matches/**/debug/*.mp4

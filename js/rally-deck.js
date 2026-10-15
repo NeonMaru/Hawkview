@@ -274,6 +274,15 @@ class RallyDeck {
     this.validateAllRallies();
   }
 
+  getMatchPlayerIds() {
+    const telemetry = window.HAWKVIEW_TELEMETRY;
+    if (telemetry && telemetry.players) {
+      const keys = Object.keys(telemetry.players);
+      if (keys.length >= 2) return [keys[0], keys[1]];
+    }
+    return ['LZJ', 'POPOV'];
+  }
+
   changeRallyWinner(rallyId) {
     const telemetry = window.HAWKVIEW_TELEMETRY;
     if (!telemetry || !Array.isArray(telemetry.rallies)) return;
@@ -281,7 +290,8 @@ class RallyDeck {
     const rally = telemetry.rallies.find((r) => r.rally_id === Number(rallyId));
     if (!rally) return;
 
-    const newWinner = rally.winner === 'LZJ' ? 'POPOV' : 'LZJ';
+    const [pA, pB] = this.getMatchPlayerIds();
+    const newWinner = rally.winner === pA ? pB : pA;
     const origWinner = rally._original ? rally._original.winner : rally.winner;
 
     if (!this.corrections.flipped_rallies) {
@@ -342,6 +352,11 @@ class RallyDeck {
       this.render();
     });
 
+    window.addEventListener('hawkview:ralliesStreamUpdated', () => {
+      this.snapshotOriginalRallies();
+      this.render();
+    });
+
     document.addEventListener('click', (e) => {
       if (this.openMenuRallyId !== null && !e.target.closest('[data-rally-menu-wrap]')) {
         this.openMenuRallyId = null;
@@ -370,6 +385,7 @@ class RallyDeck {
     if (!this.container) return;
     const telemetry = window.HAWKVIEW_TELEMETRY;
     const rallies = (telemetry && telemetry.rallies) || [];
+    const [pA, pB] = this.getMatchPlayerIds();
     const activeRallyId = (this.player && this.player.currentRally && this.player.currentRally.rally_id) || 1;
     const selectedShotId = this.explorer ? this.explorer.selectedShotId : null;
     const hasCorrections = Object.keys((this.corrections && this.corrections.flipped_rallies) || {}).length > 0;
@@ -377,8 +393,12 @@ class RallyDeck {
     const rowsHtml = rallies.map((r, rIdx) => {
       const isExpanded = this.expandedRallyIds.has(r.rally_id);
       const isActive = r.rally_id === activeRallyId;
-      const sb = r.score_before || { LZJ: '—', POPOV: '—' };
-      const sa = r.score_after || { LZJ: '—', POPOV: '—' };
+      const sb = r.score_before || {};
+      const sa = r.score_after || {};
+      const sbA = sb[pA] !== undefined ? sb[pA] : '—';
+      const sbB = sb[pB] !== undefined ? sb[pB] : '—';
+      const saA = sa[pA] !== undefined ? sa[pA] : '—';
+      const saB = sa[pB] !== undefined ? sa[pB] : '—';
       const srvCourtShort = r.service_court === 'left' ? 'L' : (r.service_court === 'right' ? 'R' : '—');
       const endInfo = this.formatEndedBy(r.ended_by);
       const isMenuOpen = this.openMenuRallyId === r.rally_id;
@@ -420,7 +440,7 @@ class RallyDeck {
             <div style="display:flex; align-items:center; gap:6px; min-width:0; flex-wrap:wrap;">
               <span style="font-weight:700; min-width:26px;">R${r.rally_id}</span>
               <span class="hv-badge">G${r.game || 1}</span>
-              <span style="font-weight:600;" class="tabular-nums">${sb.LZJ}–${sb.POPOV} → ${sa.LZJ}–${sa.POPOV}</span>
+              <span style="font-weight:600;" class="tabular-nums">${sbA}–${sbB} → ${saA}–${saB}</span>
               <span style="color:var(--muted); font-size:11px;">${r.server || '—'} (${srvCourtShort})</span>
             </div>
             <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
@@ -434,7 +454,7 @@ class RallyDeck {
                 ${isMenuOpen ? `
                   <div style="position:absolute; right:0; top:26px; z-index:40; background:var(--panel); border:1px solid var(--border); border-radius:6px; padding:4px; min-width:170px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
                     <button class="hv-btn" style="width:100%; justify-content:flex-start; border:none;" data-flip-winner="${r.rally_id}">
-                      Change rally winner (→ ${r.winner === 'LZJ' ? 'POPOV' : 'LZJ'})
+                      Change rally winner (→ ${r.winner === pA ? pB : pA})
                     </button>
                   </div>
                 ` : ''}

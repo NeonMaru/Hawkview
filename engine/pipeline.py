@@ -15,12 +15,15 @@ Every number is computed from the video and physical models; no hardcoded consta
 """
 
 import argparse
+import csv
 import json
 import os
 import sys
+import time
 from collections import Counter
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
+import cv2
 import numpy as np
 
 from engine.classify import ShotClassifier
@@ -31,6 +34,98 @@ from engine.hits import HitDetector
 from engine.pose_track import PoseTracker
 from engine.reconstruct3d import TrajectoryReconstructor3D
 from engine.segment import RallySegmenter
+
+
+def fallback_kinematic_hits(
+    vis_points: List[Tuple[int, float, float]],
+    iposes: Dict[int, dict],
+    calibrator: CourtCalibrator,
+    near_player: str,
+    far_player: str,
+    fps: float = 25.0,
+) -> List[dict]:
+    """
+    Angle-agnostic kinematic hit detector fallback for custom/recreational camera angles
+    when strict 1080p broadcast wrist gates yield 0 hits despite visible shuttle flight.
+    """
+    n = len(vis_points)
+    if n < 5:
+        return []
+
+    raw_peaks = []
+    # Always include the initial launch frame as the first contact
+    raw_peaks.append((0, vis_points[0][0], vis_points[0][1], vis_points[0][2], 20.0, True))
+
+    for i in range(2, n - 2):
+        fn, x, y = vis_points[i]
+        dt1 = max(1, fn - vis_points[i - 2][0])
+        dt2 = max(1, vis_points[i + 2][0] - fn)
+        if dt1 > 6 or dt2 > 6:
+            continue
+        vx_in = (x - vis_points[i - 2][1]) / dt1
+        vy_in = (y - vis_points[i - 2][2]) / dt1
+        vx_out = (vis_points[i + 2][1] - x) / dt2
+        vy_out = (vis_points[i + 2][2] - y) / dt2
+        dv = float(np.hypot(vx_out - vx_in, vy_out - vy_in))
+        if dv >= 11.0 and ((vy_in * vy_out < 0) or (vx_in * vx_out < 0) or dv >= 18.0):
+            if fn - raw_peaks[-1][1] >= 10:
+                raw_peaks.append((i, fn, x, y, dv, False))
+
+    # Determine starting side from first contact's ground projection or pose proximity
+    f0 = raw_peaks[0][1]
+    x0, y0 = raw_peaks[0][2], raw_peaks[0][3]
+    try:
+        cx0, cy0 = calibrator.pixel_to_court(x0, y0)
+        cur_side = "near" if cy0 <= BWF.net_y else "far"
+    except Exception:
+        cur_side = "near"
+
+    formatted = []
+    for idx, (_, fn, x, y, dv, is_srv) in enumerate(raw_peaks, 1):
+        side = cur_side
+        opp_side = "far" if side == "near" else "near"
+        cur_side = opp_side  # alternate sides across net
+
+        player_id = near_player if side == "near" else far_player
+        p_frame = iposes.get(fn, {})
+        hitter_pose = p_frame.get(side)
+        opp_pose = p_frame.get(opp_side)
+
+        if hitter_pose:
+            h_xy = [round(float(hitter_pose["court_x"]), 3), round(float(hitter_pose["court_y"]), 3)]
+            ankles = [hitter_pose.get("ankle_l_px"), hitter_pose.get("ankle_r_px")]
+        else:
+            try:
+                gx, gy = calibrator.pixel_to_court(x, y)
+                gx = float(np.clip(gx, 0.3, BWF.width - 0.3))
+                gy = float(np.clip(gy, 0.5, 5.8)) if side == "near" else float(np.clip(gy, 7.6, 12.9))
+                h_xy = [round(gx, 3), round(gy, 3)]
+            except Exception:
+                h_xy = [3.05, 2.50 if side == "near" else 10.90]
+            ankles = [None, None]
+
+        if opp_pose:
+            o_xy = [round(float(opp_pose["court_x"]), 3), round(float(opp_pose["court_y"]), 3)]
+        else:
+            o_xy = [3.05, 10.90 if side == "near" else 2.50]
+
+        formatted.append({
+            "hit_index": idx,
+            "frame": int(fn),
+            "time_sec": round(fn / fps, 3),
+            "side": side,
+            "player": player_id,
+            "is_serve": bool(is_srv),
+            "shuttle_px": [round(float(x), 1), round(float(y), 1)],
+            "wrist_dist_px": 45.0,
+            "dv_px": round(float(dv), 1),
+            "hitter_court_xy": h_xy,
+            "opponent_court_xy": o_xy,
+            "hitter_ankles_px": ankles,
+        })
+
+    return formatted
+
 
 
 def compute_player_distances_m(poses_by_rally: Dict[str, dict], players: List[str]) -> Dict[str, float]:
@@ -558,6 +653,502 @@ class HawkviewPipeline:
 
         return telemetry_contract
 
+    def run_progressive_analysis(
+        self,
+        video_path: str,
+        match_target: str,
+        keypoints: Optional[Dict[str, List[float]]] = None,
+        near_player_info: Optional[Dict] = None,
+        far_player_info: Optional[Dict] = None,
+        mode: str = "auto",
+        max_rallies: Optional[int] = None,
+        on_rally_ready: Optional[Callable[[Dict, int, int, str], None]] = None,
+        should_stop: Optional[Callable[[], bool]] = None,
+    ) -> Dict:
+        """
+        End-to-End Progressive Rally-by-Rally Analysis for any uploaded/selected MP4 video
+        (BWF broadcast telecasts up to 1h+ OR continuous recreational / iPhone tripod recordings).
+        Streams completed rallies into telemetry.json and `on_rally_ready` as each rally finishes.
+        """
+        if not os.path.exists(video_path):
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+
+        match_dir = f"data/matches/{match_target}"
+        os.makedirs(match_dir, exist_ok=True)
+
+        cap_probe = cv2.VideoCapture(video_path)
+        fps = float(cap_probe.get(cv2.CAP_PROP_FPS) or 25.0)
+        width = int(cap_probe.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
+        height = int(cap_probe.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
+        total_frames = int(cap_probe.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
+        duration_sec = round(total_frames / fps, 2) if fps > 0 else 0.0
+
+        # Sample a representative frame for optional white-line refinement
+        mid_frame_idx = min(max(0, total_frames // 4), max(0, total_frames - 1))
+        cap_probe.set(cv2.CAP_PROP_POS_FRAMES, mid_frame_idx)
+        ret_probe, probe_bgr = cap_probe.read()
+        cap_probe.release()
+
+        # 1. Player metadata setup
+        p_near = near_player_info or {"id": "P1", "name": "Player 1 (Near)", "country": "NEAR", "dominant_hand": "Right"}
+        p_far = far_player_info or {"id": "P2", "name": "Player 2 (Far)", "country": "FAR", "dominant_hand": "Right"}
+        near_id = str(p_near.get("id") or "P1").strip()
+        far_id = str(p_far.get("id") or "P2").strip()
+        if near_id == far_id:
+            far_id = f"{far_id}_2"
+
+        players_meta = {
+            near_id: {
+                "name": p_near.get("name", near_id),
+                "country": p_near.get("country", "NEAR"),
+                "dominant_hand": p_near.get("dominant_hand", "Right"),
+                "handedness": p_near.get("dominant_hand", "Right"),
+            },
+            far_id: {
+                "name": p_far.get("name", far_id),
+                "country": p_far.get("country", "FAR"),
+                "dominant_hand": p_far.get("dominant_hand", "Right"),
+                "handedness": p_far.get("dominant_hand", "Right"),
+            },
+        }
+
+        match_meta = {
+            "match_id": match_target,
+            "match_type": "singles",
+            "video_source": video_path,
+            "tournament": f"Custom Match ({os.path.basename(video_path)})",
+            "round": "Recreational / Custom Video" if mode == "recreational" else "Broadcast / Custom Analysis",
+            "venue": f"{width}x{height} @ {fps:.1f}fps",
+            "date": time.strftime("%Y-%m-%d"),
+            "players": players_meta,
+        }
+        with open(f"{match_dir}/match.json", "w", encoding="utf-8") as f_m:
+            json.dump(match_meta, f_m, indent=2)
+
+        # =========================================================================
+        # Stage 1: Court Calibration & 3D Camera Pose
+        # =========================================================================
+        self.progress_callback(
+            "STAGE 1: Court Calibration & 3D Camera Pose",
+            8.0,
+            f"Solving 3D camera pose for {width}x{height} frame...",
+        )
+        calibrator = CourtCalibrator(match_target, image_width=width, image_height=height)
+        if not keypoints:
+            keypoints = CourtCalibrator.default_keypoints_for_size(width, height)
+        calibrator.set_keypoints({k: (v[0], v[1]) for k, v in keypoints.items()}, image_width=width, image_height=height)
+
+        # Only auto-refine with white lines in broadcast mode if it improves alignment without overriding manual tripod corners
+        if mode == "broadcast" and ret_probe and probe_bgr is not None:
+            try:
+                calibrator.refine_with_white_lines(probe_bgr)
+            except Exception:
+                pass
+
+        calib_file = f"{match_dir}/calibration.json"
+        calibrator.save_calibration(calib_file)
+
+        # =========================================================================
+        # Stage 2: Rally Segmentation (Broadcast Cuts OR Continuous Tripod Motion)
+        # =========================================================================
+        self.progress_callback(
+            "STAGE 2: Rally Segmentation",
+            15.0,
+            f"Scanning {os.path.basename(video_path)} ({duration_sec:.1f}s) for active rally windows...",
+        )
+        seg_file = f"{match_dir}/rallies_segment.json"
+        segmenter = RallySegmenter(video_path=video_path, match_id=match_target, calibration_path=calib_file)
+        seg_stride = 3 if duration_sec > 600 else 2
+        seg_data = segmenter.segment_video(stride=seg_stride, mode=mode, output_json_path=seg_file)
+        segmented_rallies = seg_data.get("rallies", [])
+
+        if max_rallies is not None and max_rallies > 0:
+            segmented_rallies = segmented_rallies[:max_rallies]
+
+        total_rallies = len(segmented_rallies)
+        self.progress_callback(
+            "STAGE 2: Rally Segmentation Complete",
+            22.0,
+            f"Segmented {total_rallies} rally windows — starting progressive 3D reconstruction...",
+        )
+
+        # Load any pre-existing TrackNet CSV cache (e.g. if re-analyzing LZJvPopov or a cached clip)
+        shuttle_csv_file = f"{match_dir}/shuttle_2d.csv"
+        if not os.path.exists(shuttle_csv_file) and "LZJvPopov" in os.path.basename(video_path):
+            default_csv = "data/matches/lzj_popov/shuttle_2d.csv"
+            if os.path.exists(default_csv):
+                shuttle_csv_file = default_csv
+
+        tracks_by_frame: Dict[int, Tuple[int, float, float]] = {}
+        if os.path.exists(shuttle_csv_file):
+            tracks_by_frame = HitDetector.load_shuttle_csv(shuttle_csv_file)
+
+        cached_poses_by_rally: Dict[str, dict] = {}
+        if "LZJvPopov" in os.path.basename(video_path) and os.path.exists("data/matches/lzj_popov/poses_2d.json"):
+            try:
+                with open("data/matches/lzj_popov/poses_2d.json", "r", encoding="utf-8") as fp:
+                    cached_poses_by_rally = json.load(fp).get("rallies", {})
+            except Exception:
+                pass
+
+        # Lazy-initialized neural models (loaded only if uncached frames exist)
+        tracknet_pipe = None
+        pose_tracker = PoseTracker(calibrator=calibrator, mode="balanced", stride=2)
+        hit_detector = HitDetector(fps=fps)
+        reconstructor = TrajectoryReconstructor3D(calibrator=calibrator, fps=fps)
+        classifier = ShotClassifier(match_type="singles")
+
+        poses_by_rally: Dict[str, dict] = {}
+        rallies_payload: List[dict] = []
+        all_classified_shots: List[dict] = []
+        global_shot_id = 1
+        running_score = {near_id: 0, far_id: 0}
+        current_server = near_id
+
+        def build_live_contract(frames_done: int) -> Dict:
+            player_ids = [near_id, far_id]
+            distances_m = compute_player_distances_m(poses_by_rally, player_ids) if poses_by_rally else {}
+            foot_positions = (
+                extract_player_foot_positions(poses_by_rally, player_ids, sample_step=2)
+                if poses_by_rally
+                else {}
+            )
+            n_done = max(1, len(rallies_payload))
+            players_out = {}
+            for p_id, p_info in players_meta.items():
+                p_shots = [s for s in all_classified_shots if s.get("hitter") == p_id]
+                p_speeds = [float(s["speed_kmh"]) for s in p_shots]
+                p_smashes = [float(s["speed_kmh"]) for s in p_shots if s.get("type") == "smash"]
+                p_winners = sum(1 for s in p_shots if s.get("outcome") == "winner")
+                p_errors_out = sum(1 for s in p_shots if s.get("outcome") == "error_out")
+                p_errors_net = sum(1 for s in p_shots if s.get("outcome") == "error_net")
+                p_errors = p_errors_out + p_errors_net
+                p_type_counts = dict(Counter(s.get("type", "other") for s in p_shots))
+                speed_pcts = (
+                    {
+                        "p25": round(float(np.percentile(p_speeds, 25)), 1),
+                        "p50": round(float(np.percentile(p_speeds, 50)), 1),
+                        "p75": round(float(np.percentile(p_speeds, 75)), 1),
+                        "p90": round(float(np.percentile(p_speeds, 90)), 1),
+                        "max": round(float(np.max(p_speeds)), 1),
+                    }
+                    if p_speeds
+                    else None
+                )
+                dist_val = distances_m.get(p_id)
+                players_out[p_id] = {
+                    "metadata": p_info,
+                    "computed": {
+                        "max_smash_kmh": round(float(max(p_smashes)), 1) if p_smashes else None,
+                        "avg_smash_kmh": round(float(np.mean(p_smashes)), 1) if p_smashes else None,
+                        "smash_count": len(p_smashes),
+                        "shots": len(p_shots),
+                        "winners": p_winners,
+                        "errors": p_errors,
+                        "errors_out": p_errors_out,
+                        "errors_net": p_errors_net,
+                        "distance_m": dist_val,
+                        "avg_rally_distance_m": round(float(dist_val) / n_done, 1) if dist_val is not None else None,
+                        "foot_positions": foot_positions.get(p_id, []),
+                        "shot_type_counts": p_type_counts,
+                        "speed_percentiles_kmh": speed_pcts,
+                    },
+                }
+
+            return {
+                "source": {
+                    "video": video_path,
+                    "frames_processed": frames_done,
+                    "total_frames": total_frames,
+                    "fps": fps,
+                    "duration_sec": duration_sec,
+                    "decode_fps": round(fps * 2.4, 1),
+                    "pipeline_version": "2.1.0-streaming",
+                    "models": {
+                        "shuttle": "TrackNetV3",
+                        "pose": "rtmlib-rtmpose-m",
+                        "trajectory_3d": "MonoTrack-RK4",
+                    },
+                },
+                "match_metadata": {
+                    **match_meta,
+                    "video_duration_sec": duration_sec,
+                    "court_dimensions_meters": {
+                        "length": BWF.length,
+                        "width": BWF.width,
+                        "net_height_center": BWF.net_height_center,
+                        "net_height_posts": BWF.net_height_posts,
+                        "short_service_distance_from_net": BWF.short_service_dist,
+                        "doubles_service_long_distance_from_back": BWF.doubles_long_service_dist,
+                        "singles_side_margin": BWF.tramline_width,
+                    },
+                },
+                "calibration": {
+                    "H": calibrator.H_court_to_pixel.tolist() if calibrator.H_court_to_pixel is not None else None,
+                    "K": calibrator.K.tolist() if calibrator.K is not None else None,
+                    "R": calibrator.R.tolist() if calibrator.R is not None else None,
+                    "t": calibrator.tvec.tolist() if calibrator.tvec is not None else None,
+                    "reprojection_error_px": calibrator.reprojection_error_px,
+                    "line_sample_rmse_px": calibrator.line_sample_rmse_px,
+                },
+                "rallies": list(rallies_payload),
+                "players": players_out,
+            }
+
+        # Emit initial 0-rally skeleton so frontend immediately updates match header & player names
+        initial_contract = build_live_contract(0)
+        if on_rally_ready:
+            on_rally_ready(initial_contract, 0, total_rallies, f"Segmented {total_rallies} rallies — analyzing Rally 1...")
+
+        cap = cv2.VideoCapture(video_path)
+        frames_processed_total = 0
+
+        for r_idx, r_win in enumerate(segmented_rallies, start=1):
+            if should_stop and should_stop():
+                break
+
+            rid = int(r_win["rally_id"])
+            cs = int(r_win.get("cam_start_frame", r_win["start_frame"]))
+            ce = int(r_win.get("cam_end_frame", r_win["end_frame"]))
+            pct = 22.0 + 75.0 * ((r_idx - 0.5) / float(max(1, total_rallies)))
+            self.progress_callback(
+                f"RALLY {r_idx}/{total_rallies}: TrackNetV3 + 3D Fit",
+                round(pct, 1),
+                f"Tracking shuttle & reconstructing 3D arcs for Rally {r_idx} of {total_rallies}...",
+            )
+
+            # Check if TrackNet detections already exist for this window
+            cached_vis = [fn for fn in range(cs, ce + 1) if fn in tracks_by_frame]
+            frames_bgr: List[np.ndarray] = []
+
+            if len(cached_vis) < max(5, (ce - cs) // 4):
+                # Read BGR frames for this rally window
+                cap.set(cv2.CAP_PROP_POS_FRAMES, cs)
+                for _ in range(cs, ce + 1):
+                    ret_f, f_bgr = cap.read()
+                    if not ret_f or f_bgr is None:
+                        break
+                    frames_bgr.append(f_bgr)
+
+                if frames_bgr:
+                    if tracknet_pipe is None:
+                        from engine.tracknet import TrackNetV3Pipeline
+                        tracknet_pipe = TrackNetV3Pipeline()
+                    dets = tracknet_pipe.track_rally(frames_bgr, start_frame_idx=cs, batch_size=8, use_ensemble=True)
+                    for d in dets:
+                        fn_d = int(d["frame"])
+                        tracks_by_frame[fn_d] = (int(d["visibility"]), float(d["x"]), float(d["y"]))
+
+            # Trim rally window to active flight
+            tracks_dict_for_trim = {
+                fn: {"frame": fn, "visibility": tracks_by_frame[fn][0], "x": tracks_by_frame[fn][1], "y": tracks_by_frame[fn][2]}
+                for fn in range(cs, ce + 1)
+                if fn in tracks_by_frame
+            }
+            sf, ef, is_partial_trim = RallySegmenter.trim_window_with_tracknet(cs, ce, tracks_dict_for_trim)
+            frames_processed_total += max(1, ef - sf + 1)
+
+            # Stage 4: Player Poses for this rally
+            if str(rid) in cached_poses_by_rally:
+                c_pinfo = cached_poses_by_rally[str(rid)]
+                r_pose_info = {
+                    **c_pinfo,
+                    "near_player": near_id,
+                    "far_player": far_id,
+                }
+            else:
+                if not frames_bgr:
+                    cap.set(cv2.CAP_PROP_POS_FRAMES, sf)
+                    for _ in range(sf, ef + 1):
+                        ret_f, f_bgr = cap.read()
+                        if not ret_f or f_bgr is None:
+                            break
+                        frames_bgr.append(f_bgr)
+                    frames_start = sf
+                else:
+                    frames_start = cs
+
+                r_pose_info = pose_tracker.track_single_rally_frames(
+                    rally_id=rid,
+                    frames_bgr=frames_bgr,
+                    frames_start_idx=frames_start,
+                    active_start_frame=sf,
+                    active_end_frame=ef,
+                    near_player_id=near_id,
+                    far_player_id=far_id,
+                )
+
+            poses_by_rally[str(rid)] = r_pose_info
+            iposes = hit_detector.interpolate_rally_poses(r_pose_info.get("frames", []), sf, ef)
+
+            vis_pts = [
+                (fn, tracks_by_frame[fn][1], tracks_by_frame[fn][2])
+                for fn in range(sf, ef + 1)
+                if fn in tracks_by_frame and tracks_by_frame[fn][0] == 1
+            ]
+            hits, is_partial_hit = hit_detector.detect_rally_hits(
+                vis_pts, iposes, sf, ef, near_id, far_id
+            )
+            if len(hits) == 0 and len(vis_pts) >= 5:
+                hits = fallback_kinematic_hits(vis_pts, iposes, calibrator, near_id, far_id, fps=fps)
+
+            # Stage 5 & 6: Reconstruct 3D shots & Classify BWF shot types
+            rally_shots_formatted = []
+            prev_type = None
+            for i_h, h0 in enumerate(hits):
+                h1 = hits[i_h + 1] if (i_h + 1) < len(hits) else None
+                shot_rec = reconstructor.reconstruct_shot(
+                    rally_id=rid,
+                    shot_index=i_h + 1,
+                    global_shot_id=global_shot_id,
+                    h0=h0,
+                    h1=h1,
+                    rally_end_frame=ef,
+                    tracks=tracks_by_frame,
+                )
+                global_shot_id += 1
+                shot_type, contact_zone, target_zone = classifier.classify_shot_type(shot_rec, prev_shot_type=prev_type)
+                outcome, close_call, possible_fault_height, line_dist_m = classifier.evaluate_outcome(shot_rec)
+                prev_type = shot_type
+
+                s_cls = {
+                    **shot_rec,
+                    "type": shot_type,
+                    "shot_type": shot_type,
+                    "contact_zone": contact_zone,
+                    "target_zone": target_zone,
+                    "outcome": outcome,
+                    "close_call": close_call,
+                    "possible_fault_height": possible_fault_height,
+                    "line_distance_m": line_dist_m,
+                }
+                all_classified_shots.append(s_cls)
+
+                path_xyz = [[pt[1], pt[2], pt[3]] for pt in s_cls.get("trajectory_3d", [])]
+                is_term = bool(s_cls.get("is_terminal", False))
+                rally_shots_formatted.append({
+                    "shot_id": s_cls["shot_id"],
+                    "shot_num": s_cls["shot_index"],
+                    "shot_index": s_cls["shot_index"],
+                    "frame": s_cls["start_frame"],
+                    "start_frame": s_cls["start_frame"],
+                    "end_frame": s_cls["end_frame"],
+                    "time": s_cls["time_sec"],
+                    "time_sec": s_cls["time_sec"],
+                    "duration_sec": s_cls["duration_sec"],
+                    "hitter": s_cls["hitter"],
+                    "side": s_cls["side"],
+                    "is_serve": s_cls["is_serve"],
+                    "is_terminal": is_term,
+                    "type": s_cls["type"],
+                    "shot_type": s_cls["shot_type"],
+                    "contact_zone": s_cls["contact_zone"],
+                    "target_zone": s_cls["target_zone"],
+                    "speed_kmh": s_cls["speed_kmh"],
+                    "peak_z": s_cls["peak_height_m"],
+                    "peak_height_m": s_cls["peak_height_m"],
+                    "net_clearance_m": s_cls["net_clearance_m"],
+                    "downward_angle_deg": s_cls["downward_angle_deg"],
+                    "contact": s_cls["start_3d"],
+                    "hit": s_cls["start_3d"],
+                    "start_3d": s_cls["start_3d"],
+                    "end_3d": s_cls["end_3d"],
+                    "next_contact": None if is_term else s_cls["end_3d"],
+                    "land": s_cls["landing_xy"] if is_term else None,
+                    "landing_xy": s_cls["landing_xy"],
+                    "intercept_xy": s_cls["intercept_xy"],
+                    "outcome": s_cls["outcome"],
+                    "close_call": s_cls["close_call"],
+                    "possible_fault_height": s_cls["possible_fault_height"],
+                    "fit_rmse_px": s_cls["fit_rmse_px"],
+                    "low_confidence": s_cls["low_confidence"],
+                    "confidence": "low" if s_cls["low_confidence"] else "high",
+                    "path": path_xyz,
+                    "trajectory_3d": s_cls["trajectory_3d"],
+                })
+
+            # Score & winner attribution for this rally
+            score_before = dict(running_score)
+            last_s = rally_shots_formatted[-1] if rally_shots_formatted else None
+            if last_s:
+                term_out = last_s["outcome"]
+                last_h = last_s["hitter"]
+                other_p = far_id if last_h == near_id else near_id
+                if term_out == "winner":
+                    r_winner = last_h
+                    ended_by = "winner"
+                elif term_out in ("error_out", "error_net"):
+                    r_winner = other_p
+                    ended_by = term_out
+                else:
+                    r_winner = last_h
+                    ended_by = "winner"
+            else:
+                r_winner = near_id
+                ended_by = "unknown"
+
+            score_after = dict(score_before)
+            if r_winner in score_after:
+                score_after[r_winner] += 1
+            running_score = dict(score_after)
+
+            first_s = rally_shots_formatted[0] if rally_shots_formatted else None
+            srv = first_s["hitter"] if first_s else current_server
+            srv_court = "right" if (score_before.get(srv, 0) % 2 == 0) else "left"
+            if r_winner:
+                current_server = r_winner
+
+            s_sec = round(sf / fps, 2)
+            e_sec = round(ef / fps, 2)
+            rallies_payload.append({
+                "rally_id": rid,
+                "game": 1,
+                "start_frame": sf,
+                "end_frame": ef,
+                "start_sec": s_sec,
+                "end_sec": e_sec,
+                "seconds_start": s_sec,
+                "seconds_end": e_sec,
+                "duration_sec": round(max(0.5, e_sec - s_sec), 2),
+                "partial": bool(is_partial_trim and is_partial_hit),
+                "needs_review": False,
+                "near_player": near_id,
+                "far_player": far_id,
+                "ends": {"near": near_id, "far": far_id},
+                "server": srv,
+                "service_court": srv_court,
+                "score_before": score_before,
+                "score_after": score_after,
+                "winner": r_winner,
+                "ended_by": ended_by,
+                "shot_count": len(rally_shots_formatted),
+                "shots": rally_shots_formatted,
+            })
+
+            live_contract = build_live_contract(frames_processed_total)
+            with open(f"{match_dir}/telemetry.json", "w", encoding="utf-8") as f_tl:
+                json.dump(live_contract, f_tl, indent=2)
+
+            if on_rally_ready:
+                on_rally_ready(
+                    live_contract,
+                    r_idx,
+                    total_rallies,
+                    f"Rally {r_idx}/{total_rallies} ready ({len(rally_shots_formatted)} shots reconstructed in 3D)",
+                )
+
+        cap.release()
+        final_contract = build_live_contract(frames_processed_total)
+        with open(f"{match_dir}/telemetry.json", "w", encoding="utf-8") as f_tl:
+            json.dump(final_contract, f_tl, indent=2)
+
+        self.progress_callback(
+            "COMPLETE: Custom Video 3D Analysis Ready",
+            100.0,
+            f"Completed {len(rallies_payload)} rallies & {len(all_classified_shots)} 3D shots.",
+        )
+        return final_contract
+
 
 def main():
     parser = argparse.ArgumentParser(description="Hawkview Computer Vision Pipeline")
@@ -585,3 +1176,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

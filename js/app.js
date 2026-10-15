@@ -56,6 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const rallyDeck = new RallyDeck(shotExplorer, broadcastPlayer);
   const analyticsCards = new AnalyticsCards();
   const antiLagModal = new AntiLagModal();
+  const videoLoaderModal = typeof VideoLoaderModal !== 'undefined' ? new VideoLoaderModal(broadcastPlayer) : null;
 
   // Expose globally for inspection and testing
   window.shotExplorerInstance = shotExplorer;
@@ -64,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.rallyDeckInstance = rallyDeck;
   window.analyticsCardsInstance = analyticsCards;
   window.antiLagModalInstance = antiLagModal;
+  window.videoLoaderModalInstance = videoLoaderModal;
 
   // Select Rally 1 initially so video and 3D court are ready
   broadcastPlayer.selectRally(0);

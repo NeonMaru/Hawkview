@@ -20,7 +20,7 @@
   </script>
 
   <!-- Clean PB-Vision Style Sheet (Spec Section 2.2) -->
-  <link rel="stylesheet" href="css/hawkview.css?v=2.6">
+  <link rel="stylesheet" href="css/hawkview.css?v=2.7">
 </head>
 <body>
 
@@ -37,6 +37,9 @@
     </div>
 
     <div class="hv-topbar-actions">
+      <button id="btn-topbar-load-mp4" class="hv-btn hv-btn-primary" title="Upload & calibrate any BWF broadcast or iPhone / recreational court video">
+        📂 Load / Calibrate MP4
+      </button>
       <button id="btn-analyze-clip" class="hv-btn" title="View pipeline telemetry & measured accuracy">
         Pipeline Info
       </button>
@@ -45,6 +48,25 @@
       </button>
     </div>
   </header>
+
+  <!-- ========================================================================
+       NON-BLOCKING LIVE ANALYSIS PROGRESS BANNER (Streams Rallies 1-by-1)
+       ======================================================================== -->
+  <div id="live-analysis-banner" class="hv-live-banner hidden" role="status" aria-live="polite">
+    <div class="hv-live-banner-row">
+      <div class="hv-live-banner-info">
+        <span class="hv-live-pulse"></span>
+        <strong id="lab-stage-text">STAGE 3: Reconstructing 3D Trajectories...</strong>
+        <span id="lab-detail-text" class="hv-live-detail">Streaming rallies live into the 3D court as they finish</span>
+      </div>
+      <button id="btn-stop-live-analysis" type="button" class="hv-btn" style="padding:3px 10px; font-size:11px;">
+        ⏹ Stop & Keep Rallies
+      </button>
+    </div>
+    <div class="hv-live-progress-track">
+      <div id="lab-progress-fill" class="hv-live-progress-fill" style="width:12%;"></div>
+    </div>
+  </div>
 
   <!-- ========================================================================
        SECTION 3 WORKSPACE GRID
@@ -309,16 +331,126 @@
     </div>
   </div>
 
+  <!-- ========================================================================
+       LOAD & CALIBRATE MATCH VIDEO MODAL (BWF Broadcast OR iPhone / Recreational)
+       ======================================================================== -->
+  <div id="video-loader-modal" class="hv-modal-backdrop hidden">
+    <div class="hv-modal-card hv-calib-modal-card">
+      <div class="hv-panel-header">
+        <div>
+          <h2 class="hv-panel-title" style="font-size:14px; color:var(--text); text-transform:none;">
+            🏸 Load &amp; Calibrate Match Video (BWF Broadcast or iPhone / Gym Tripod)
+          </h2>
+          <div style="font-size:11.5px; color:var(--muted); margin-top:2px;">
+            Step 1: Pick any MP4/MOV video &nbsp;·&nbsp; Step 2: Drag the 4 Court Corners + 2 Net Posts onto the lines &nbsp;·&nbsp; Step 3: Stream 3D Rallies Live
+          </div>
+        </div>
+        <button id="btn-close-video-loader" type="button" class="hv-btn" style="padding:4px 10px;">✕</button>
+      </div>
+
+      <!-- STEP 1: File Dropzone / Picker Bar -->
+      <div id="calib-drop-zone" class="hv-calib-dropzone">
+        <div class="hv-calib-dropzone-left">
+          <button id="btn-calib-pick-file" type="button" class="hv-btn hv-btn-primary">
+            📂 Choose MP4 / MOV Video
+          </button>
+          <input id="calib-file-input" type="file" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
+          <span id="calib-active-filename" class="hv-calib-filename tabular-nums">
+            LZJvPopov.mp4 · 1920×1080 @ 25fps (08:18)
+          </span>
+        </div>
+        <div class="hv-calib-dropzone-hint">
+          Works with 1h+ BWF broadcasts &amp; iPhone tripod clips at any angle
+        </div>
+      </div>
+
+      <!-- STEP 2: Interactive 6-Point Court & Net Calibration Canvas -->
+      <div class="hv-calib-stage-bar">
+        <span id="calib-status-pill" class="hv-calib-status">
+          ✓ Drag any of the 6 handles (4 Court Corners + 2 Net Posts) — wireframe &amp; 2.6× touch magnifier update live
+        </span>
+        <div class="hv-calib-presets">
+          <button id="btn-calib-auto-detect" type="button" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Auto-snap handles to white BWF court lines on this frame">
+            ✨ Auto-Detect Lines
+          </button>
+          <button id="btn-preset-broadcast" type="button" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Standard elevated baseline broadcast angle">
+            Broadcast Preset
+          </button>
+          <button id="btn-preset-tripod" type="button" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Low baseline / iPhone tripod behind back boundary">
+            Low iPhone Tripod
+          </button>
+          <button id="btn-preset-angled" type="button" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Off-center / corner gym tripod angle">
+            Corner / Angled Gym
+          </button>
+        </div>
+      </div>
+
+      <div class="hv-calib-canvas-wrap">
+        <canvas id="calib-court-canvas" width="1920" height="1080"></canvas>
+      </div>
+
+      <!-- Frame Scrubber to find a clear rally frame where the court is visible -->
+      <div class="hv-calib-scrubber-row">
+        <span style="font-size:11px; font-weight:600; color:var(--muted); white-space:nowrap;">Scrub to Clear Court Frame:</span>
+        <input id="calib-frame-slider" type="range" min="0" max="498" step="0.5" value="15" class="hv-slider">
+        <span id="calib-frame-time" class="tabular-nums" style="font-size:11.5px; font-weight:600; min-width:48px; text-align:right;">00:15.0</span>
+      </div>
+
+      <!-- STEP 3: Match & Analysis Options -->
+      <div class="hv-calib-settings-grid">
+        <div class="hv-calib-field">
+          <label for="calib-camera-mode">Camera &amp; Rally Segmentation</label>
+          <select id="calib-camera-mode" class="hv-select" style="width:100%;">
+            <option value="auto">Auto-Detect (Broadcast Cuts or Continuous Tripod)</option>
+            <option value="recreational">Recreational / iPhone Continuous Tripod (No Camera Cuts)</option>
+            <option value="broadcast">BWF Broadcast Telecast (Multi-Camera Cut Detection)</option>
+          </select>
+        </div>
+
+        <div class="hv-calib-field">
+          <label for="calib-near-player">Near-Court Player Name</label>
+          <input id="calib-near-player" type="text" class="hv-input" value="POPOV" placeholder="e.g. Player 1 (Near)">
+        </div>
+
+        <div class="hv-calib-field">
+          <label for="calib-far-player">Far-Court Player Name</label>
+          <input id="calib-far-player" type="text" class="hv-input" value="LZJ" placeholder="e.g. Player 2 (Far)">
+        </div>
+
+        <div class="hv-calib-field">
+          <label for="calib-max-rallies">Analysis Scope (Progressive Streaming)</label>
+          <select id="calib-max-rallies" class="hv-select" style="width:100%;">
+            <option value="3">Fast Preview — First 3 Rallies (~20s, streamed 1-by-1)</option>
+            <option value="10">Medium — First 10 Rallies (streamed 1-by-1)</option>
+            <option value="0">Full Match — All Rallies (1h+ supported, streamed live)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="hv-calib-footer">
+        <div style="font-size:11px; color:var(--muted);">
+          💡 Rallies stream into the 3D Court one-by-one as soon as each rally finishes — no waiting for full 1-hour videos.
+        </div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="btn-start-3d-analysis" type="button" class="hv-btn hv-btn-primary" style="padding:7px 14px; font-size:12.5px;">
+            🚀 Calibrate &amp; Stream 3D Rallies Live
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=2.6"></script>
-  <script src="js/three-viewport.js?v=2.6"></script>
-  <script src="js/shot-explorer.js?v=2.6"></script>
-  <script src="js/filter-bar.js?v=2.6"></script>
-  <script src="js/player-card.js?v=2.6"></script>
-  <script src="js/rally-deck.js?v=2.6"></script>
-  <script src="js/analytics-cards.js?v=2.6"></script>
-  <script src="js/broadcast-player.js?v=2.6"></script>
-  <script src="js/anti-lag-modal.js?v=2.6"></script>
-  <script src="js/app.js?v=2.6"></script>
+  <script src="js/telemetry-data.js?v=2.7"></script>
+  <script src="js/three-viewport.js?v=2.7"></script>
+  <script src="js/shot-explorer.js?v=2.7"></script>
+  <script src="js/filter-bar.js?v=2.7"></script>
+  <script src="js/player-card.js?v=2.7"></script>
+  <script src="js/rally-deck.js?v=2.7"></script>
+  <script src="js/analytics-cards.js?v=2.7"></script>
+  <script src="js/broadcast-player.js?v=2.7"></script>
+  <script src="js/anti-lag-modal.js?v=2.7"></script>
+  <script src="js/video-loader-modal.js?v=2.7"></script>
+  <script src="js/app.js?v=2.7"></script>
 </body>
 </html>

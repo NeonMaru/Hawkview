@@ -26,9 +26,11 @@ class CourtCalibrator:
     and measured reprojection error validation.
     """
 
-    def __init__(self, match_id: str = "lzj_popov"):
+    def __init__(self, match_id: str = "lzj_popov", image_width: int = 1920, image_height: int = 1080):
         self.match_id = match_id
         self.bwf = BWF
+        self.image_width = int(image_width or 1920)
+        self.image_height = int(image_height or 1080)
 
         # 3D Reference points in meters
         # 4 Outer corners at ground Z = 0
@@ -67,9 +69,27 @@ class CourtCalibrator:
         self.reprojection_error_px: float = 0.0
         self.line_sample_rmse_px: float = 0.0
 
-    def set_keypoints(self, keypoints: Dict[str, Tuple[float, float]]):
-        """Sets the 6 reference pixel coordinates and computes initial homography & camera pose."""
-        self.pixel_points = {k: (float(v[0]), float(v[1])) for k, v in keypoints.items()}
+    def set_keypoints(
+        self,
+        keypoints: Dict[str, Tuple[float, float]],
+        image_width: Optional[int] = None,
+        image_height: Optional[int] = None,
+    ):
+        """Sets the reference pixel coordinates and computes initial homography & camera pose."""
+        if image_width is not None and image_width > 0:
+            self.image_width = int(image_width)
+        if image_height is not None and image_height > 0:
+            self.image_height = int(image_height)
+
+        self.pixel_points = {k: (float(v[0]), float(v[1])) for k, v in keypoints.items() if v is not None and len(v) >= 2}
+        if "net_tape_center" not in self.pixel_points and "net_post_left" in self.pixel_points and "net_post_right" in self.pixel_points:
+            npl = self.pixel_points["net_post_left"]
+            npr = self.pixel_points["net_post_right"]
+            sag_px = max(2.0, 0.0035 * float(self.image_height))
+            self.pixel_points["net_tape_center"] = (
+                0.5 * (npl[0] + npr[0]),
+                0.5 * (npl[1] + npr[1]) + sag_px,
+            )
         self._compute_initial_calibration()
 
     def _compute_initial_calibration(self):
@@ -93,20 +113,19 @@ class CourtCalibrator:
         self.H_court_to_pixel = H
         self.H_pixel_to_court = np.linalg.inv(H)
 
-        # 2. 3D Camera Pose with fixed optical center (cx=960, cy=540)
+        # 2. 3D Camera Pose with optical center at (image_width / 2, image_height / 2)
         self._solve_camera_pose()
 
     def _solve_camera_pose(self):
         """
         Solves square-pixel camera focal length (fx = fy = f), fixed principal point at
-        image center (cx = 960.0, cy = 540.0), and 3D camera pose (R, t) across the
-        court ground keypoints (4 corners + short-service/centre-line intersections)
-        and 3D net keypoints (net post tops on doubles sidelines + net tape center).
+        image center (cx = image_width / 2.0, cy = image_height / 2.0), and 3D camera pose (R, t)
+        across the court ground keypoints and 3D net keypoints.
         """
         pts_3d = []
         pts_2d = []
 
-        # 1. Ground points (4 outer corners + 4 short-service/centre-line intersections)
+        # 1. Ground points (4 outer corners + short-service/centre-line intersections)
         ground_keys = [
             "corner_near_left",
             "corner_near_right",
@@ -136,23 +155,25 @@ class CourtCalibrator:
         obj_pts = np.array(pts_3d, dtype=np.float64)
         img_pts = np.array(pts_2d, dtype=np.float64)
 
-        cx_mid, cy_mid = 960.0, 540.0
+        cx_mid = float(self.image_width) / 2.0
+        cy_mid = float(self.image_height) / 2.0
+        f_init = max(800.0, 1.5625 * float(max(self.image_width, self.image_height)))
 
         def residuals(params):
-            f_len = params[0]
+            f_len = max(300.0, float(params[0]))
             rvec, tvec = params[1:4], params[4:7]
             K = np.array([[f_len, 0.0, cx_mid], [0.0, f_len, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
             proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, np.zeros(5))
             return (proj.reshape(-1, 2) - img_pts).ravel()
 
         # Initial PnP solve with square pixels and exact image center
-        K_guess = np.array([[3000.0, 0.0, cx_mid], [0.0, 3000.0, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
+        K_guess = np.array([[f_init, 0.0, cx_mid], [0.0, f_init, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
         _, rvec0, tvec0 = cv2.solvePnP(obj_pts, img_pts, K_guess, np.zeros(5))
 
-        x0 = [3000.0] + list(rvec0.ravel()) + list(tvec0.ravel())
+        x0 = [f_init] + list(rvec0.ravel()) + list(tvec0.ravel())
         res = least_squares(residuals, x0, method="lm")
 
-        f_opt = float(res.x[0])
+        f_opt = max(300.0, float(res.x[0]))
         self.rvec = res.x[1:4]
         self.tvec = res.x[4:7]
         self.K = np.array([[f_opt, 0.0, cx_mid], [0.0, f_opt, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
@@ -346,6 +367,8 @@ class CourtCalibrator:
 
         data = {
             "match_id": self.match_id,
+            "image_width": self.image_width,
+            "image_height": self.image_height,
             "reprojection_error_px": round(self.reprojection_error_px, 3),
             "line_sample_rmse_px": round(self.line_sample_rmse_px, 3),
             "pixel_points": self.pixel_points,
@@ -374,6 +397,10 @@ class CourtCalibrator:
             data = json.load(f)
 
         self.match_id = data.get("match_id", self.match_id)
+        if data.get("image_width"):
+            self.image_width = int(data["image_width"])
+        if data.get("image_height"):
+            self.image_height = int(data["image_height"])
         self.reprojection_error_px = data.get("reprojection_error_px", 0.0)
         self.line_sample_rmse_px = data.get("line_sample_rmse_px", 0.0)
         self.pixel_points = data.get("pixel_points", {})
@@ -416,6 +443,66 @@ class CourtCalibrator:
         arr = np.asarray(pts_3d, dtype=np.float64).reshape(-1, 1, 3)
         proj, _ = cv2.projectPoints(arr, self.rvec, self.tvec, self.K, np.zeros(5))
         return proj.reshape(-1, 2)
+
+    @classmethod
+    def default_keypoints_for_size(cls, width: int = 1920, height: int = 1080) -> Dict[str, List[float]]:
+        """Returns proportional BWF court keypoints scaled to (width, height)."""
+        sx = float(width) / 1920.0
+        sy = float(height) / 1080.0
+        return {
+            "corner_near_left": [round(323.84 * sx, 1), round(963.18 * sy, 1)],
+            "corner_near_right": [round(1592.03 * sx, 1), round(968.72 * sy, 1)],
+            "corner_far_right": [round(1293.55 * sx, 1), round(427.70 * sy, 1)],
+            "corner_far_left": [round(627.70 * sx, 1), round(423.38 * sy, 1)],
+            "net_post_left": [round(516.50 * sx, 1), round(390.50 * sy, 1)],
+            "net_post_right": [round(1404.50 * sx, 1), round(396.00 * sy, 1)],
+            "net_tape_center": [round(960.50 * sx, 1), round(397.00 * sy, 1)],
+        }
+
+    @classmethod
+    def auto_detect_court_keypoints(cls, frame_bgr: Optional[np.ndarray] = None, width: int = 1920, height: int = 1080) -> Dict:
+        """
+        Attempts automatic BWF court corner & white-line refinement on a video frame.
+        Returns { keypoints, reprojection_error_px, line_sample_rmse_px, auto_refined }.
+        """
+        if frame_bgr is not None:
+            height, width = frame_bgr.shape[:2]
+
+        kps = cls.default_keypoints_for_size(width, height)
+        cal = cls("auto_detect", image_width=width, image_height=height)
+        cal.set_keypoints({k: (v[0], v[1]) for k, v in kps.items()}, image_width=width, image_height=height)
+
+        auto_refined = False
+        if frame_bgr is not None:
+            try:
+                line_rmse = cal.refine_with_white_lines(frame_bgr, search_radius_px=max(12, int(round(16 * width / 1920.0))))
+                if line_rmse > 0.0 and line_rmse < 5.0 and cal.reprojection_error_px < 12.0:
+                    auto_refined = True
+                    # Also project updated 3D net posts if corners shifted slightly
+                    if cal.K is not None and cal.rvec is not None and cal.tvec is not None:
+                        net_pts = cal.project_3d_to_pixel(np.array([
+                            cal.ref_3d_points["net_post_left"],
+                            cal.ref_3d_points["net_post_right"],
+                            cal.ref_3d_points["net_tape_center"],
+                        ]))
+                        cal.pixel_points["net_post_left"] = (float(net_pts[0, 0]), float(net_pts[0, 1]))
+                        cal.pixel_points["net_post_right"] = (float(net_pts[1, 0]), float(net_pts[1, 1]))
+                        cal.pixel_points["net_tape_center"] = (float(net_pts[2, 0]), float(net_pts[2, 1]))
+            except Exception:
+                pass
+
+        out_kps = {
+            k: [round(float(v[0]), 1), round(float(v[1]), 1)]
+            for k, v in cal.pixel_points.items()
+        }
+        return {
+            "keypoints": out_kps,
+            "image_width": width,
+            "image_height": height,
+            "reprojection_error_px": round(cal.reprojection_error_px, 2),
+            "line_sample_rmse_px": round(cal.line_sample_rmse_px, 2),
+            "auto_refined": auto_refined,
+        }
 
 
 def main():

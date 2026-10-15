@@ -447,27 +447,34 @@ class ThreeCourtViewer {
   updateCourtSideHUD(rally) {
     const telemetry = window.HAWKVIEW_TELEMETRY;
     const rallies = (telemetry && telemetry.rallies) || [];
+    const players = (telemetry && telemetry.players) || {};
+    const pKeys = Object.keys(players);
     const r = rally || this.activeRallyForHUD || rallies[0];
     if (!r) return;
     this.activeRallyForHUD = r;
 
-    const nearId = r.near_player || (r.game === 2 ? 'LZJ' : 'POPOV');
-    const farId = r.far_player || (nearId === 'LZJ' ? 'POPOV' : 'LZJ');
+    const defaultNear = pKeys.length >= 2 ? pKeys[1] : (pKeys[0] || 'POPOV');
+    const defaultFar = pKeys.length >= 2 ? pKeys[0] : 'LZJ';
+    const nearId = r.near_player || (r.game === 2 ? defaultFar : defaultNear);
+    const farId = r.far_player || (nearId === defaultFar ? defaultNear : defaultFar);
 
-    const formatFullApron = (pid, sideLabel) =>
-      pid === 'LZJ' ? `🇲🇾 LEE ZII JIA (${sideLabel})` : `🇫🇷 C. POPOV (${sideLabel})`;
+    const formatFullApron = (pid, sideLabel) => {
+      if (pid === 'LZJ') return `🇲🇾 LEE ZII JIA (${sideLabel})`;
+      if (pid === 'POPOV') return `🇫🇷 C. POPOV (${sideLabel})`;
+      const meta = (players[pid] && players[pid].metadata) || {};
+      const nameStr = (meta.name || pid || sideLabel).toUpperCase();
+      return `🏸 ${nameStr} (${sideLabel})`;
+    };
 
     // Score before/after for the active rally
-    const sb = r.score_before || { LZJ: 0, POPOV: 0 };
+    const sb = r.score_before || {};
     const nearPts = sb[nearId] !== undefined ? sb[nearId] : 0;
     const farPts = sb[farId] !== undefined ? sb[farId] : 0;
 
-    // Sets won before this game (Game 1 was won by LZJ 21-11, so in Game 2 LZJ has 1 set)
+    // Sets won before this game
     const gameNum = r.game || 1;
-    const lzjSets = gameNum >= 2 ? 1 : 0;
-    const popovSets = 0;
-    const nearSets = nearId === 'LZJ' ? lzjSets : popovSets;
-    const farSets = farId === 'LZJ' ? lzjSets : popovSets;
+    const nearSets = (nearId === 'LZJ' && gameNum >= 2) ? 1 : 0;
+    const farSets = (farId === 'LZJ' && gameNum >= 2) ? 1 : 0;
 
     const nearServing = r.server === nearId;
     const farServing = r.server === farId;

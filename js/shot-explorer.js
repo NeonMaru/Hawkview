@@ -941,9 +941,17 @@ class ShotExplorer {
     const totalShots = (rally.shots && rally.shots.length) || 1;
     const fromSide = (shot.side || 'near').toUpperCase();
     const toSide = fromSide === 'NEAR' ? 'FAR' : 'NEAR';
-    const receiver = shot.hitter === 'LZJ' ? 'POPOV' : 'LZJ';
-    const flagFrom = shot.hitter === 'LZJ' ? '🇲🇾 LZJ' : '🇫🇷 POPOV';
-    const flagTo = receiver === 'LZJ' ? '🇲🇾 LZJ' : '🇫🇷 POPOV';
+    const receiver = shot.hitter === rally.near_player
+      ? (rally.far_player || 'P2')
+      : (rally.near_player || (shot.hitter === 'LZJ' ? 'POPOV' : 'LZJ'));
+
+    const formatTag = (pid) => {
+      if (pid === 'LZJ') return '🇲🇾 LZJ';
+      if (pid === 'POPOV') return '🇫🇷 POPOV';
+      return `🏸 ${pid || 'Player'}`;
+    };
+    const flagFrom = formatTag(shot.hitter);
+    const flagTo = formatTag(receiver);
     const typeStr = ShotExplorer.formatShotType(shot.type);
     const spdStr = typeof shot.speed_kmh === 'number' ? `${shot.speed_kmh.toFixed(0)} km/h est.` : '';
 
@@ -1155,6 +1163,12 @@ class ShotExplorer {
     });
 
     window.addEventListener('hawkview:matchChanged', () => {
+      this._renderedRallyTicksId = null;
+      this.buildSceneShots();
+      this.refreshVisibility();
+    });
+
+    window.addEventListener('hawkview:ralliesStreamUpdated', () => {
       this._renderedRallyTicksId = null;
       this.buildSceneShots();
       this.refreshVisibility();

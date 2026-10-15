@@ -278,12 +278,22 @@ class BroadcastPlayer {
       });
     }
     if (this.loadFileBtn && this.fileInput) {
-      this.loadFileBtn.addEventListener('click', () => this.fileInput.click());
+      this.loadFileBtn.addEventListener('click', () => {
+        if (window.videoLoaderModalInstance) {
+          window.videoLoaderModalInstance.open();
+        } else {
+          this.fileInput.click();
+        }
+      });
       this.fileInput.addEventListener('change', (e) => {
         const file = e.target.files && e.target.files[0];
         if (file) {
-          const url = URL.createObjectURL(file);
-          this.loadVideoSource(url);
+          if (window.videoLoaderModalInstance) {
+            window.videoLoaderModalInstance.openWithFile(file);
+          } else {
+            const url = URL.createObjectURL(file);
+            this.loadVideoSource(url);
+          }
         }
       });
     }
@@ -317,8 +327,32 @@ class BroadcastPlayer {
     window.addEventListener('hawkview:matchChanged', (e) => {
       const t = (e.detail && e.detail.telemetry) || window.HAWKVIEW_TELEMETRY;
       this.rallies = (t && t.rallies) || [];
+      if (t && t.source && t.source.duration_sec) {
+        this.totalDuration = t.source.duration_sec;
+      }
+      this.updateTimecodeUI();
       this.renderTimelineTicks();
-      this.selectRally(0);
+      if (this.rallies.length > 0) {
+        this.selectRally(0);
+      } else if (this.statusBadgeEl) {
+        this.statusBadgeEl.textContent = 'Analyzing Rallies...';
+      }
+    });
+
+    window.addEventListener('hawkview:ralliesStreamUpdated', (e) => {
+      const t = (e.detail && e.detail.telemetry) || window.HAWKVIEW_TELEMETRY;
+      const prevCount = this.rallies ? this.rallies.length : 0;
+      this.rallies = (t && t.rallies) || [];
+      if (t && t.source && t.source.duration_sec) {
+        this.totalDuration = t.source.duration_sec;
+      }
+      this.updateTimecodeUI();
+      this.renderTimelineTicks();
+      if (prevCount === 0 && this.rallies.length > 0) {
+        this.selectRally(0);
+      } else {
+        this.syncRallyState(false);
+      }
     });
   }
 

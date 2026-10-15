@@ -217,10 +217,14 @@ class RallySegmenter:
         stride: int = 2,
         min_duration_sec: float = 2.0,
         shuttle_csv_path: Optional[str] = None,
+        mode: str = "auto",
+        output_json_path: Optional[str] = None,
     ) -> Dict:
         """
         Sequential full-video pass (stride=2 by default) to detect all main-camera rally windows,
         reject alternate-angle replays, and trim boundaries using TrackNetV3 tracks.
+        Also supports continuous recreational/iPhone tripod recordings (mode='recreational' or
+        automatic fallback when court floor is non-green or camera has no broadcast cuts).
         """
         if not os.path.exists(self.video_path):
             raise FileNotFoundError(f"Video file not found: {self.video_path}")
@@ -230,6 +234,14 @@ class RallySegmenter:
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 1920)
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 1080)
         self._init_geometry_masks(width, height)
+
+        if width == 1920 and height == 1080:
+            roi_y0, roi_y1, roi_x0, roi_x1 = 250, 1000, 300, 1620
+        else:
+            roi_y0 = max(0, int(round(0.20 * height)))
+            roi_y1 = min(height, max(roi_y0 + 16, int(round(0.93 * height))))
+            roi_x0 = max(0, int(round(0.15 * width)))
+            roi_x1 = min(width, max(roi_x0 + 16, int(round(0.85 * width))))
 
         sampled_rows = []
         prev_hist = None
@@ -249,7 +261,7 @@ class RallySegmenter:
                 hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
                 hist = cv2.calcHist([hsv], [0, 1], None, [32, 32], [0, 180, 0, 256])
                 cv2.normalize(hist, hist)
-                gray_roi = cv2.cvtColor(frame[250:1000, 300:1620], cv2.COLOR_BGR2GRAY)
+                gray_roi = cv2.cvtColor(frame[roi_y0:roi_y1, roi_x0:roi_x1], cv2.COLOR_BGR2GRAY)
                 small = cv2.resize(gray_roi, (160, 90)).astype(np.float32)
 
                 hist_diff = (
@@ -281,23 +293,42 @@ class RallySegmenter:
         in_seg = False
         start_i = 0
 
-        for i, row in enumerate(sampled_rows):
-            f_num, g_pct, l_pct, m_err, is_main, h_diff, l1_diff = row
-            is_cut = (i > 0) and ((l1_diff > 18.0) or (h_diff > 0.18))
+        if mode != "recreational":
+            for i, row in enumerate(sampled_rows):
+                f_num, g_pct, l_pct, m_err, is_main, h_diff, l1_diff = row
+                is_cut = (i > 0) and ((l1_diff > 18.0) or (h_diff > 0.18))
 
-            if is_main and not in_seg:
-                in_seg = True
-                start_i = i
-            elif in_seg and (not is_main or is_cut):
-                end_i = i - 1
+                if is_main and not in_seg:
+                    in_seg = True
+                    start_i = i
+                elif in_seg and (not is_main or is_cut):
+                    end_i = i - 1
+                    sf = sampled_rows[start_i][0]
+                    ef = sampled_rows[end_i][0]
+                    # Refine exact +/- 1 frame boundary using cached odd frame if available
+                    if (sf - 1) in boundary_frames_cache and self.evaluate_frame(boundary_frames_cache[sf - 1])[3]:
+                        sf -= 1
+                    if (ef + 1) in boundary_frames_cache and self.evaluate_frame(boundary_frames_cache[ef + 1])[3]:
+                        ef += 1
+
+                    if (ef - sf) >= min_frames:
+                        sub = sampled_rows[start_i : end_i + 1]
+                        raw_cam_windows.append({
+                            "cam_start": sf,
+                            "cam_end": ef,
+                            "mean_green_pct": float(np.mean([r[1] for r in sub])),
+                            "mean_line_hit_pct": float(np.mean([r[2] for r in sub])),
+                            "mean_line_err_px": float(np.mean([r[3] for r in sub])),
+                        })
+                    if is_main and is_cut:
+                        start_i = i
+                    else:
+                        in_seg = False
+
+            if in_seg:
+                end_i = len(sampled_rows) - 1
                 sf = sampled_rows[start_i][0]
                 ef = sampled_rows[end_i][0]
-                # Refine exact +/- 1 frame boundary using cached odd frame if available
-                if (sf - 1) in boundary_frames_cache and self.evaluate_frame(boundary_frames_cache[sf - 1])[3]:
-                    sf -= 1
-                if (ef + 1) in boundary_frames_cache and self.evaluate_frame(boundary_frames_cache[ef + 1])[3]:
-                    ef += 1
-
                 if (ef - sf) >= min_frames:
                     sub = sampled_rows[start_i : end_i + 1]
                     raw_cam_windows.append({
@@ -307,24 +338,15 @@ class RallySegmenter:
                         "mean_line_hit_pct": float(np.mean([r[2] for r in sub])),
                         "mean_line_err_px": float(np.mean([r[3] for r in sub])),
                     })
-                if is_main and is_cut:
-                    start_i = i
-                else:
-                    in_seg = False
 
-        if in_seg:
-            end_i = len(sampled_rows) - 1
-            sf = sampled_rows[start_i][0]
-            ef = sampled_rows[end_i][0]
-            if (ef - sf) >= min_frames:
-                sub = sampled_rows[start_i : end_i + 1]
-                raw_cam_windows.append({
-                    "cam_start": sf,
-                    "cam_end": ef,
-                    "mean_green_pct": float(np.mean([r[1] for r in sub])),
-                    "mean_line_hit_pct": float(np.mean([r[2] for r in sub])),
-                    "mean_line_err_px": float(np.mean([r[3] for r in sub])),
-                })
+        # Fallback / Continuous Tripod Mode (Recreational / iPhone fixed camera or non-green court floor):
+        # If mode == 'recreational' OR 0 broadcast green windows were found OR a single uncut window > 42s exists
+        is_single_long_uncut = (
+            len(raw_cam_windows) == 1
+            and (raw_cam_windows[0]["cam_end"] - raw_cam_windows[0]["cam_start"]) > int(42.0 * fps)
+        )
+        if mode == "recreational" or len(raw_cam_windows) == 0 or is_single_long_uncut:
+            raw_cam_windows = self._segment_continuous_tripod_windows(sampled_rows, fps, min_frames, total_frames)
 
         # Also count rejected green replay windows (green >= 40% but not calibrated main camera)
         rejected_replays = []
@@ -375,7 +397,7 @@ class RallySegmenter:
                 )
             )
 
-        return {
+        out_payload = {
             "match_id": self.match_id,
             "video_path": self.video_path,
             "fps": fps,
@@ -386,3 +408,97 @@ class RallySegmenter:
             "rallies": [r.to_dict() for r in rallies],
             "rejected_replays": rejected_replays,
         }
+
+        if output_json_path:
+            os.makedirs(os.path.dirname(os.path.abspath(output_json_path)), exist_ok=True)
+            with open(output_json_path, "w", encoding="utf-8") as f_out:
+                json.dump(out_payload, f_out, indent=2)
+
+        return out_payload
+
+    def _segment_continuous_tripod_windows(
+        self,
+        sampled_rows: List[Tuple],
+        fps: float,
+        min_frames: int,
+        total_frames: int,
+    ) -> List[Dict]:
+        """
+        Segments continuous fixed-camera recordings (e.g. iPhone tripod at a gym or non-green court)
+        by detecting active player/shuttle motion windows and splitting long uncut play into
+        manageable rally windows.
+        """
+        if not sampled_rows:
+            return []
+
+        l1_vals = np.array([r[6] for r in sampled_rows], dtype=np.float32)
+        # Smooth motion score over ~1.0s rolling window
+        win_len = max(3, int(round(fps / 2.0)))
+        kernel = np.ones(win_len, dtype=np.float32) / float(win_len)
+        smooth_l1 = np.convolve(l1_vals, kernel, mode="same")
+
+        # Adaptive threshold between low-motion pauses (walking/picking up shuttle) and active play
+        p35 = float(np.percentile(smooth_l1, 35))
+        p75 = float(np.percentile(smooth_l1, 75))
+        active_thresh = max(1.15, p35 + 0.30 * (p75 - p35))
+
+        max_window_frames = int(round(24.0 * fps))  # Split continuous play every ~24s if no pause occurs
+        windows = []
+        in_play = False
+        start_i = 0
+
+        for i, row in enumerate(sampled_rows):
+            f_num = row[0]
+            is_cut = (i > 0) and (row[6] > 22.0 or row[5] > 0.22)
+            is_active = (smooth_l1[i] >= active_thresh) and not is_cut
+
+            if is_active and not in_play:
+                in_play = True
+                start_i = i
+            elif in_play:
+                cur_len = f_num - sampled_rows[start_i][0]
+                if (not is_active) or (cur_len >= max_window_frames):
+                    end_i = max(start_i, i - 1)
+                    sf = sampled_rows[start_i][0]
+                    ef = sampled_rows[end_i][0]
+                    if (ef - sf) >= min_frames:
+                        sub = sampled_rows[start_i : end_i + 1]
+                        windows.append({
+                            "cam_start": sf,
+                            "cam_end": ef,
+                            "mean_green_pct": float(np.mean([r[1] for r in sub])),
+                            "mean_line_hit_pct": float(np.mean([r[2] for r in sub])),
+                            "mean_line_err_px": float(np.mean([r[3] for r in sub])),
+                        })
+                    in_play = False
+
+        if in_play:
+            end_i = len(sampled_rows) - 1
+            sf = sampled_rows[start_i][0]
+            ef = sampled_rows[end_i][0]
+            if (ef - sf) >= min_frames:
+                sub = sampled_rows[start_i : end_i + 1]
+                windows.append({
+                    "cam_start": sf,
+                    "cam_end": ef,
+                    "mean_green_pct": float(np.mean([r[1] for r in sub])),
+                    "mean_line_hit_pct": float(np.mean([r[2] for r in sub])),
+                    "mean_line_err_px": float(np.mean([r[3] for r in sub])),
+                })
+
+        # Fallback if entire clip is short (< 25s) or uniform motion: treat clip as 1-3 rally windows
+        if not windows and total_frames > 15:
+            chunk = max(min_frames, int(round(18.0 * fps)))
+            for s_f in range(0, total_frames - 10, chunk):
+                e_f = min(total_frames - 1, s_f + chunk - 1)
+                if (e_f - s_f) >= min(min_frames, 20):
+                    windows.append({
+                        "cam_start": s_f,
+                        "cam_end": e_f,
+                        "mean_green_pct": float(np.mean([r[1] for r in sampled_rows])),
+                        "mean_line_hit_pct": float(np.mean([r[2] for r in sampled_rows])),
+                        "mean_line_err_px": float(np.mean([r[3] for r in sampled_rows])),
+                    })
+
+        return windows
+

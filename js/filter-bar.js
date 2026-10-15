@@ -49,7 +49,30 @@ class FilterBar {
       opt.textContent = `R${r.rally_id} (G${r.game || 1})`;
       this.rallySelect.appendChild(opt);
     });
-    this.rallySelect.value = currentVal;
+    if ([...this.rallySelect.options].some((o) => o.value === currentVal)) {
+      this.rallySelect.value = currentVal;
+    } else {
+      this.rallySelect.value = 'all';
+    }
+
+    if (this.playerSelect && telemetry && telemetry.players) {
+      const pKeys = Object.keys(telemetry.players);
+      if (pKeys.length > 0) {
+        const curP = this.playerSelect.value || 'all';
+        this.playerSelect.innerHTML = '<option value="all">All</option>';
+        pKeys.forEach((pid) => {
+          const opt = document.createElement('option');
+          opt.value = pid;
+          opt.textContent = pid;
+          this.playerSelect.appendChild(opt);
+        });
+        if ([...this.playerSelect.options].some((o) => o.value === curP)) {
+          this.playerSelect.value = curP;
+        } else {
+          this.playerSelect.value = 'all';
+        }
+      }
+    }
   }
 
   bindEvents() {
@@ -112,6 +135,11 @@ class FilterBar {
     });
 
     window.addEventListener('hawkview:matchChanged', () => {
+      this.populateRallyOptions();
+      this.syncFromExplorer();
+    });
+
+    window.addEventListener('hawkview:ralliesStreamUpdated', () => {
       this.populateRallyOptions();
       this.syncFromExplorer();
     });

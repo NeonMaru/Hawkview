@@ -25,6 +25,7 @@ class AnalyticsCards {
   bindEvents() {
     window.addEventListener('hawkview:filtersChanged', () => this.render());
     window.addEventListener('hawkview:matchChanged', () => this.render());
+    window.addEventListener('hawkview:ralliesStreamUpdated', () => this.render());
     window.addEventListener('hawkview:themeChanged', () => this.drawKDEHeatmap());
     window.addEventListener('resize', () => this.drawKDEHeatmap());
   }

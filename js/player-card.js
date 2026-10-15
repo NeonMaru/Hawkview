@@ -26,6 +26,9 @@ class PlayerCard {
     window.addEventListener('hawkview:matchChanged', () => {
       this.render();
     });
+    window.addEventListener('hawkview:ralliesStreamUpdated', () => {
+      this.render();
+    });
     window.addEventListener('hawkview:rallyChanged', () => {
       this.updateCurrentEndBadge();
     });

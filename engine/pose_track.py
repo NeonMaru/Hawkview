@@ -324,8 +324,14 @@ class PoseTracker:
                     if (fn - sf) % self.stride != 0:
                         continue
                     fgray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                    roi_y0, roi_y1 = 170, 1040
-                    roi_x0, roi_x1 = 280, 1640
+                    h_img, w_img = fgray.shape[:2]
+                    if w_img == 1920 and h_img == 1080:
+                        roi_y0, roi_y1, roi_x0, roi_x1 = 170, 1040, 280, 1640
+                    else:
+                        roi_y0 = max(0, int(round(0.12 * h_img)))
+                        roi_y1 = min(h_img, int(round(0.97 * h_img)))
+                        roi_x0 = max(0, int(round(0.10 * w_img)))
+                        roi_x1 = min(w_img, int(round(0.90 * w_img)))
                     crop_bgr = frame[roi_y0:roi_y1, roi_x0:roi_x1]
                     kps, scores = self._body_model(crop_bgr)
                     if kps is not None and len(kps) > 0:
@@ -373,3 +379,70 @@ class PoseTracker:
 
         cap.release()
         return results_by_rally
+
+    def track_single_rally_frames(
+        self,
+        rally_id: int,
+        frames_bgr: List[np.ndarray],
+        frames_start_idx: int,
+        active_start_frame: int,
+        active_end_frame: int,
+        bg_gray: Optional[np.ndarray] = None,
+        near_player_id: Optional[str] = None,
+        far_player_id: Optional[str] = None,
+    ) -> dict:
+        """
+        Runs rtmlib Body-17 pose tracking on an in-memory slice of rally frames
+        for progressive rally-by-rally streaming.
+        """
+        self._ensure_model()
+        if bg_gray is None and frames_bgr:
+            step = max(1, len(frames_bgr) // 15)
+            grays = [cv2.cvtColor(f, cv2.COLOR_BGR2GRAY) for f in frames_bgr[::step]]
+            bg_gray = np.median(np.stack(grays, axis=0), axis=0).astype(np.uint8)
+
+        r_poses = []
+        for fn in range(active_start_frame, active_end_frame + 1):
+            if (fn - active_start_frame) % self.stride != 0:
+                continue
+            rel_idx = fn - frames_start_idx
+            if rel_idx < 0 or rel_idx >= len(frames_bgr):
+                continue
+            frame = frames_bgr[rel_idx]
+            fgray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            h_img, w_img = fgray.shape[:2]
+            if w_img == 1920 and h_img == 1080:
+                roi_y0, roi_y1, roi_x0, roi_x1 = 170, 1040, 280, 1640
+            else:
+                roi_y0 = max(0, int(round(0.10 * h_img)))
+                roi_y1 = min(h_img, int(round(0.97 * h_img)))
+                roi_x0 = max(0, int(round(0.08 * w_img)))
+                roi_x1 = min(w_img, int(round(0.92 * w_img)))
+            crop_bgr = frame[roi_y0:roi_y1, roi_x0:roi_x1]
+            kps, scores = self._body_model(crop_bgr)
+            if kps is not None and len(kps) > 0:
+                kps = kps.copy()
+                kps[:, :, 0] += roi_x0
+                kps[:, :, 1] += roi_y0
+            near_p, far_p = self._extract_candidates(frame, fgray, bg_gray, kps, scores)
+            r_poses.append({
+                "frame": fn,
+                "near": near_p,
+                "far": far_p,
+            })
+
+        if near_player_id and far_player_id:
+            near_id, far_id = near_player_id, far_player_id
+        else:
+            near_id, far_id = self.assign_player_sides(r_poses)
+
+        return {
+            "rally_id": rally_id,
+            "start_frame": active_start_frame,
+            "end_frame": active_end_frame,
+            "stride": self.stride,
+            "near_player": near_id,
+            "far_player": far_id,
+            "frames": r_poses,
+        }
+
