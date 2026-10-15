@@ -7,7 +7,7 @@ Supports HTTP 206 Partial Content for instant 1:1 video scrubbing and seeking in
 import os
 import re
 import sys
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
     """SimpleHTTPRequestHandler with robust HTTP 206 Partial Content Range support."""
@@ -16,6 +16,30 @@ class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
         f = self.send_head()
         if f:
             f.close()
+
+    def do_OPTIONS(self):
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "GET, HEAD, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_POST(self):
+        if self.path.endswith("/corrections.json"):
+            length = int(self.headers.get("Content-Length", "0"))
+            body = self.rfile.read(length) if length > 0 else b"{}"
+            target_path = self.translate_path(self.path)
+            os.makedirs(os.path.dirname(os.path.abspath(target_path)), exist_ok=True)
+            with open(target_path, "wb") as f:
+                f.write(body)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
+            self.wfile.write(b'{"status":"saved"}')
+        else:
+            self.send_error(404, "Unsupported POST endpoint")
+
 
     def send_head(self):
         path = self.translate_path(self.path)
@@ -96,8 +120,8 @@ class RangeHTTPRequestHandler(SimpleHTTPRequestHandler):
 
 def run(port=8123):
     server_address = ('', port)
-    httpd = HTTPServer(server_address, RangeHTTPRequestHandler)
-    print(f"[Hawkview Server] Serving with HTTP 206 Byte-Range support on port {port}...")
+    httpd = ThreadingHTTPServer(server_address, RangeHTTPRequestHandler)
+    print(f"[Hawkview Server] Serving with HTTP 206 Byte-Range support on http://localhost:{port} ...")
     httpd.serve_forever()
 
 if __name__ == '__main__':

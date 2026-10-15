@@ -1,18 +1,11 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="referrer" content="strict-origin-when-cross-origin">
-  <title>HAWKVIEW // Casio Edifice Sports Chronograph & Badminton Analytics</title>
-  
-  <!-- Tailwind CSS CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Lucide Icons CDN -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <title>Hawkview — 3D Badminton Shot Explorer & Match Analytics</title>
 
-  <!-- Three.js (r128) 3D Engine & OrbitControls via CDN with Local Offline Fallback -->
+  <!-- Three.js (r128) & OrbitControls with Local Offline Fallback -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script>
     if (!window.THREE) {
@@ -26,815 +19,268 @@
     }
   </script>
 
-  <!-- Casio Edifice Flat Chronograph Design System -->
-  <link rel="stylesheet" href="css/edifice.css">
-
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            cyan: { 400: '#00f0ff', 500: '#00c8d7' },
-            emerald: { 400: '#00e5a3', 500: '#059669' },
-            redline: '#ff2a55'
-          }
-        }
-      }
-    }
-  </script>
+  <!-- Clean PB-Vision Style Sheet (Spec Section 2.2) -->
+  <link rel="stylesheet" href="css/hawkview.css">
 </head>
-<body class="bg-[#05070a] text-slate-100 min-h-screen lg:h-screen lg:overflow-hidden font-sans selection:bg-cyan-500/30 selection:text-cyan-200 overflow-x-hidden">
+<body>
 
   <!-- ========================================================================
-       CASIO EDIFICE SPORTS CHRONOGRAPH COCKPIT
-       Zero-Scroll Desktop Layout (100vh) & Mobile YouTube-Style Tabbed Experience
+       TOP BAR
        ======================================================================== -->
-  <div class="h-full w-full max-w-[1720px] mx-auto p-1 sm:p-2 lg:p-2.5 flex flex-col box-border min-w-0">
-    
-    <!-- Outer Titanium Watch Chassis Frame -->
-    <div class="titanium-chassis rounded-2xl p-1.5 sm:p-2.5 relative overflow-hidden border border-slate-800 flex flex-col h-full min-w-0 w-full">
-      
-      <!-- Decorative Titanium Corner Screws (Flat Hex Accents) -->
-      <div class="absolute top-2.5 left-2.5 screw-head pointer-events-none z-10"></div>
-      <div class="absolute top-2.5 right-2.5 screw-head pointer-events-none z-10"></div>
-      <div class="absolute bottom-2.5 left-2.5 screw-head pointer-events-none z-10"></div>
-      <div class="absolute bottom-2.5 right-2.5 screw-head pointer-events-none z-10"></div>
+  <header class="hv-topbar">
+    <div class="hv-brand">
+      <span class="hv-brand-title">Hawkview</span>
+      <span style="color:var(--border);">|</span>
+      <span id="header-match-title" class="hv-match-meta">
+        BWF Arctic Open 2024 Super 500 · Quarter-Final Men's Singles · Lee Zii Jia vs Christo Popov
+      </span>
+    </div>
 
-      <!-- ====================================================================
-           SLIM HIGH-DENSITY TOP STATUS BAR (40px - 44px)
-           Unified Casio Edifice Identity, Tachymeter & Rapid Controls
-           ==================================================================== -->
-      <div class="titanium-bezel-ring rounded-xl px-2 sm:px-3 py-1 sm:py-1.5 mb-1.5 flex items-center justify-between gap-1.5 shrink-0 border border-slate-800 text-[11px] font-tachymeter text-slate-300">
-        
-        <!-- Left: Brand & Match Identity -->
-        <div class="flex items-center space-x-1.5 sm:space-x-2.5 min-w-0">
-          <div class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-[#080b0f] border border-slate-800 flex items-center justify-center shrink-0">
-            <i data-lucide="watch" class="w-3.5 h-3.5 text-cyan-400"></i>
+    <div class="hv-topbar-actions">
+      <button id="btn-analyze-clip" class="hv-btn" title="View pipeline telemetry & measured accuracy">
+        Pipeline Info
+      </button>
+      <button id="btn-theme-toggle" class="hv-btn" title="Toggle Light / Dark theme">
+        ☾ Dark
+      </button>
+    </div>
+  </header>
+
+  <!-- ========================================================================
+       SECTION 3 WORKSPACE GRID
+       ======================================================================== -->
+  <main class="hv-workspace">
+
+    <!-- 3.3 PLAYER CARD (Left Top) -->
+    <section id="player-card-container" class="hv-panel hv-area-player">
+      <!-- Populated by js/player-card.js -->
+    </section>
+
+    <!-- 3.1 3D COURT (SHOT EXPLORER) + CAMERA BUTTON STACK + 3.2 FILTER BAR -->
+    <section class="hv-area-explorer">
+
+      <!-- 3D Court Panel (Header Strip + 3D Canvas + Right Vertical Camera Stack) -->
+      <div class="hv-court-card">
+        <!-- Non-overlapping Top Bar: Playback vs Explorer Mode + Shot Legend -->
+        <div class="hv-court-overlay-top">
+          <div class="hv-court-mode-bar">
+            <span style="font-weight:600; color:var(--muted);">Mode:</span>
+            <button id="mode-btn-playback" class="hv-btn" style="padding:3px 8px; font-size:11px;" title="Follow video playback (current shot 100%, earlier in rally 30%)">Playback</button>
+            <button id="mode-btn-explorer" class="hv-btn active" style="padding:3px 8px; font-size:11px;" title="Show all matching shots across the match">Explorer</button>
+            <span id="explorer-shot-count-badge" class="hv-badge">223 / 223 shots</span>
           </div>
-          <div class="flex items-center space-x-1.5 truncate">
-            <span class="font-chronograph font-black text-xs sm:text-base tracking-wider text-slate-100 whitespace-nowrap">CASIO <span class="text-cyan-400">EDIFICE</span></span>
-            <span class="text-[9px] px-1.5 py-0.5 rounded bg-cyan-950/80 border border-cyan-500/40 text-cyan-300 font-bold font-mono hidden sm:inline-block">EQB-HAWKVIEW</span>
-            <span class="text-slate-600 hidden md:inline">|</span>
-            <span id="header-match-title" class="text-xs text-slate-400 font-mono tracking-wide hidden md:inline truncate max-w-[320px]">
-              BWF ARCTIC OPEN S500 // QF - MAS vs FRA
-            </span>
+
+          <div class="hv-court-legend">
+            <span class="hv-legend-item"><span class="hv-legend-swatch" style="background:var(--shot-continue);"></span>Continue</span>
+            <span class="hv-legend-item"><span class="hv-legend-swatch" style="background:var(--shot-winner);"></span>Winner</span>
+            <span class="hv-legend-item"><span class="hv-legend-swatch" style="background:var(--shot-error);"></span>Error</span>
+            <span class="hv-legend-item"><span class="hv-legend-swatch" style="background:var(--shot-selected);"></span>Selected</span>
+            <span class="hv-legend-item"><span class="hv-legend-dashed"></span>Low-conf</span>
           </div>
         </div>
 
-        <!-- Center: Tachymeter Scale & Neural Engine Status (Hidden on small mobile) -->
-        <div class="hidden lg:flex items-center space-x-3 text-[10px] font-mono text-slate-400">
-          <span class="text-cyan-400 font-bold tracking-widest text-[11px]">TACHYMÈTRE</span>
-          <span>500 • 400 • 350 • 300 • 250 • 200 • 160 • 120 • 60</span>
+        <div class="hv-court-row">
+          <div class="hv-court-stage">
+            <!-- Three.js Canvas Mount -->
+            <div id="three-viewport-container" style="width:100%; height:100%; position:relative;"></div>
+
+            <!-- Floating Hover Tooltip -->
+            <div id="shot-hover-tooltip" class="hv-shot-tooltip hidden"></div>
+          </div>
+
+          <!-- Vertical Camera Button Stack (PB Vision style) -->
+          <aside class="hv-cam-stack" aria-label="Camera views">
+            <button id="cam-btn-3d" class="hv-cam-btn active" title="Elevated 3D perspective behind near baseline">3D</button>
+            <button id="cam-btn-top" class="hv-cam-btn" title="Orthographic top-down view">Top</button>
+            <button id="cam-btn-side" class="hv-cam-btn" title="Side view level with net line (net in profile)">Side</button>
+            <button id="cam-btn-net" class="hv-cam-btn" title="Eye level at net post">Net</button>
+            <button id="cam-btn-near" class="hv-cam-btn" title="Behind near baseline at player eye height">Near</button>
+            <button id="cam-btn-far" class="hv-cam-btn" title="Behind far baseline at player eye height">Far</button>
+            <div class="hv-cam-btn-spacer"></div>
+            <button id="cam-btn-fullscreen" class="hv-cam-btn" title="Toggle fullscreen court">⛶</button>
+          </aside>
+        </div>
+      </div>
+
+      <!-- 3.2 FILTER BAR (Compact on Desktop, Collapsible Drawer on Mobile) -->
+      <div class="hv-filter-bar" id="filter-bar-container" role="region" aria-label="Shot filters">
+        <div class="hv-filter-mobile-header">
+          <button id="btn-toggle-mobile-filters" type="button" class="hv-btn" style="padding:4px 10px; font-size:11.5px;">
+            Filters ▾
+          </button>
+          <span id="filter-mobile-summary" class="hv-filter-summary">223 / 223 shots</span>
         </div>
 
-        <!-- Right: Match Selector + Neural Ready + Status LED + Quick Action Buttons -->
-        <div class="flex items-center space-x-1 sm:space-x-2 shrink-0">
-          <!-- Match Selector Dropdown -->
-          <div class="flex items-center space-x-1 bg-[#080b0f] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded border border-slate-800 text-[9px] font-mono text-slate-300">
-            <span class="text-slate-500 font-bold hidden md:inline">MATCH:</span>
-            <select id="match-selector" class="bg-transparent text-cyan-300 font-mono text-[9px] sm:text-[10px] outline-none cursor-pointer font-bold">
-              <option value="popov" class="bg-[#0a0e14] text-cyan-300" selected>🇲🇾 LZJ vs 🇫🇷 Popov (QF)</option>
-              <option value="sly" class="bg-[#0a0e14] text-orange-400">🇲🇾 LZJ vs 🇹🇼 Su Li Yang (R16)</option>
+        <div id="filter-bar-controls" class="hv-filter-controls">
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-game">Game</label>
+            <select id="filter-game" class="hv-select">
+              <option value="all">All</option>
+              <option value="1">Game 1</option>
+              <option value="2">Game 2</option>
             </select>
           </div>
 
-          <div class="flex items-center space-x-1 sm:space-x-1.5 bg-[#080b0f] px-1.5 sm:px-2 py-0.5 sm:py-1 rounded border border-slate-800">
-            <span class="status-led status-led-cyan"></span>
-            <span class="text-[8px] sm:text-[9px] text-cyan-300 font-mono tracking-wider font-semibold whitespace-nowrap">ANE READY</span>
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-rally">Rally</label>
+            <select id="filter-rally" class="hv-select">
+              <option value="all">All Rallies</option>
+            </select>
           </div>
 
-          <!-- Mode Indicator Pill -->
-          <div class="hidden sm:flex items-center space-x-1 bg-[#080b0f] px-2 py-1 rounded border border-slate-800 text-[9px] font-mono text-slate-400">
-            <span class="text-slate-500">MODE:</span>
-            <span id="lcd-mode-indicator" class="text-cyan-300 font-bold">FULL CHRONO</span>
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-player">Player</label>
+            <select id="filter-player" class="hv-select">
+              <option value="all">All</option>
+              <option value="LZJ">LZJ</option>
+              <option value="POPOV">POPOV</option>
+            </select>
           </div>
 
-          <!-- Quick Ingestion Modal Trigger (Header button) -->
-          <button id="btn-analyze-clip" class="knurled-pusher px-2 py-0.5 sm:px-2.5 sm:py-1 rounded text-[10px] font-chronograph font-bold text-cyan-300 border-cyan-500/40 bg-cyan-950/40 hover:border-cyan-400 flex items-center space-x-1" title="Open Multi-Stage Ingestion Pipeline (Key: A)">
-            <i data-lucide="cpu" class="w-3 h-3 text-cyan-400"></i>
-            <span class="hidden sm:inline">ANALYZE</span>
-          </button>
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-shot-type">Type</label>
+            <select id="filter-shot-type" class="hv-select">
+              <option value="all">All types</option>
+              <option value="smash">smash</option>
+              <option value="clear">clear (all)</option>
+              <option value="attacking_clear">attacking_clear</option>
+              <option value="defensive_clear">defensive_clear</option>
+              <option value="drive">drive</option>
+              <option value="drop">drop</option>
+              <option value="lift">lift</option>
+              <option value="push">push</option>
+              <option value="net_shot">net_shot</option>
+              <option value="net_kill">net_kill</option>
+              <option value="block">block</option>
+              <option value="serve">serve (all)</option>
+              <option value="serve_short">serve_short</option>
+              <option value="serve_flick">serve_flick</option>
+              <option value="serve_drive">serve_drive</option>
+              <option value="serve_long">serve_long</option>
+              <option value="other">other</option>
+            </select>
+          </div>
+
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-outcome">Outcome</label>
+            <select id="filter-outcome" class="hv-select">
+              <option value="all">All</option>
+              <option value="continue">continue</option>
+              <option value="winner">winner</option>
+              <option value="error_out">error_out</option>
+              <option value="error_net">error_net</option>
+            </select>
+          </div>
+
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-contact-zone">Zone</label>
+            <select id="filter-contact-zone" class="hv-select">
+              <option value="all">All</option>
+              <option value="front">front</option>
+              <option value="mid">mid</option>
+              <option value="rear">rear</option>
+            </select>
+          </div>
+
+          <div class="hv-filter-group">
+            <label class="hv-filter-label" for="filter-min-speed">Speed</label>
+            <input id="filter-min-speed" type="range" min="0" max="400" step="10" value="0" style="width:76px;" class="hv-slider">
+            <span id="filter-min-speed-val" class="tabular-nums" style="font-size:11px; min-width:48px;">0 km/h</span>
+          </div>
+
+          <label class="hv-filter-group" style="cursor:pointer;">
+            <input id="filter-terminal-only" type="checkbox">
+            <span class="hv-filter-label" style="color:var(--text);">Terminal only</span>
+          </label>
+
+          <button id="btn-clear-filters" class="hv-btn" style="padding:3px 8px; font-size:11px;">Clear</button>
+          <span id="filter-active-summary" class="hv-filter-summary">223 / 223 shots</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3.4 RALLY DECK (Left Middle) -->
+    <section id="rally-deck-container" class="hv-panel hv-area-rallies">
+      <!-- Populated by js/rally-deck.js -->
+    </section>
+
+    <!-- VIDEO PLAYER (Right Top, 1:1 sync) -->
+    <section class="hv-panel hv-area-video">
+      <div class="hv-panel-header" style="flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap; min-width:0;">
+          <h2 class="hv-panel-title">Broadcast Video (1:1 Sync)</h2>
+          <span id="video-rally-status-badge" class="hv-badge">R1</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px; flex-shrink:0;">
+          <button id="btn-toggle-video-mute" class="hv-btn" style="padding:3px 8px; font-size:11px;">🔊 Audio</button>
+          <button id="btn-load-custom-video" class="hv-btn" style="padding:3px 8px; font-size:11px;">Load MP4</button>
+          <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/quicktime" style="display:none;">
         </div>
       </div>
 
-      <!-- ====================================================================
-           MOBILE TAB SWITCHER (VISIBLE ONLY ON MOBILE & TABLET < 1024px)
-           Allows Instant Zero-Latency Swapping Between 3D Court & 2D Telemetry
-           ==================================================================== -->
-      <div class="flex lg:hidden items-center bg-[#080b0f] p-1 rounded-xl border border-slate-800 mb-1.5 gap-1 shrink-0">
-        <button id="mobile-tab-3d" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-chronograph font-bold bg-cyan-950/80 border border-cyan-500/50 text-cyan-300 flex items-center justify-center space-x-1.5 transition-all whitespace-nowrap">
-          <i data-lucide="video" class="w-3.5 h-3.5"></i>
-          <span>🏸 3D COURT</span>
-        </button>
-        <button id="mobile-tab-2d" class="flex-1 py-1.5 px-2 rounded-lg text-xs font-chronograph font-bold bg-slate-900/90 border border-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center space-x-1.5 transition-all whitespace-nowrap">
-          <i data-lucide="bar-chart-2" class="w-3.5 h-3.5"></i>
-          <span>📊 2D TELEMETRY</span>
-        </button>
+      <div class="hv-video-stage">
+        <video id="real-video-player" src="assets/LZJvPopov.mp4" playsinline preload="auto"
+               style="width:100%; height:100%; object-fit:contain; background:#000;"></video>
       </div>
 
-      <!-- ====================================================================
-           MAIN TELEMETRY COCKPIT GRID
-           On Desktop (>= 1024px): 2 Columns (7 Cols Left / 5 Cols Right) -> Fits 100vh with ZERO scroll!
-           On Mobile (< 1024px): Responsive Tabs swap view cleanly
-           ==================================================================== -->
-      <div class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2 min-h-0 min-w-0 overflow-y-auto lg:overflow-hidden w-full">
-        
-        <!-- ==================================================================
-             LEFT COLUMN (7 COLS): 3D COURT VIEWPORT + THUMB CONTROLS & SCRUBBER
-             ================================================================== -->
-        <div id="view-column-3d" class="lg:col-span-7 flex flex-col h-full min-h-0 min-w-0 space-y-1.5 w-full">
-          
-          <!-- Viewport Control Sub-Bar: Dual-View Modes & Video Ingestion -->
-          <div class="flex items-center justify-between px-2 py-1 bg-[#080b0f] rounded-xl border border-slate-800 text-[10px] font-mono shrink-0 gap-1.5 min-w-0">
-            <!-- Left: View Mode Chips -->
-            <div class="flex items-center space-x-1 overflow-x-auto no-scrollbar min-w-0">
-              <span class="text-slate-500 mr-1 text-[9px] uppercase font-bold tracking-wider hidden sm:inline shrink-0">VIEW:</span>
-              <button id="view-mode-3d" class="hud-cam-chip" title="Pure 3D Digital Twin View">🏸 3D TWIN</button>
-              <button id="view-mode-pip" class="hud-cam-chip active" title="Picture-in-Picture Floating Video (Non-blocking)">🔲 PIP VIDEO</button>
-              <button id="view-mode-split" class="hud-cam-chip" title="Synchronized Split View: 62% 3D Court & 38% Real Video">📺 SPLIT DUAL</button>
-              <button id="view-mode-full" class="hud-cam-chip" title="Full Broadcast Video Feed">🎥 FULL VIDEO</button>
-            </div>
-
-            <!-- Right: Video Actions -->
-            <div class="flex items-center space-x-1 shrink-0">
-              <button id="btn-load-youtube-video" class="px-2 py-0.5 rounded bg-red-950/80 border border-red-500/50 text-red-300 hover:border-red-400 font-bold text-[9px] tracking-wider transition-all flex items-center space-x-1 whitespace-nowrap active:scale-95 shadow-sm" title="Load & Stream from YouTube Match URL">
-                <i data-lucide="youtube" class="w-3 h-3 text-red-400 shrink-0"></i>
-                <span>YOUTUBE</span>
-              </button>
-              <button id="btn-load-sample-video" class="px-2 py-0.5 rounded bg-cyan-950/70 border border-cyan-500/40 text-cyan-300 hover:border-cyan-400 font-bold text-[9px] tracking-wider transition-all flex items-center space-x-1 whitespace-nowrap active:scale-95" title="Load Synthetic BWF Arctic Open Sample Rally">
-                <i data-lucide="play-circle" class="w-3 h-3 text-cyan-400 shrink-0"></i>
-                <span>SAMPLE RALLY</span>
-              </button>
-              <button id="btn-load-custom-video" class="px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 font-bold text-[9px] tracking-wider transition-all flex items-center space-x-1 whitespace-nowrap active:scale-95" title="Load Custom Match Video (.mp4 / .mov)">
-                <i data-lucide="folder-open" class="w-3 h-3 text-cyan-400 shrink-0"></i>
-                <span class="hidden sm:inline">LOAD MP4</span>
-              </button>
-              <input type="file" id="video-file-input" accept="video/mp4,video/webm,video/quicktime" class="hidden">
-            </div>
-          </div>
-
-          <!-- 3D Court Viewport Container Frame -->
-          <div id="video-viewport-container" class="relative flex-1 min-h-[260px] sm:min-h-[320px] lg:min-h-0 rounded-xl bg-black border border-slate-800 overflow-hidden shadow-2xl flex flex-col md:flex-row items-center justify-center select-none w-full">
-            
-            <!-- Real Three.js 3D Viewport Canvas Container -->
-            <div id="three-viewport-container" class="w-full h-full relative transition-all duration-300 block"></div>
-
-            <!-- Real Video Player Container Wrapper (Supports Split 62/38%, Floating PiP, Full Video) -->
-            <div id="video-viewport-wrapper" class="hidden relative transition-all duration-300">
-              <!-- Local HTML5 Video Player -->
-              <video id="real-video-player" class="w-full h-full object-contain bg-black" src="assets/LZJvPopov.mp4" playsinline preload="auto"></video>
-              
-              <!-- Embedded YouTube Video Container -->
-              <div id="youtube-player-container" class="w-full h-full hidden bg-black flex items-center justify-center relative overflow-hidden">
-                <div id="youtube-iframe-player" class="w-full h-full pointer-events-auto"></div>
-              </div>
-              
-              <!-- Broadcast Watermark & Status Tag -->
-              <div class="absolute top-2 left-2 z-10 bg-black/85 border border-slate-800 rounded px-1.5 py-0.5 text-[8px] font-mono text-slate-300 flex items-center space-x-1.5 shadow">
-                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-                <span id="video-feed-label" class="pointer-events-none">BWF BROADCAST CAM 01 // 60FPS</span>
-                <button id="btn-toggle-video-mute" class="ml-1 px-1.5 py-0.5 rounded bg-slate-800/90 hover:bg-slate-700 text-cyan-300 text-[8px] font-bold border border-slate-700 transition-all pointer-events-auto active:scale-95" title="Toggle Match Audio (Mute / Unmute)">
-                  <span id="mute-icon-label">🔇 UNMUTE</span>
-                </button>
-              </div>
-
-              <!-- Mini PiP Controls Header -->
-              <div id="pip-controls-bar" class="absolute top-1.5 right-1.5 z-10 hidden items-center space-x-1">
-                <button id="btn-pip-split" class="px-1.5 py-0.5 rounded bg-black/85 hover:bg-cyan-950/80 text-cyan-300 border border-slate-700 hover:border-cyan-500/50 text-[8px] font-mono font-bold" title="Switch to Split Dual View">
-                  <span>SPLIT</span>
-                </button>
-                <button id="btn-pip-expand" class="p-1 rounded bg-black/85 hover:bg-slate-800 text-slate-300 border border-slate-700 text-[9px]" title="Expand to Full Video">
-                  <i data-lucide="maximize-2" class="w-2.5 h-2.5"></i>
-                </button>
-                <button id="btn-pip-close" class="p-1 rounded bg-black/85 hover:bg-red-950/80 text-slate-300 hover:text-red-300 border border-slate-700 text-[9px]" title="Return to 3D Viewport">
-                  <i data-lucide="x" class="w-2.5 h-2.5"></i>
-                </button>
-              </div>
-            </div>
-
-            <!-- Drag and Drop Overlay for Match Videos -->
-            <div id="video-dropzone-overlay" class="absolute inset-0 z-40 bg-black/90 backdrop-blur-md border-2 border-dashed border-cyan-400 rounded-xl flex flex-col items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200">
-              <i data-lucide="upload-cloud" class="w-10 h-10 text-cyan-400 animate-bounce mb-2"></i>
-              <div class="text-xs sm:text-sm font-chronograph font-bold text-cyan-200 tracking-wider">DROP MATCH VIDEO (.MP4 / .MOV) HERE</div>
-              <div class="text-[9px] font-mono text-cyan-400 mt-0.5">Instant Edge Video Processing & Synchronized 3D Digital Twin</div>
-            </div>
-
-            <!-- 1. TOP-LEFT OFFICIAL BWF TV SCOREBUG HUD OVERLAY (Non-blocking, compact) -->
-            <div id="bwf-tv-scorebug" class="absolute top-2 left-2 z-20 pointer-events-none w-[142px] sm:w-[155px] hud-glass-card rounded-lg p-1.5 shadow-xl">
-              <div class="flex items-center space-x-1 text-[8px] sm:text-[9px] text-slate-400 font-mono font-bold uppercase tracking-wider border-b border-slate-800/80 pb-0.5 mb-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-                <span id="overlay-match-label" class="truncate">BWF ARCTIC // QF</span>
-              </div>
-              <div class="flex items-center justify-between py-0.5">
-                <div class="flex items-center space-x-1 min-w-0">
-                  <span id="overlay-p1-flag" class="text-[11px] leading-none">🇲🇾</span>
-                  <span id="overlay-p1-country" class="font-bold text-[10px] text-cyan-400 font-mono">MAS</span>
-                  <span id="overlay-p1-name" class="text-slate-200 font-semibold text-[9px] truncate max-w-[50px]">LZJ</span>
-                </div>
-                <div class="flex items-center">
-                  <span id="overlay-p1-score" class="font-lcd text-cyan-400 font-black text-xs sm:text-sm tabular-nums leading-none">—</span>
-                  <span id="lcd-score-mas" class="hidden">—</span>
-                </div>
-              </div>
-              <div class="flex items-center justify-between py-0.5">
-                <div class="flex items-center space-x-1 min-w-0">
-                  <span id="overlay-p2-flag" class="text-[11px] leading-none">🇫🇷</span>
-                  <span id="overlay-p2-country" class="font-bold text-red-400 font-mono">FRA</span>
-                  <span id="overlay-p2-name" class="text-slate-200 font-semibold text-[9px] truncate max-w-[50px]">POPOV</span>
-                  <span id="overlay-p2-serve" class="text-[8px] text-amber-400 font-mono leading-none hidden">●</span>
-                </div>
-                <div class="flex items-center">
-                  <span id="overlay-p2-score" class="font-lcd text-red-400 font-black text-xs sm:text-sm tabular-nums leading-none">—</span>
-                  <span id="lcd-score-tpe" class="hidden">—</span>
-                </div>
-              </div>
-              <div class="mt-1 pt-0.5 border-t border-slate-800/80">
-                <span id="lcd-rally-badge" class="lcd-emerald text-[8px] sm:text-[9px] font-bold truncate block">—</span>
-              </div>
-            </div>
-
-            <!-- 2. TOP-RIGHT RALLY STOPWATCH & CADENCE PILL (Non-blocking, compact) -->
-            <div id="hud-stopwatch-pill" class="absolute top-2 right-2 z-20 pointer-events-none w-[108px] sm:w-[120px] hud-glass-card rounded-lg px-2 py-1 shadow-xl text-right font-mono">
-              <div class="text-[8px] font-bold text-slate-300 tracking-wider uppercase flex items-center justify-between border-b border-slate-800/80 pb-0.5 mb-0.5">
-                <span id="hud-status-led" class="status-led status-led-red"></span>
-                <span id="hud-status-badge" class="text-[8px] text-slate-200">LIVE 60FPS</span>
-              </div>
-              <div class="flex items-baseline justify-between py-0.5">
-                <span id="lcd-stopwatch-timer" class="font-lcd text-xs sm:text-sm font-black lcd-emerald tabular-nums leading-none">00:00.00</span>
-                <span class="text-[8px] text-emerald-500/80 font-mono font-bold">SEC</span>
-              </div>
-              <div class="flex items-center justify-between text-[8px] text-slate-400 pt-0.5 border-t border-slate-800/60">
-                <span>CAD: <span id="lcd-shot-freq" class="lcd-cyan font-bold">—</span></span>
-                <span class="text-cyan-400 font-bold" id="lcd-split-timer">00:00</span>
-              </div>
-            </div>
-
-            <!-- 2B. TOP-CENTER INTERMISSION & REPLAY STATUS BANNER (Dynamic HUD) -->
-            <div id="three-intermission-banner" class="absolute top-2.5 left-1/2 -translate-x-1/2 z-20 pointer-events-none opacity-0 transition-all duration-300 hud-glass-card border border-amber-500/50 rounded-lg px-3 py-1 flex items-center space-x-2 shadow-2xl">
-              <span class="status-led status-led-amber animate-pulse"></span>
-              <div class="flex flex-col text-left">
-                <span id="intermission-main-text" class="text-[9px] font-mono text-amber-300 font-bold uppercase tracking-wider">⏸️ POINT CONCLUDED // INTERMISSION</span>
-                <span id="intermission-sub-text" class="text-[8px] font-mono text-slate-400">3D Simulation Paused • Players Resting</span>
-              </div>
-            </div>
-
-            <!-- 3. BOTTOM-LEFT CAMERA PRESET SELECTOR MICRO-BAR (Interactive) -->
-            <div class="absolute bottom-2 left-2 z-20 pointer-events-auto hud-glass-card rounded-lg px-1.5 py-1 shadow-xl flex items-center space-x-1 text-[10px] font-mono">
-              <i data-lucide="camera" class="w-3 h-3 text-cyan-400 mr-0.5 shrink-0"></i>
-              <button id="cam-preset-broadcast" class="hud-cam-chip active" title="Official BWF TV Broadcast View">TV</button>
-              <button id="cam-preset-server" class="hud-cam-chip" title="Behind Server (LZJ)">LZJ</button>
-              <button id="cam-preset-side" class="hud-cam-chip" title="Side Net Profile">Side</button>
-              <button id="cam-preset-top" class="hud-cam-chip" title="Top-Down Bird's Eye">Top</button>
-              <button id="cam-preset-reset" class="hud-cam-chip px-1.5" title="Reset Orbit Controls">
-                <i data-lucide="rotate-ccw" class="w-2.5 h-2.5"></i>
-              </button>
-            </div>
-
-            <!-- 4. BOTTOM-RIGHT SPEED RADAR BANNER (Flashes on Smash, Auto-Fades) -->
-            <div id="speed-radar-overlay" class="absolute bottom-2 right-2 z-20 pointer-events-none opacity-0 transition-opacity duration-300 hud-glass-card border border-red-500/70 rounded-lg px-2.5 py-1 text-right shadow-2xl">
-              <div id="speed-radar-title" class="text-[8px] font-mono font-bold text-red-400 tracking-wider uppercase">⚡ BWF SMASH RADAR</div>
-              <div id="speed-radar-value" class="font-lcd text-sm sm:text-base font-black text-red-400 tabular-nums leading-tight">— KM/H</div>
-              <div id="lcd-key-moment" class="text-[8px] text-red-300 font-mono truncate max-w-[140px] sm:max-w-[200px] hidden sm:block">—</div>
-            </div>
-          </div>
-
-          <!-- ================================================================
-               THUMB-REACH CONTROLS & TIMELINE DECK (Directly Below 3D Viewport)
-               ================================================================ -->
-          <div class="flex flex-col space-y-1.5 shrink-0 w-full min-w-0">
-            
-            <!-- Tier 1: Timeline Scrubber with High-Density Timecode -->
-            <div class="px-2 sm:px-2.5 py-1.5 bg-[#080b0f] rounded-xl border border-slate-800 flex flex-col space-y-1 w-full min-w-0">
-              <div class="flex items-center justify-between text-[10px] font-mono text-slate-400">
-                <span class="flex items-center space-x-1.5 text-slate-300 font-semibold truncate">
-                  <i data-lucide="timer" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                  <span class="tracking-wide">MATCH TIMELINE</span>
-                </span>
-                
-                <!-- Unified Boomer-Proof Timecode Display (e.g. 05:14 / 08:18) -->
-                <div class="flex items-center space-x-1 font-mono text-xs">
-                  <span id="timeline-timecode-elapsed" class="text-cyan-400 font-bold tabular-nums">05:12</span>
-                  <span class="text-slate-500 font-bold">/</span>
-                  <span id="timeline-timecode-total" class="text-slate-400 font-semibold tabular-nums">08:18</span>
-                  <span class="text-slate-500 text-[9px] hidden sm:inline ml-1 font-sans">(SYNC)</span>
-                </div>
-              </div>
-              
-              <!-- Timeline Track with Visual Rally Notches & Boomer-Proof Scrubber -->
-              <div class="timeline-track-wrapper py-1 flex items-center w-full relative">
-                <div id="rally-timeline-ticks" class="rally-timeline-ticks"></div>
-                <input id="rally-timeline-slider" type="range" min="0" max="498" value="312.1" step="0.1" 
-                       class="w-full edifice-slider cursor-pointer relative z-10" title="Scrub match video & 3D telemetry in lockstep">
-              </div>
-            </div>
-
-            <!-- Tier 2: Primary One-Thumb Pusher Command Bar (Min 44px Touch Targets) -->
-            <div class="grid grid-cols-4 gap-1 sm:gap-1.5 w-full min-w-0">
-              
-              <!-- Play / Pause (Primary Action) -->
-              <button id="btn-play-pause" class="min-h-[42px] px-1 sm:px-2 bg-cyan-950/60 border border-cyan-500/60 text-cyan-300 rounded-lg flex items-center justify-center space-x-1 active:scale-95 transition-all knurled-pusher shrink-0" title="Start / Stop Telemetry (SPACE)">
-                <i data-lucide="play" class="w-3.5 h-3.5 text-cyan-400 shrink-0"></i>
-                <span class="text-[10px] sm:text-xs font-chronograph font-bold tracking-wider whitespace-nowrap">PLAY</span>
-              </button>
-
-              <!-- Lap / Split (Next Rally Point) -->
-              <button id="btn-lap-split" class="min-h-[42px] px-1 sm:px-2 bg-[#0f1722] border border-slate-800 text-emerald-400 rounded-lg flex flex-col items-center justify-center active:scale-95 transition-all knurled-pusher shrink-0" title="Lap / Split Rally (Next Point)">
-                <i data-lucide="flag" class="w-3.5 h-3.5 text-emerald-400"></i>
-                <span class="text-[8px] font-chronograph font-bold tracking-wider mt-0.5">LAP</span>
-              </button>
-
-              <!-- Camera Cycle Pusher -->
-              <button id="btn-cam-cycle" class="min-h-[42px] px-1 sm:px-2 bg-[#0f1722] border border-slate-800 text-slate-200 rounded-lg flex flex-col items-center justify-center active:scale-95 transition-all knurled-pusher shrink-0" title="Cycle Camera Angle (Key: C)">
-                <i data-lucide="camera" class="w-3.5 h-3.5 text-cyan-400"></i>
-                <span class="text-[8px] font-chronograph font-bold tracking-wider mt-0.5">CAM ⟳</span>
-              </button>
-
-              <!-- Mode Switch Pusher -->
-              <button id="btn-mode-switch" class="min-h-[42px] px-1 sm:px-2 bg-[#0f1722] border border-slate-800 text-slate-200 rounded-lg flex flex-col items-center justify-center active:scale-95 transition-all knurled-pusher shrink-0" title="Switch Display Mode (Key: M)">
-                <i data-lucide="sliders" class="w-3.5 h-3.5 text-cyan-400"></i>
-                <span class="text-[8px] font-chronograph font-bold tracking-wider mt-0.5">MODE</span>
-              </button>
-            </div>
-
-            <!-- Tier 3: Horizontally Scrolling Rally Bookmark Chips -->
-            <div class="flex items-center space-x-1.5 overflow-x-auto no-scrollbar scroll-smooth px-0.5 py-0.5 w-full min-w-0">
-              <span class="text-[9px] font-mono text-slate-400 whitespace-nowrap mr-1 flex items-center shrink-0">
-                <i data-lucide="bookmark" class="w-3 h-3 text-cyan-400 mr-1"></i> RALLIES:
-              </span>
-              <div id="rally-chips-container" class="flex items-center space-x-1.5 min-w-0">
-                <!-- Dynamically populated from computed match telemetry -->
-              </div>
-            </div>
-
-          </div>
+      <div class="hv-video-controls">
+        <div class="hv-timeline-track-wrapper">
+          <div id="rally-timeline-ticks" class="rally-timeline-ticks"></div>
+          <input id="rally-timeline-slider" type="range" min="0" max="499" value="14.5" step="0.04"
+                 class="hv-slider" style="position:relative; z-index:4;"
+                 title="Scrub broadcast video & 3D Shot Explorer in lockstep">
         </div>
 
-        <!-- ==================================================================
-             RIGHT COLUMN (5 COLS): 2D BWF COURT CANVAS + 3 SUB-REGISTERS
-             ================================================================== -->
-        <div id="view-column-2d" class="lg:col-span-5 hidden lg:flex flex-col h-full min-h-0 min-w-0 space-y-1.5 w-full overflow-y-auto lg:overflow-hidden no-scrollbar">
-          
-          <!-- 2D Court Telemetry Panel -->
-          <div class="rounded-xl carbon-fiber-subtle p-2 border border-slate-800 flex flex-col shrink-0 h-[300px] sm:h-[340px] lg:h-auto lg:flex-1 lg:min-h-0 shadow-lg">
-            
-            <!-- Court Header & Controls -->
-            <div class="flex items-center justify-between pb-1.5 mb-1 border-b border-slate-800 text-xs shrink-0">
-              <div class="flex items-center space-x-1.5">
-                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                <span class="font-chronograph font-bold text-[11px] text-slate-200">2D BWF COURT TELEMETRY</span>
-              </div>
-              
-              <div class="flex items-center space-x-1.5">
-                <button id="btn-toggle-heatmap" class="px-2 py-0.5 rounded bg-[#0f1722] hover:bg-slate-800 text-[10px] font-mono text-emerald-400 border border-emerald-500/30 transition-all" title="Toggle Kernel Density Estimation (KDE) Coverage">
-                  HEATMAP
-                </button>
-                <button id="btn-toggle-trails" class="px-2 py-0.5 rounded bg-[#0f1722] hover:bg-slate-800 text-[10px] font-mono text-cyan-400 border border-cyan-500/30 transition-all" title="Toggle Player Movement Trails">
-                  TRAILS
-                </button>
-              </div>
-            </div>
-
-            <!-- Court Canvas Container (Strict 13.4m x 6.1m BWF Proportions) -->
-            <div class="relative flex-1 min-h-0 rounded-lg overflow-hidden bg-[#080b0f] border border-slate-800 flex items-center justify-center">
-              <canvas id="court-canvas" class="w-full h-full block cursor-crosshair"></canvas>
-            </div>
-
-            <!-- Court Coordinate Badge & Zone Indicator -->
-            <div class="mt-1 flex items-center justify-between text-[10px] font-mono px-1 shrink-0">
-              <span id="court-coord-badge" class="text-cyan-400 font-semibold truncate">
-                13.40m × 6.10m (BWF)
-              </span>
-              <span class="text-slate-500 hidden sm:inline">
-                HOVER TO MEASURE
-              </span>
-            </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap;">
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button id="btn-play-pause" class="hv-btn hv-btn-primary">▶ Play</button>
+            <button id="btn-prev-rally" class="hv-btn">⏮ Prev Rally</button>
+            <button id="btn-next-rally" class="hv-btn">⏭ Next Rally</button>
           </div>
-
-          <!-- Precision Chronograph Sub-Registers Panel (Speedometer, Shots, Sprint) -->
-          <div class="rounded-xl carbon-fiber-dial p-2 border border-slate-800 flex flex-col shrink-0 shadow-lg bg-[#0a0e14]">
-            
-            <div class="flex items-center justify-between pb-1 mb-1 border-b border-slate-800/80 text-[10px] font-mono px-1">
-              <div class="flex items-center space-x-1.5">
-                <i data-lucide="gauge" class="w-3.5 h-3.5 text-cyan-400"></i>
-                <span class="font-chronograph font-bold text-[10px] tracking-wider text-slate-300">PRECISION CHRONOGRAPH SUB-REGISTERS</span>
-              </div>
-              <span class="text-slate-500 text-[9px] hidden sm:inline">60FPS CANVASES</span>
-            </div>
-
-            <div class="grid grid-cols-3 gap-1.5 items-center">
-              
-              <!-- Sub-Dial 1: Smash Speedometer (0 - 500 km/h) -->
-              <div class="bg-[#080b0f] rounded-lg p-1.5 border border-slate-800 flex flex-col items-center">
-                <div class="w-full flex items-center justify-between text-[8px] font-mono text-slate-400 mb-0.5">
-                  <span class="text-red-400 font-bold">SUB.01</span>
-                  <span id="subdial-speed-peak" class="lcd-cyan font-bold text-[8px]">PEAK —</span>
-                </div>
-
-                <div class="relative w-full aspect-square max-w-[85px] sm:max-w-[100px] flex items-center justify-center cursor-pointer" title="Smash Speedometer">
-                  <canvas id="speedometer-canvas" class="w-full h-full"></canvas>
-                </div>
-
-                <!-- Embedded LCD Readout -->
-                <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-speed-lcd" class="font-lcd text-xs font-black lcd-redline">— KM/H</div>
-                </div>
-              </div>
-
-              <!-- Sub-Dial 2: Rally Shot Counter (0 - 60 Shots) -->
-              <div class="bg-[#080b0f] rounded-lg p-1.5 border border-slate-800 flex flex-col items-center">
-                <div class="w-full flex items-center justify-between text-[8px] font-mono text-slate-400 mb-0.5">
-                  <span class="text-cyan-400 font-bold">SUB.02</span>
-                  <span class="text-slate-500">60-SHOT</span>
-                </div>
-
-                <div class="relative w-full aspect-square max-w-[85px] sm:max-w-[100px] flex items-center justify-center">
-                  <canvas id="shotcounter-canvas" class="w-full h-full"></canvas>
-                </div>
-
-                <!-- Embedded LCD Readout -->
-                <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-shots-lcd" class="font-lcd text-xs font-black lcd-cyan">— / —</div>
-                </div>
-              </div>
-
-              <!-- Sub-Dial 3: Sprint & Court Coverage Meter -->
-              <div class="bg-[#080b0f] rounded-lg p-1.5 border border-slate-800 flex flex-col items-center">
-                <div class="w-full flex items-center justify-between text-[8px] font-mono text-slate-400 mb-0.5">
-                  <span class="text-emerald-400 font-bold">SUB.03</span>
-                  <span class="text-emerald-400">BURST</span>
-                </div>
-
-                <div class="relative w-full aspect-square max-w-[85px] sm:max-w-[100px] flex items-center justify-center">
-                  <canvas id="coverage-canvas" class="w-full h-full"></canvas>
-                </div>
-
-                <!-- Embedded LCD Readout -->
-                <div class="negative-lcd mt-1 px-1 py-0.5 rounded w-full text-center">
-                  <div id="subdial-coverage-lcd" class="font-lcd text-xs font-black lcd-emerald">— KM</div>
-                </div>
-              </div>
-            </div>
-
+          <div class="tabular-nums" style="font-size:12px; color:var(--muted);">
+            <span id="timeline-timecode-elapsed" style="color:var(--text); font-weight:600;">00:14.5</span>
+            <span> / </span>
+            <span id="timeline-timecode-total">08:18.4</span>
           </div>
-        </div>
-
-      </div>
-
-      <!-- Footer Specs Bar (Ultra Slim, zero-scroll friendly) -->
-      <div class="pt-1 mt-1 border-t border-slate-800/80 flex items-center justify-between text-[9px] font-mono text-slate-500 shrink-0 min-w-0 w-full overflow-hidden">
-        <div class="truncate mr-2">
-          HAWKVIEW SPORTS VISION // CHRONO
-        </div>
-        <div class="flex items-center space-x-1.5 text-slate-400 shrink-0 whitespace-nowrap">
-          <span class="text-emerald-400 font-semibold">$0/MO</span>
-          <span>•</span>
-          <span class="text-cyan-400 font-semibold">100% OFFLINE</span>
         </div>
       </div>
+    </section>
 
-    </div>
-  </div>
+    <!-- 3.5 ANALYTICS CARDS (Full Width Bottom) -->
+    <section id="analytics-cards-container" class="hv-area-analytics">
+      <!-- Populated by js/analytics-cards.js -->
+    </section>
+
+  </main>
 
   <!-- ========================================================================
-       THE "IS THIS SHIT LAGGING?" MULTI-STAGE PROGRESS MODAL
-       Simulates on-device Neural Engine video ingestion with live frame ticker,
-       stage progress, and real-time teaser alerts!
+       PLAIN PIPELINE PROGRESS & TELEMETRY MODAL (Spec Section 2.1)
        ======================================================================== -->
-  <div id="anti-lag-modal" class="fixed inset-0 bg-black/85 backdrop-blur-md z-50 hidden items-center justify-center p-3 sm:p-6 overflow-y-auto">
-    <div class="titanium-chassis w-full max-w-3xl rounded-2xl p-5 sm:p-7 border border-slate-700 relative bg-[#0a0e14]">
-      
-      <!-- Close Button -->
-      <button id="btn-close-modal" class="absolute top-5 right-5 w-8 h-8 rounded-lg bg-[#0f1722] hover:bg-slate-800 border border-slate-700 text-slate-300 flex items-center justify-center transition-all">
-        <i data-lucide="x" class="w-4 h-4"></i>
-      </button>
-
-      <!-- Modal Header -->
-      <div class="flex items-center space-x-3 mb-4 pr-10">
-        <div class="w-10 h-10 rounded-lg bg-cyan-950/60 border border-cyan-500/40 flex items-center justify-center flex-shrink-0">
-          <i data-lucide="cpu" class="w-5 h-5 text-cyan-400"></i>
-        </div>
-        <div class="min-w-0">
-          <div class="flex flex-wrap items-center gap-2">
-            <h2 class="text-sm sm:text-base font-chronograph font-bold text-slate-100 tracking-wide">
-              HAWKVIEW SPORTS VISION // INGESTION & ANALYSIS
-            </h2>
-            <span id="modal-status-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold whitespace-nowrap">STANDBY</span>
-          </div>
-          <p id="modal-subtitle" class="text-xs text-slate-400 font-mono truncate">
-            TrackNetV3 Shuttle Tracking • YOLO11 Pose • MonoTrack 3D Aerodynamics
-          </p>
-        </div>
+  <div id="anti-lag-modal" class="hv-modal-backdrop hidden">
+    <div class="hv-modal-card">
+      <div class="hv-panel-header">
+        <h2 class="hv-panel-title" style="font-size:13px; color:var(--text);">Pipeline Telemetry & Measured Metrics</h2>
+        <button id="btn-close-modal" class="hv-btn" style="padding:3px 8px;">✕</button>
       </div>
 
-      <!-- 1. YOUTUBE BROWSER SECURITY NOTICE & GENUINE ACTIONS CONTAINER -->
-      <div id="modal-youtube-mode" class="hidden mb-4">
-        <div class="p-4 rounded-xl bg-amber-950/40 border border-amber-500/50 mb-3.5 font-mono text-xs">
-          <div class="flex items-center space-x-2 text-amber-400 font-bold mb-1.5 text-xs tracking-wider">
-            <span class="text-base">⚠️</span>
-            <span>BROWSER SECURITY NOTICE</span>
-          </div>
-          <p class="text-slate-200 leading-relaxed mb-2">
-            Web browsers strictly prevent client-side JavaScript from reading video frame pixels out of cross-origin YouTube iframes (<span class="text-amber-300 font-bold">SecurityError: Cross-Origin Canvas Tainting</span>).
-          </p>
-          <p class="text-slate-400 leading-relaxed">
-            Direct pixel extraction for TrackNet and YOLO11-Pose requires the local Python Vision Engine or a local video file (<span class="text-cyan-300 font-bold">.mp4</span>).
-          </p>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5 mb-3.5">
-          <!-- Action 1: Bind Verified Match Telemetry -->
-          <div class="p-3 rounded-xl bg-[#0f1722] border border-cyan-500/40 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center space-x-1.5 text-cyan-300 font-bold text-xs mb-1">
-                <span>⚡</span>
-                <span>1. BIND VERIFIED TELEMETRY</span>
-              </div>
-              <p class="text-[11px] text-slate-400 leading-relaxed mb-2.5">
-                Link verified ground-truth 3D telemetry and 6-rally sequence to the active video:
-              </p>
-            </div>
-            <div class="space-y-1.5">
-              <button id="btn-bind-popov-telemetry" class="w-full px-2.5 py-1.5 rounded-lg bg-cyan-950 border border-cyan-500/50 text-cyan-300 hover:border-cyan-400 font-bold text-[10px] sm:text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95 text-left">
-                <span>🇲🇾 LZJ vs 🇫🇷 Popov (EhN9qzVe7_g)</span>
-              </button>
-              <button id="btn-bind-sly-telemetry" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 hover:border-slate-500 font-bold text-[10px] sm:text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95 text-left">
-                <span>🇲🇾 LZJ vs 🇹🇼 Su Li Yang</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Action 2: Run Local Python Worker -->
-          <div class="p-3 rounded-xl bg-[#0f1722] border border-slate-800 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center space-x-1.5 text-emerald-400 font-bold text-xs mb-1">
-                <span>💻</span>
-                <span>2. LOCAL PYTHON WORKER</span>
-              </div>
-              <p class="text-[11px] text-slate-400 leading-relaxed mb-2">
-                Execute the real TrackNet + YOLO11 + MonoTrack ODE pipeline via CLI:
-              </p>
-            </div>
-            <div>
-              <div class="relative bg-black rounded p-2 border border-slate-800 text-[10px] font-mono text-emerald-300 mb-2 truncate">
-                <span id="cmd-python-worker">python3 -m engine.pipeline --video &lt;file_or_stream&gt;</span>
-              </div>
-              <button id="btn-copy-python-cmd" class="w-full px-2.5 py-1.5 rounded-lg bg-slate-900 border border-emerald-500/40 text-emerald-300 hover:border-emerald-400 font-bold text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95">
-                <i data-lucide="copy" class="w-3.5 h-3.5"></i>
-                <span id="btn-copy-text">COPY COMMAND</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- Action 3: Export Telemetry -->
-          <div class="p-3 rounded-xl bg-[#0f1722] border border-slate-800 flex flex-col justify-between">
-            <div>
-              <div class="flex items-center space-x-1.5 text-amber-300 font-bold text-xs mb-1">
-                <span>💾</span>
-                <span>3. EXPORT JSON DATASET</span>
-              </div>
-              <p class="text-[11px] text-slate-400 leading-relaxed mb-2.5">
-                Download the complete active match telemetry dataset to local disk:
-              </p>
-            </div>
-            <button id="btn-export-yt-telemetry" class="w-full px-2.5 py-2 rounded-lg bg-amber-950/60 border border-amber-500/50 text-amber-300 hover:border-amber-400 font-bold text-[11px] flex items-center justify-center space-x-1 transition-all active:scale-95">
-              <i data-lucide="download" class="w-3.5 h-3.5"></i>
-              <span>EXPORT MATCH_TELEMETRY.JSON</span>
-            </button>
-          </div>
-        </div>
+      <div id="anti-lag-modal-body">
+        <!-- Populated by js/anti-lag-modal.js with real measured numbers -->
       </div>
 
-      <!-- 2. LOCAL VIDEO ANALYSIS CONTAINER (For local HTML5 video or sample video) -->
-      <div id="modal-local-mode" class="mb-4">
-        <!-- Hardware Telemetry Dashboard Grid -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-            <div class="text-[10px] text-slate-500 font-mono">EXECUTION</div>
-            <div class="text-sm font-bold text-emerald-400 font-mono">ON-DEVICE</div>
-          </div>
-          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-            <div class="text-[10px] text-slate-500 font-mono">FRAME RATE</div>
-            <div id="pipeline-fps-counter" class="text-sm font-bold text-cyan-400 font-mono">25.0 FPS</div>
-          </div>
-          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-            <div class="text-[10px] text-slate-500 font-mono">TOTAL FRAMES</div>
-            <div id="pipeline-total-frames-badge" class="text-sm font-bold text-slate-200 font-mono">12,461 FRAMES</div>
-          </div>
-          <div class="p-2.5 rounded-lg bg-[#0f1722] border border-slate-800 text-center">
-            <div class="text-[10px] text-slate-500 font-mono">MATCH DURATION</div>
-            <div id="pipeline-duration-badge" class="text-sm font-bold text-amber-400 font-mono">08:18.44</div>
-          </div>
-        </div>
-
-        <!-- Master Multi-Stage Progress Bar -->
-        <div class="p-4 rounded-xl bg-[#080b0f] border border-slate-800 mb-4">
-          <div class="flex items-center justify-between text-xs font-mono mb-2">
-            <span id="pipeline-stage-name" class="text-cyan-300 font-bold">Stage 1: Video Frame Decoding & Sampling</span>
-            <span id="pipeline-progress-pct" class="text-lg font-black text-cyan-400 font-lcd">0%</span>
-          </div>
-
-          <!-- Progress Track -->
-          <div class="w-full h-2.5 bg-slate-900 rounded-sm overflow-hidden border border-slate-800">
-            <div id="pipeline-progress-bar" class="h-full bg-cyan-400 rounded-sm w-0 transition-all duration-150"></div>
-          </div>
-
-          <!-- Frame Ticker Bar -->
-          <div class="flex items-center justify-between text-[11px] font-mono text-slate-400 mt-2">
-            <span id="pipeline-frame-ticker">0 / 12,461 FRAMES ANALYZED</span>
-            <span id="pipeline-meta-resolution" class="text-emerald-400 font-semibold">1920x1080 @ 25 FPS</span>
-          </div>
-        </div>
-
-        <!-- Real-Time Teaser Callout -->
-        <div class="p-3 rounded-lg bg-[#140b0f] border border-red-500/30 flex items-center space-x-3 mb-4">
-          <span class="text-lg">⚡</span>
-          <div class="flex-1">
-            <div class="text-[10px] text-red-400 font-mono font-bold tracking-wider">PIPELINE STATUS & TEASER</div>
-            <div id="pipeline-teaser-ticker" class="text-xs text-slate-200 font-mono font-semibold truncate">
-              Ready to analyze 12,461 broadcast frames (8m 18s @ 25 FPS) across 22 active rallies.
-            </div>
-          </div>
-        </div>
-
-        <!-- 4 Pipeline Stage Cards -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-4 text-xs">
-          <!-- Stage 1 -->
-          <div id="stage-card-1" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-200">1. Frame Ingestion (12,461 Frames)</span>
-              <span id="stage-badge-1" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
-            </div>
-            <p class="text-[11px] text-slate-400">Ingests all 12,461 broadcast frames @ 25 FPS; verifies Yonex green court mat.</p>
-          </div>
-
-          <!-- Stage 2 -->
-          <div id="stage-card-2" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-200">2. Homography & Segmentation</span>
-              <span id="stage-badge-2" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
-            </div>
-            <p class="text-[11px] text-slate-400">Solves 3x3 homography matrix H; segments 22 rallies and 23 intermissions.</p>
-          </div>
-
-          <!-- Stage 3 -->
-          <div id="stage-card-3" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-200">3. Ballistic Drag ODE</span>
-              <span id="stage-badge-3" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
-            </div>
-            <p class="text-[11px] text-slate-400">MonoTrack aerodynamic drag ODE resolves true 3D launch velocity.</p>
-          </div>
-
-          <!-- Stage 4 -->
-          <div id="stage-card-4" class="p-3 rounded-lg border border-slate-800 bg-[#0f1722]">
-            <div class="flex items-center justify-between mb-1">
-              <span class="font-bold text-slate-200">4. Metric Telemetry Synthesis</span>
-              <span id="stage-badge-4" class="text-[10px] font-bold text-slate-500 bg-[#080b0f] px-2 py-0.5 rounded border border-slate-800">QUEUED</span>
-            </div>
-            <p class="text-[11px] text-slate-400">Synthesizes shot landing coordinates, sprint distances, and court coverage.</p>
-          </div>
-        </div>
+      <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--border);">
+        <button id="btn-export-telemetry" class="hv-btn hv-btn-primary">Download match_telemetry.json</button>
       </div>
-
-      <!-- Live CV Terminal Console -->
-      <div class="mb-4">
-        <div class="text-[10px] font-mono text-slate-500 mb-1 flex items-center justify-between">
-          <span>CONSOLE TELEMETRY STREAM</span>
-          <span>STDOUT / STDERR</span>
-        </div>
-        <div id="pipeline-terminal-output" class="h-28 rounded-xl bg-black p-3 border border-slate-800 overflow-y-auto font-mono text-xs">
-          <!-- Populated by JS -->
-        </div>
-      </div>
-
-      <!-- Action Buttons Row -->
-      <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800">
-        <div class="flex items-center space-x-2">
-          <button id="btn-start-ingestion" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-cyan-300 border-cyan-500/40">
-            RUN LOCAL VIDEO ANALYSIS
-          </button>
-        </div>
-
-        <button id="btn-export-telemetry" class="knurled-pusher px-4 py-2 rounded-lg text-xs font-chronograph font-bold text-emerald-300 border-emerald-500/40 flex items-center space-x-1.5">
-          <i data-lucide="download" class="w-3.5 h-3.5"></i>
-          <span>EXPORT MATCH_TELEMETRY.JSON</span>
-        </button>
-      </div>
-
     </div>
   </div>
 
-  <!-- ====================================================================
-       YOUTUBE MATCH INGESTION & SYNC MODAL
-       Direct zero-conversion broadcast ingestion & synchronized 3D twin
-       ==================================================================== -->
-  <div id="youtube-url-modal" class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-black/85 backdrop-blur-md hidden">
-    <div class="w-full max-w-lg rounded-2xl bg-[#0a0e14] border border-red-500/50 p-4 sm:p-5 shadow-2xl relative">
-      
-      <!-- Close Button -->
-      <button id="btn-close-yt-modal" class="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-colors">
-        <i data-lucide="x" class="w-4 h-4"></i>
-      </button>
-
-      <!-- Modal Header -->
-      <div class="flex items-center space-x-2.5 mb-3 border-b border-slate-800 pb-2.5">
-        <div class="w-8 h-8 rounded-lg bg-red-950/80 border border-red-500/40 flex items-center justify-center">
-          <i data-lucide="youtube" class="w-4 h-4 text-red-400"></i>
-        </div>
-        <div>
-          <h3 class="font-chronograph font-bold text-sm sm:text-base text-slate-100 tracking-wider">
-            YOUTUBE STREAM SYNC // CASIO EDIFICE
-          </h3>
-          <p class="text-[10px] font-mono text-slate-400">Direct zero-conversion broadcast ingestion & synchronized 3D twin</p>
-        </div>
-      </div>
-
-      <!-- URL Input Box -->
-      <div class="space-y-1.5 mb-3">
-        <label class="text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-          <span>YOUTUBE VIDEO OR HIGHLIGHT URL:</span>
-          <span class="text-cyan-400 text-[9px]">ZERO MP4 DOWNLOAD NEEDED</span>
-        </label>
-        <div class="relative">
-          <input id="yt-url-input" type="text" placeholder="https://www.youtube.com/watch?v=... or youtu.be/..." 
-                 class="w-full bg-[#05080c] border border-slate-700 focus:border-red-400 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-600 outline-none transition-all pr-14">
-          <button id="btn-paste-clipboard" class="absolute right-1.5 top-1/2 -translate-y-1/2 px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 text-[9px] font-mono border border-slate-600" title="Paste from clipboard">
-            PASTE
-          </button>
-        </div>
-      </div>
-
-      <!-- Quick Preset Badminton Match Clips -->
-      <div class="mb-3">
-        <div class="text-[9px] font-mono text-slate-500 uppercase tracking-wider mb-1.5 font-bold flex items-center justify-between">
-          <span>⚡ VERIFIED BWF MATCH STREAMS:</span>
-          <span class="text-cyan-400 text-[8px]">EMBED ENABLED</span>
-        </div>
-        <div class="grid grid-cols-1 gap-1.5 text-left font-mono">
-          <!-- Preset 1: Lee Zii Jia vs Christo Popov -->
-          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-cyan-500/50 hover:border-cyan-400 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=EhN9qzVe7_g" data-offset="25.0" data-match="popov" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Christo Popov (FRA)">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-cyan-300 group-hover:text-cyan-200">🇲🇾 Lee Zii Jia vs 🇫🇷 Christo Popov</span>
-              <span class="text-[9px] text-cyan-400 font-bold bg-cyan-950/80 px-1.5 py-0.5 rounded border border-cyan-500/40">QF [EhN9qzVe7_g]</span>
-            </div>
-            <div class="text-[9px] text-slate-400 mt-0.5">8:18 broadcast highlight • Arctic Open 2024 Men's Singles QF</div>
-          </button>
-
-          <!-- Preset 2: Lee Zii Jia vs Su Li Yang (Full Match) -->
-          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-orange-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=BPv0hE0ugkk" data-offset="312.1" data-match="sly" data-label="BWF Arctic Open: Lee Zii Jia (MAS) vs Su Li Yang (TPE)">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-200 group-hover:text-orange-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
-              <span class="text-[9px] text-orange-400 font-bold bg-orange-950/60 px-1.5 py-0.5 rounded border border-orange-500/30">R16 FULL MATCH</span>
-            </div>
-            <div class="text-[9px] text-slate-500 mt-0.5">Arctic Open 2024 Men's Singles R16 (Full Match)</div>
-          </button>
-
-          <!-- Preset 3: Lee Zii Jia vs Su Li Yang (Highlights) -->
-          <button class="yt-preset-btn p-2 rounded-lg bg-[#0f1722] hover:bg-[#162232] border border-slate-800 hover:border-emerald-500/40 text-left transition-all group"
-                  data-url="https://www.youtube.com/watch?v=cFO4yO5s0BA" data-offset="74.2" data-match="sly" data-label="Lee Zii Jia vs Su Li Yang | Match Highlights">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-semibold text-slate-200 group-hover:text-cyan-300">🇲🇾 Lee Zii Jia vs 🇹🇼 Su Li Yang</span>
-              <span class="text-[9px] text-emerald-400 font-bold bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-500/30">HIGHLIGHTS</span>
-            </div>
-            <div class="text-[9px] text-slate-500 mt-0.5">High-speed baseline rally highlights & jump smash compilation</div>
-          </button>
-        </div>
-      </div>
-
-      <!-- Server & Origin Note -->
-      <div class="mb-3 px-2.5 py-1.5 rounded-lg bg-[#05080c] border border-slate-800/80 text-[9px] font-mono text-slate-400 flex items-center justify-between">
-        <span class="flex items-center space-x-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>LOCAL SERVER: <a href="http://localhost:8123/index.html" class="text-cyan-400 underline hover:text-cyan-300 font-bold">localhost:8123</a></span>
-        </span>
-        <span class="text-slate-500">Bypasses Error 153 Domain Check</span>
-      </div>
-
-      <!-- Action Buttons Row -->
-      <div class="flex items-center justify-between pt-2 border-t border-slate-800 gap-2">
-        <button id="btn-cancel-yt-modal" class="px-3 py-1.5 rounded-lg text-xs font-chronograph font-bold text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800">
-          CANCEL
-        </button>
-        <button id="btn-submit-yt-url" class="px-4 py-1.5 rounded-lg text-xs font-chronograph font-bold text-red-200 bg-red-950/80 border border-red-500/60 hover:bg-red-900/80 hover:border-red-400 flex items-center space-x-1.5 transition-all shadow-lg active:scale-95">
-          <i data-lucide="play" class="w-3.5 h-3.5 text-red-400"></i>
-          <span>LOAD & SYNC TO 3D TWIN</span>
-        </button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- YouTube IFrame API -->
-  <script src="https://www.youtube.com/iframe_api"></script>
-
-  <!-- Scripts: Telemetry Data -> Sub-Dials -> Court -> 3D Viewport -> Player -> Modal -> App -->
+  <!-- Application Scripts -->
   <script src="js/telemetry-data.js"></script>
-  <script src="js/subdials.js"></script>
-  <script src="js/court-view.js"></script>
   <script src="js/three-viewport.js"></script>
+  <script src="js/shot-explorer.js"></script>
+  <script src="js/filter-bar.js"></script>
+  <script src="js/player-card.js"></script>
+  <script src="js/rally-deck.js"></script>
+  <script src="js/analytics-cards.js"></script>
   <script src="js/broadcast-player.js"></script>
   <script src="js/anti-lag-modal.js"></script>
   <script src="js/app.js"></script>

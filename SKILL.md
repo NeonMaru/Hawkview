@@ -1,6 +1,6 @@
 ---
 name: Hawkview Badminton Analytics & Sports Vision Protocol
-description: Master architectural vision, Casio Edifice sports chronograph design system, on-device mobile AI pipeline, and 3D physics specifications for the Hawkview badminton match analytics platform.
+description: Master architectural vision, clean-court (PB Vision style) design system, on-device mobile AI pipeline, and 3D physics specifications for the Hawkview badminton match analytics platform.
 ---
 
 # Hawkview: Badminton Analytics & Sports Vision Protocol
@@ -19,30 +19,19 @@ description: Master architectural vision, Casio Edifice sports chronograph desig
 
 ---
 
-## ⌚ 2. Design System: Casio Edifice Sports Chronograph
+## 🎨 2. Design System: Clean Court (PB Vision style)
 
-The visual language of Hawkview is inspired directly by the **Casio Edifice High-Performance Sports Chronograph** series (featuring dual-time analog-digital motors, carbon weave dials, tachymeter bezels, and precision split-second telemetry):
+Decided by Sam on 2026-10-14: the Casio Edifice chronograph design is dropped.
+Hawkview uses a clean, data-first look modelled on PB Vision, strictly
+adapted to badminton.
 
-### 2.1 Core Materials & Palette
-* **Base Plate / Dial**: Deep Carbon Fiber Weave (`#090a0d` to `#11141c`) with subtle 45° diagonal texture.
-* **Chassis & Bezel**: Brushed Titanium / Gunmetal Steel (`#1e232d` border, `#2a3241` metallic highlights, `#3a4559` chamfered bevels).
-* **Tachymeter Outer Ring**: High-contrast numbered scale markings (`60, 65, 70 ... 400, 500`) for instantaneous velocity reading.
-* **Negative LCD Digital Displays**: Inverted black LCD screens (`#05080c` recessed background) with crisp turquoise / ice-blue (`#00f0ff` / `#38bdf8`) or amber/lime dot-matrix / 7-segment digital readouts for Scorebug, Timers, and Frame counters.
-* **Luminescent Accent Colors**:
-  * **Primary Speed / Electric Accent**: Electric Ice Blue (`#00f0ff` / `#38bdf8`) or Circuit Teal (`#00e5a3`).
-  * **Smash / High-Intensity Needle**: Racing Red / Fluorescent Orange (`#ff2e5b` / `#ff5722`).
-  * **Court Green**: Yonex Official Court Mat Emerald (`#0f766e` / `#10b981`).
-
-### 2.2 Mechanical Telemetry Components
-1. **Chronograph Sub-Dials**:
-   * **Smash Speedometer**: Radial gauge with metallic needle and color-coded zones (Green: <200 km/h, Yellow: 200–320 km/h, Redline: >350 km/h).
-   * **Rally Shot Counter**: Dual-hand 60-shot mechanical register.
-   * **Fatigue / Sprint Intensity Gauge**: Micro-dial showing physical exertion and court sprint pace.
-2. **Knurled Pusher Buttons**:
-   * Industrial tactile buttons (`START/STOP`, `LAP/SPLIT`, `RESET`, `ANALYZE`) with cross-hatched knurled metal borders and active mechanical click states.
-3. **Multi-Stage "Anti-Lag" Progress Bar**:
-   * Designed like a stopwatch countdown complication.
-   * Includes live FPS meter, current stage name, frame counter ticker (e.g. `14,210 / 28,800`), and live telemetry teasers (*"⚡ 398 km/h smash discovered at 04:12"*).
+* Flat light-grey court with true-width (40 mm) BWF lines and a translucent net.
+  Light and dark themes.
+* Shots are 3D arcs. Green = rally continues, blue = winner, red = error
+  (out / net), amber = selected.
+* No carbon weave, bevels, tachymeters, sub-dials, LCD digits, glow or arena
+  scenery.
+* Full spec, colour tokens and layout: `docs/plans/badminton-shot-explorer-spec.md`.
 
 ---
 

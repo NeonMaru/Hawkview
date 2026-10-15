@@ -1,0 +1,901 @@
+/*
+ * Hawkview Badminton Shot Explorer — Clean PB-Vision Style Sheet
+ * Strictly adheres to Spec Section 2.1, 2.2, and 3:
+ * - Exact Light (:root) and Dark ([data-theme="dark"]) color tokens
+ * - System sans stack: -apple-system, Inter, Segoe UI, sans-serif
+ * - Tabular numerals for all numbers and statistics
+ * - Zero gradients, zero glow, zero carbon-weave, zero screws/7-segment fonts
+ */
+
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --text: #1c1f24;
+  --muted: #6b7280;
+  --court-floor: #dcdfe4;
+  --court-line: #2b2f36;
+  --net: rgba(107, 114, 128, 0.45);
+  --net-hex: #6b7280;
+  --shot-continue: #5fae3a;
+  --shot-winner: #2563eb;
+  --shot-error: #d93025;
+  --shot-selected: #f59e0b;
+
+  --border: #e2e5ea;
+  --surface-subtle: #f0f2f5;
+  --hover-bg: #ebedf2;
+}
+
+[data-theme="dark"] {
+  --bg: #0f1115;
+  --panel: #171a20;
+  --text: #e8eaee;
+  --muted: #9aa1ab;
+  --court-floor: #22262e;
+  --court-line: #d5d8dd;
+  --net: rgba(154, 161, 171, 0.45);
+  --net-hex: #9aa1ab;
+  --shot-continue: #7cc84a;
+  --shot-winner: #4c8dff;
+  --shot-error: #ff5a4f;
+  --shot-selected: #fbbf24;
+
+  --border: #262b35;
+  --surface-subtle: #1e222b;
+  --hover-bg: #252a34;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, Inter, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular-nums,
+table,
+td,
+th,
+.hv-stat-value,
+.hv-badge {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   TOP BAR
+   ============================================================================ */
+.hv-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  background-color: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.hv-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hv-brand-title {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.hv-match-meta {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hv-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ============================================================================
+   BUTTONS & INPUTS (Plain, flat, zero gradients/glow)
+   ============================================================================ */
+.hv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.12s ease, border-color 0.12s ease;
+}
+
+.hv-btn:hover {
+  background-color: var(--hover-bg);
+}
+
+.hv-btn.active {
+  background-color: var(--text);
+  color: var(--panel);
+  border-color: var(--text);
+}
+
+.hv-btn-primary {
+  background-color: var(--shot-winner);
+  color: #ffffff;
+  border-color: var(--shot-winner);
+}
+
+.hv-btn-primary:hover {
+  opacity: 0.92;
+  background-color: var(--shot-winner);
+}
+
+.hv-select,
+.hv-input {
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text);
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  outline: none;
+}
+
+.hv-select:focus,
+.hv-input:focus {
+  border-color: var(--shot-winner);
+}
+
+/* ============================================================================
+   SECTION 3 MAIN WORKSPACE GRID
+   Wide Desktop (>= 1120px) — 3-Column Above-the-Fold Cockpit:
+     Col 1 (300px): Player Card (spans rows 1-2)
+     Col 2 (1.15fr): 3D Court (Shot Explorer) + Filter Bar (spans rows 1-2)
+     Col 3 (0.98fr): Broadcast Video (1:1 Sync) on top + Rally Deck below
+     Row 3 (Full width): 4 Analytics Cards
+   Medium Desktop (860px–1119px):
+     Row 1: 3D Court + Filter Bar (left) | Broadcast Video (right) — side-by-side!
+     Row 2: Player Card (left)           | Rally Deck (right)
+     Row 3: Analytics (full width)
+   Mobile (< 860px):
+     Stacks cleanly: 3D Court -> Collapsible Filter Bar -> Video -> Rally Deck -> Player Card -> Analytics
+   ============================================================================ */
+.hv-workspace {
+  max-width: 1720px;
+  margin: 0 auto;
+  padding: 10px 14px 22px;
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1.15fr) minmax(350px, 0.98fr);
+  grid-template-areas:
+    "player explorer video"
+    "player explorer rallies"
+    "analytics analytics analytics";
+  gap: 10px;
+  align-items: stretch;
+}
+
+.hv-area-player {
+  grid-area: player;
+}
+
+.hv-area-explorer {
+  grid-area: explorer;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.hv-area-rallies {
+  grid-area: rallies;
+}
+
+.hv-area-video {
+  grid-area: video;
+}
+
+.hv-area-analytics {
+  grid-area: analytics;
+}
+
+@media (max-width: 1119px) and (min-width: 860px) {
+  .hv-workspace {
+    grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr);
+    grid-template-areas:
+      "explorer  video"
+      "player    rallies"
+      "analytics analytics";
+  }
+}
+
+@media (max-width: 859px) {
+  .hv-workspace {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+    padding: 6px;
+    gap: 8px;
+  }
+  .hv-area-explorer  { order: 1; width: 100%; max-width: 100%; }
+  .hv-area-video     { order: 2; width: 100%; max-width: 100%; }
+  .hv-area-rallies   { order: 3; width: 100%; max-width: 100%; }
+  .hv-area-player    { order: 4; width: 100%; max-width: 100%; }
+  .hv-area-analytics { order: 5; width: 100%; max-width: 100%; }
+}
+
+/* ============================================================================
+   PANELS & CARDS
+   ============================================================================ */
+.hv-panel {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.hv-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-bottom: 7px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.hv-panel-title {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ============================================================================
+   3.1 3D COURT (SHOT EXPLORER) + RIGHT CAMERA BUTTON STACK
+   ============================================================================ */
+.hv-court-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  min-height: 430px;
+}
+
+/* Non-overlapping Header Strip above the 3D Canvas */
+.hv-court-overlay-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 10px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  background-color: var(--panel);
+  border-bottom: 1px solid var(--border);
+  z-index: 10;
+}
+
+.hv-court-mode-bar,
+.hv-court-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--text);
+}
+
+.hv-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.hv-legend-swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.hv-legend-dashed {
+  width: 12px;
+  height: 0;
+  border-top: 2px dashed var(--muted);
+  display: inline-block;
+}
+
+.hv-court-row {
+  display: flex;
+  align-items: stretch;
+  flex: 1;
+  gap: 0;
+  min-height: 390px;
+  height: 100%;
+  position: relative;
+}
+
+.hv-court-stage {
+  flex: 1;
+  position: relative;
+  min-width: 0;
+  min-height: 390px;
+  overflow: hidden;
+  background-color: var(--bg);
+}
+
+canvas {
+  max-width: 100%;
+}
+
+.hv-cam-stack {
+  width: 46px;
+  background-color: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  padding: 5px 4px;
+  gap: 3px;
+  justify-content: flex-start;
+  flex-shrink: 0;
+  z-index: 15;
+}
+
+.hv-cam-btn {
+  width: 100%;
+  padding: 6px 2px;
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted);
+  background-color: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.hv-cam-btn:hover {
+  background-color: var(--surface-subtle);
+  color: var(--text);
+}
+
+.hv-cam-btn.active {
+  background-color: var(--surface-subtle);
+  color: var(--text);
+  border-color: var(--border);
+}
+
+.hv-cam-btn-spacer {
+  flex: 1;
+}
+
+@media (max-width: 859px) {
+  .hv-court-card {
+    min-height: 0;
+  }
+  .hv-court-overlay-top {
+    padding: 5px 8px;
+    gap: 4px 8px;
+  }
+  .hv-court-row {
+    min-height: 250px;
+    height: 265px;
+  }
+  .hv-court-stage {
+    min-height: 250px;
+  }
+  .hv-cam-stack {
+    width: 40px;
+    padding: 4px 3px;
+    gap: 2px;
+  }
+  .hv-cam-btn {
+    padding: 4px 1px;
+    font-size: 10px;
+  }
+}
+
+/* Floating Shot Hover Tooltip */
+.hv-shot-tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 30;
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 11.5px;
+  min-width: 185px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+.hv-shot-tooltip.hidden {
+  display: none;
+}
+
+.hv-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.hv-tooltip-label {
+  color: var(--muted);
+}
+
+.hv-tooltip-val {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================================
+   3.2 FILTER BAR (Compact on Desktop, Collapsible Drawer on Mobile)
+   ============================================================================ */
+.hv-filter-bar {
+  background-color: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hv-filter-mobile-header {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hv-filter-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.hv-filter-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.hv-filter-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.hv-filter-summary {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 859px) {
+  .hv-filter-bar {
+    padding: 6px 8px;
+  }
+  .hv-filter-mobile-header {
+    display: flex;
+  }
+  .hv-filter-controls {
+    display: none;
+    padding-top: 6px;
+    border-top: 1px solid var(--border);
+  }
+  .hv-filter-bar.mobile-open .hv-filter-controls {
+    display: flex;
+  }
+}
+
+/* ============================================================================
+   3.3 PLAYER CARD
+   ============================================================================ */
+.hv-player-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.hv-player-tab {
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-subtle);
+  color: var(--text);
+  font-weight: 600;
+  font-size: 11.5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.hv-player-tab.active {
+  background-color: var(--text);
+  color: var(--panel);
+  border-color: var(--text);
+}
+
+.hv-player-profile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px;
+  background-color: var(--surface-subtle);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.hv-stat-strip {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.hv-stat-box {
+  padding: 5px 6px;
+  background-color: var(--surface-subtle);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  text-align: center;
+}
+
+.hv-stat-box-label {
+  font-size: 10px;
+  color: var(--muted);
+  display: block;
+}
+
+.hv-stat-box-value {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.hv-stat-box-sub {
+  font-size: 9.5px;
+  color: var(--muted);
+  display: block;
+}
+
+/* Speed Table */
+.hv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11.5px;
+}
+
+.hv-table th {
+  text-align: left;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 3px 5px;
+  border-bottom: 1px solid var(--border);
+}
+
+.hv-table td {
+  padding: 3.5px 5px;
+  border-bottom: 1px solid var(--border);
+  font-variant-numeric: tabular-nums;
+}
+
+.hv-table tr:last-child td {
+  border-bottom: none;
+}
+
+.hv-eye-btn {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background-color: var(--surface-subtle);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 10.5px;
+}
+
+.hv-eye-btn:hover,
+.hv-eye-btn.active {
+  background-color: var(--shot-winner);
+  color: #ffffff;
+  border-color: var(--shot-winner);
+}
+
+/* 3x3 Contact Map */
+.hv-contact-map-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3px;
+  padding: 5px;
+  background-color: var(--court-floor);
+  border: 1px solid var(--court-line);
+  border-radius: 6px;
+}
+
+.hv-contact-cell {
+  padding: 5px 3px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background-color: var(--panel);
+  color: var(--text);
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.hv-contact-cell:hover {
+  border-color: var(--shot-winner);
+}
+
+.hv-contact-cell.active {
+  outline: 2px solid var(--shot-selected);
+  border-color: var(--shot-selected);
+}
+
+/* ============================================================================
+   3.4 RALLY DECK
+   ============================================================================ */
+.hv-rally-list {
+  overflow-y: auto;
+  max-height: 215px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.hv-rally-row {
+  border-bottom: 1px solid var(--border);
+  background-color: var(--panel);
+}
+
+.hv-rally-row:last-child {
+  border-bottom: none;
+}
+
+.hv-rally-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.hv-rally-row-header:hover {
+  background-color: var(--hover-bg);
+}
+
+.hv-rally-row.active > .hv-rally-row-header {
+  background-color: var(--surface-subtle);
+  border-left: 3px solid var(--shot-selected);
+}
+
+.hv-rally-shots-drawer {
+  background-color: var(--surface-subtle);
+  border-top: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.hv-shot-item {
+  display: grid;
+  grid-template-columns: 32px 48px 54px 1fr 78px 66px;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.hv-shot-item:hover {
+  background-color: var(--hover-bg);
+}
+
+.hv-shot-item.selected {
+  background-color: var(--hover-bg);
+  outline: 1px solid var(--shot-selected);
+}
+
+.hv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background-color: var(--surface-subtle);
+  color: var(--muted);
+}
+
+.hv-badge-winner {
+  color: var(--shot-winner);
+  border-color: var(--shot-winner);
+}
+
+.hv-badge-error {
+  color: var(--shot-error);
+  border-color: var(--shot-error);
+}
+
+.hv-badge-continue {
+  color: var(--shot-continue);
+  border-color: var(--shot-continue);
+}
+
+.hv-badge-warn {
+  color: var(--shot-selected);
+  border-color: var(--shot-selected);
+}
+
+/* ============================================================================
+   VIDEO PLAYER PANEL (Top-Right Cockpit alongside 3D Court)
+   ============================================================================ */
+.hv-video-stage {
+  position: relative;
+  width: 100%;
+  height: 235px;
+  background-color: #000000;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.hv-video-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+@media (max-width: 859px) {
+  .hv-video-stage {
+    height: 200px;
+  }
+  .hv-rally-list {
+    max-height: 240px;
+  }
+}
+
+.hv-timeline-track-wrapper {
+  position: relative;
+  width: 100%;
+  height: 22px;
+  display: flex;
+  align-items: center;
+}
+
+.rally-timeline-ticks {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 6px;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+.rally-tick-zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-color: var(--shot-continue);
+  opacity: 0.45;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.rally-tick-zone.active-rally-tick {
+  background-color: var(--shot-selected);
+  opacity: 0.95;
+}
+
+.hv-slider {
+  width: 100%;
+  accent-color: var(--shot-winner);
+  cursor: pointer;
+  margin: 0;
+}
+
+/* ============================================================================
+   3.5 ANALYTICS CARDS GRID (4 CARDS)
+   ============================================================================ */
+.hv-analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1280px) {
+  .hv-analytics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .hv-analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================================
+   MODALS
+   ============================================================================ */
+.hv-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.55);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.hv-modal-backdrop.hidden {
+  display: none;
+}
+
+.hv-modal-card {
+  width: 100%;
+  max-width: 680px;
+  background-color: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 18px;
+}

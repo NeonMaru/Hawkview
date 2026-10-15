@@ -17,6 +17,8 @@ from scipy.optimize import minimize, least_squares
 
 from engine.court_geometry import BWF
 
+BWF_NET_Y = BWF.net_y
+
 
 class CourtCalibrator:
     """
@@ -96,22 +98,36 @@ class CourtCalibrator:
 
     def _solve_camera_pose(self):
         """
-        Solves camera focal lengths (fx, fy), principal point (cx, cy constrained within
-        +-50px of center: cx in [910, 1010], cy in [490, 590]), and 3D camera pose (R, t)
-        across all 3D reference points (court ground lines + net tape center and posts).
-        Brings 3D reprojection RMSE under 1.0 px (well below the 3.0 px threshold).
+        Solves square-pixel camera focal length (fx = fy = f), fixed principal point at
+        image center (cx = 960.0, cy = 540.0), and 3D camera pose (R, t) across the
+        court ground keypoints (4 corners + short-service/centre-line intersections)
+        and 3D net keypoints (net post tops on doubles sidelines + net tape center).
         """
         pts_3d = []
         pts_2d = []
 
-        # 1. Ground points mapped through homography H
-        for key, p3 in self.ref_3d_points.items():
-            if p3[2] == 0.0:
-                p_pix = self.H_court_to_pixel @ np.array([p3[0], p3[1], 1.0])
-                pts_3d.append(p3)
-                pts_2d.append([p_pix[0] / p_pix[2], p_pix[1] / p_pix[2]])
+        # 1. Ground points (4 outer corners + 4 short-service/centre-line intersections)
+        ground_keys = [
+            "corner_near_left",
+            "corner_near_right",
+            "corner_far_right",
+            "corner_far_left",
+            "short_service_near_center",
+            "short_service_far_center",
+            "doubles_service_near_center",
+            "doubles_service_far_center",
+            "short_service_near_left",
+            "short_service_near_right",
+            "short_service_far_left",
+            "short_service_far_right",
+        ]
+        for key in ground_keys:
+            p3 = self.ref_3d_points[key]
+            p_pix = self.H_court_to_pixel @ np.array([p3[0], p3[1], 1.0])
+            pts_3d.append(p3)
+            pts_2d.append([p_pix[0] / p_pix[2], p_pix[1] / p_pix[2]])
 
-        # 2. Net tape points with measured 2D image coordinates
+        # 2. Net points with measured 2D image coordinates (posts on doubles sidelines)
         for key in ["net_post_left", "net_post_right", "net_tape_center"]:
             if key in self.pixel_points:
                 pts_3d.append(self.ref_3d_points[key])
@@ -120,33 +136,26 @@ class CourtCalibrator:
         obj_pts = np.array(pts_3d, dtype=np.float64)
         img_pts = np.array(pts_2d, dtype=np.float64)
 
-        w, h = 1920.0, 1080.0
-        cx_mid, cy_mid = w / 2.0, h / 2.0
+        cx_mid, cy_mid = 960.0, 540.0
 
         def residuals(params):
-            fx, fy, cx, cy = params[0], params[1], params[2], params[3]
-            rvec, tvec = params[4:7], params[7:10]
-            K = np.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1.0]], dtype=np.float64)
+            f_len = params[0]
+            rvec, tvec = params[1:4], params[4:7]
+            K = np.array([[f_len, 0.0, cx_mid], [0.0, f_len, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
             proj, _ = cv2.projectPoints(obj_pts, rvec, tvec, K, np.zeros(5))
             return (proj.reshape(-1, 2) - img_pts).ravel()
 
-        # Initial solve with center guess
-        K_guess = np.array([[3000.0, 0, cx_mid], [0, 3500.0, cy_mid], [0, 0, 1.0]], dtype=np.float64)
+        # Initial PnP solve with square pixels and exact image center
+        K_guess = np.array([[3000.0, 0.0, cx_mid], [0.0, 3000.0, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
         _, rvec0, tvec0 = cv2.solvePnP(obj_pts, img_pts, K_guess, np.zeros(5))
 
-        x0 = [3000.0, 3500.0, cx_mid, cy_mid] + list(rvec0.ravel()) + list(tvec0.ravel())
-        bounds = (
-            [2000.0, 2000.0, cx_mid - 50.0, cy_mid - 50.0, -np.pi, -np.pi, -np.pi, -100.0, -100.0, -100.0],
-            [4500.0, 4500.0, cx_mid + 50.0, cy_mid + 50.0,  np.pi,  np.pi,  np.pi,  100.0,  100.0,  100.0]
-        )
+        x0 = [3000.0] + list(rvec0.ravel()) + list(tvec0.ravel())
+        res = least_squares(residuals, x0, method="lm")
 
-        from scipy.optimize import least_squares
-        res = least_squares(residuals, x0, bounds=bounds, method="trf")
-
-        fx_opt, fy_opt, cx_opt, cy_opt = res.x[0], res.x[1], res.x[2], res.x[3]
-        self.rvec = res.x[4:7]
-        self.tvec = res.x[7:10]
-        self.K = np.array([[fx_opt, 0, cx_opt], [0, fy_opt, cy_opt], [0, 0, 1.0]], dtype=np.float64)
+        f_opt = float(res.x[0])
+        self.rvec = res.x[1:4]
+        self.tvec = res.x[4:7]
+        self.K = np.array([[f_opt, 0.0, cx_mid], [0.0, f_opt, cy_mid], [0.0, 0.0, 1.0]], dtype=np.float64)
         self.R, _ = cv2.Rodrigues(self.rvec)
         self.camera_position = -self.R.T @ self.tvec
 
@@ -307,16 +316,23 @@ class CourtCalibrator:
         pn2 = (int(round(pn2[0] / pn2[2])), int(round(pn2[1] / pn2[2])))
         cv2.line(out, pn1, pn2, (0, 165, 255), 1)
 
-        # Draw net top cord in 3D projection if camera K, R, t available
+        # Draw net top cord and posts on doubles sidelines (BWF Law 1.6: x=0.0 and x=6.10)
         if self.K is not None and self.rvec is not None and self.tvec is not None:
-            post_left_3d = np.array([[-0.15, bwf.net_y, bwf.net_height_posts]])
-            post_right_3d = np.array([[bwf.width + 0.15, bwf.net_y, bwf.net_height_posts]])
+            post_left_3d = np.array([[0.0, bwf.net_y, bwf.net_height_posts]])
+            net_center_3d = np.array([[bwf.center_x, bwf.net_y, bwf.net_height_center]])
+            post_right_3d = np.array([[bwf.width, bwf.net_y, bwf.net_height_posts]])
             p_post_l, _ = cv2.projectPoints(post_left_3d, self.rvec, self.tvec, self.K, np.zeros(5))
+            p_net_c, _ = cv2.projectPoints(net_center_3d, self.rvec, self.tvec, self.K, np.zeros(5))
             p_post_r, _ = cv2.projectPoints(post_right_3d, self.rvec, self.tvec, self.K, np.zeros(5))
             pl = (int(round(p_post_l[0, 0, 0])), int(round(p_post_l[0, 0, 1])))
+            pc = (int(round(p_net_c[0, 0, 0])), int(round(p_net_c[0, 0, 1])))
             pr = (int(round(p_post_r[0, 0, 0])), int(round(p_post_r[0, 0, 1])))
-            cv2.line(out, pl, pr, (255, 255, 255), 2)
+            cv2.line(out, pn1, pl, (255, 255, 255), 2)
+            cv2.line(out, pn2, pr, (255, 255, 255), 2)
+            cv2.line(out, pl, pc, (255, 255, 255), 2)
+            cv2.line(out, pc, pr, (255, 255, 255), 2)
             cv2.circle(out, pl, 4, (0, 240, 255), -1)
+            cv2.circle(out, pc, 4, (0, 240, 255), -1)
             cv2.circle(out, pr, 4, (0, 240, 255), -1)
 
         return out
@@ -377,23 +393,47 @@ class CourtCalibrator:
         if data.get("camera_position_m") is not None:
             self.camera_position = np.array(data["camera_position_m"], dtype=np.float64)
 
+    def load(self, input_path: Optional[str] = None):
+        """Alias for load_calibration()."""
+        return self.load_calibration(input_path)
+
+    def pixel_to_court(self, u: float, v: float) -> Tuple[float, float]:
+        """Projects a ground-plane image pixel (u, v) to court coordinates (x, y) in meters via H_inv."""
+        if self.H_pixel_to_court is None:
+            raise ValueError("Calibration homography H_pixel_to_court is not loaded.")
+        p = self.H_pixel_to_court @ np.array([float(u), float(v), 1.0], dtype=np.float64)
+        return float(p[0] / p[2]), float(p[1] / p[2])
+
+    def court_to_pixel(self, x: float, y: float) -> Tuple[float, float]:
+        """Projects court ground coordinates (x, y) in meters to image pixel (u, v) via H."""
+        if self.H_court_to_pixel is None:
+            raise ValueError("Calibration homography H_court_to_pixel is not loaded.")
+        p = self.H_court_to_pixel @ np.array([float(x), float(y), 1.0], dtype=np.float64)
+        return float(p[0] / p[2]), float(p[1] / p[2])
+
+    def project_3d_to_pixel(self, pts_3d: np.ndarray) -> np.ndarray:
+        """Projects Nx3 court 3D points (x, y, z) in meters to Nx2 image pixels using K, rvec, tvec."""
+        arr = np.asarray(pts_3d, dtype=np.float64).reshape(-1, 1, 3)
+        proj, _ = cv2.projectPoints(arr, self.rvec, self.tvec, self.K, np.zeros(5))
+        return proj.reshape(-1, 2)
+
 
 def main():
     calibrator = CourtCalibrator("lzj_popov")
 
-    # High-precision clicked / line-intersection keypoints
+    # High-precision clicked / line-intersection keypoints (net posts on doubles sidelines)
     initial_keypoints = {
-        "corner_near_left": (323.55, 962.70),
-        "corner_near_right": (1593.97, 969.17),
-        "corner_far_right": (1293.95, 427.56),
-        "corner_far_left": (627.76, 423.47),
-        "net_post_left": (521.80, 354.62),
-        "net_post_right": (1401.50, 362.56),
-        "net_tape_center": (961.00, 360.50),
+        "corner_near_left": (323.84, 963.18),
+        "corner_near_right": (1592.03, 968.72),
+        "corner_far_right": (1293.55, 427.70),
+        "corner_far_left": (627.70, 423.38),
+        "net_post_left": (516.50, 390.50),
+        "net_post_right": (1404.50, 396.00),
+        "net_tape_center": (960.50, 397.00),
     }
 
     calibrator.set_keypoints(initial_keypoints)
-    print(f"📐 Initial Reprojection Error (6 3D Keypoints): {calibrator.reprojection_error_px:.2f} px")
+    print(f"📐 Initial Reprojection Error (3D Keypoints): {calibrator.reprojection_error_px:.2f} px")
 
     # Refine against clear rally frame (frame 450 / 750)
     video_path = "assets/LZJvPopov.mp4"

@@ -29,8 +29,9 @@ Target test video: `assets/LZJvPopov.mp4` (1920x1080, 25 fps, 12,461 frames,
 3. **Metadata that the video cannot give** (player names, flags, tournament,
    date) comes from a small hand-written `data/matches/<match_id>/match.json`,
    clearly separate from computed output.
-4. Keep the existing UI shell, Casio Edifice styling and video sync. This plan
-   adds a view; it does not redesign the app.
+4. Keep video sync. The Casio Edifice design is dropped (Sam, 2026-10-14):
+   all UI and badminton rules now follow `badminton-shot-explorer-spec.md`,
+   which overrides section 3 below and the shot-type rules in Phase F.
 5. Each phase ends with its acceptance check passing before the next starts.
 
 ---
@@ -91,8 +92,8 @@ engine/
   user clicks the 4 outer doubles corners and the 2 net-post tops. Save to
   `data/matches/<id>/calibration.json` with pixel points, the 3x3 ground
   homography `H`, and the camera pose from `cv2.solvePnP` using the 3D points
-  (corners at z=0, post tops at z=1.55 m, posts 0.15 m outside the doubles
-  sidelines on the net line). Then fit the visible white lines to refine.
+  (corners at z=0, post tops at z=1.55 m, posts on the doubles sidelines on
+  the net line). Then fit the visible white lines to refine.
 - Store the **reprojection error actually measured** and show it.
 - **Accept when:** projecting the full BWF line model back onto 5 random
   in-rally frames lands within 4 px of the painted lines (overlay screenshot
@@ -195,6 +196,8 @@ Player profile fields (name, flag, country, handedness) are merged in from
 
 ## 3. Frontend: the Shot Explorer view
 
+> Superseded by `badminton-shot-explorer-spec.md` sections 2–3. Kept for history.
+
 This is the most important deliverable (see reference screenshot from PB
 Vision: light-grey court, dark lines, grey net panel, arcs from every shot,
 dot at each landing, red for errors, view buttons stacked on the right).
@@ -207,7 +210,7 @@ camera presets; reuse them).
    per shot from `shot.path`. Colours:
    - normal shot → green (`#7cc84a`-ish)
    - rally-ending error (out / net) → red
-   - winner → the existing Edifice cyan, so winners pop
+   - winner → blue (see the spec's tokens)
    - low-confidence fit → same colour, dashed, 40 % opacity
    Draw a small sphere at `land` (and a darker one where an error landed out).
 2. **Court style for this view:** flat light-grey surface, thin dark lines,

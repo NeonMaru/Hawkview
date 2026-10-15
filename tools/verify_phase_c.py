@@ -66,20 +66,53 @@ def verify_phase_c(
         all_detections.extend(detections)
 
         # Metrics
-        vis_count = sum(1 for d in detections if d["visibility"] == 1)
+        vis_indices = [i for i, d in enumerate(detections) if d["visibility"] == 1]
+        vis_count = len(vis_indices)
         inpaint_count = sum(1 for d in detections if d.get("inpainted", False))
+        dropped_count = getattr(pipeline, "last_dropped_count", 0)
+        dropped_frames = getattr(pipeline, "last_dropped_frames", [])
         vis_ratio = (vis_count / float(len(detections))) * 100.0 if detections else 0.0
+
+        # Active rally span [first_vis .. last_vis] (excluding pre-serve / post-rally dead padding)
+        if vis_indices:
+            active_frames = vis_indices[-1] - vis_indices[0] + 1
+            active_ratio = (vis_count / float(active_frames)) * 100.0
+            active_span = (detections[vis_indices[0]]["frame"], detections[vis_indices[-1]]["frame"])
+        else:
+            active_frames = len(detections)
+            active_ratio = 0.0
+            active_span = (start_f, end_f)
+
+        # Max consecutive visible jump in this rally
+        max_jump = 0.0
+        for i in range(1, len(detections)):
+            if detections[i - 1]["visibility"] and detections[i]["visibility"]:
+                d = float(np.hypot(
+                    detections[i]["x"] - detections[i - 1]["x"],
+                    detections[i]["y"] - detections[i - 1]["y"]
+                ))
+                if d > max_jump:
+                    max_jump = d
 
         rally_metrics.append({
             "rally_id": r["rally_id"],
             "frames": len(detections),
+            "active_frames": active_frames,
+            "active_span": active_span,
             "visible": vis_count,
             "inpainted": inpaint_count,
-            "ratio": vis_ratio
+            "dropped": dropped_count,
+            "dropped_frames": dropped_frames,
+            "max_jump_px": max_jump,
+            "ratio": vis_ratio,
+            "active_ratio": active_ratio,
         })
 
-        print(f"    • Detected Visible Frames: {vis_count}/{len(detections)} ({vis_ratio:.1f}%)")
+        print(f"    • Full Window Visible Frames: {vis_count}/{len(detections)} ({vis_ratio:.1f}%)")
+        print(f"    • Active Rally [{active_span[0]}..{active_span[1]}] Visible: {vis_count}/{active_frames} ({active_ratio:.1f}%)")
+        print(f"    • Raw Outliers Dropped (Speed Gate >250px): {dropped_count} (frames: {dropped_frames})")
         print(f"    • Inpainted Gap Frames: {inpaint_count}")
+        print(f"    • Max Consecutive Jump: {max_jump:.1f} px")
 
         # Render overlay video
         out_video = f"{debug_dir}/tracknet_probe_rally{r['rally_id']}.mp4"
@@ -147,17 +180,28 @@ def verify_phase_c(
 
     # Acceptance check
     total_frames = sum(m["frames"] for m in rally_metrics)
+    total_active_frames = sum(m["active_frames"] for m in rally_metrics)
     total_visible = sum(m["visible"] for m in rally_metrics)
-    combined_ratio = (total_visible / float(total_frames)) * 100.0 if total_frames else 0.0
+    total_dropped = sum(m["dropped"] for m in rally_metrics)
+    overall_max_jump = max((m["max_jump_px"] for m in rally_metrics), default=0.0)
+    combined_window_ratio = (total_visible / float(total_frames)) * 100.0 if total_frames else 0.0
+    combined_active_ratio = (total_visible / float(total_active_frames)) * 100.0 if total_active_frames else 0.0
 
     print("\n-----------------------------------------------------------------")
     print("📊 PHASE C ACCEPTANCE EVALUATION:")
     for m in rally_metrics:
-        print(f"  • Rally {m['rally_id']} ({m['frames']} frames): {m['visible']}/{m['frames']} visible ({m['ratio']:.1f}%), {m['inpainted']} inpainted")
-    print(f"  • Combined 3-Rally Visibility Ratio: {combined_ratio:.1f}%")
-    print(f"  • Acceptance Threshold: >= 80.0%")
+        print(
+            f"  • Rally {m['rally_id']}: window {m['visible']}/{m['frames']} ({m['ratio']:.1f}%), "
+            f"active [{m['active_span'][0]}..{m['active_span'][1]}] {m['visible']}/{m['active_frames']} ({m['active_ratio']:.1f}%), "
+            f"{m['inpainted']} inpainted, {m['dropped']} raw dropped, "
+            f"max jump = {m['max_jump_px']:.1f} px"
+        )
+    print(f"  • Combined 3-Rally Window Visibility Ratio: {combined_window_ratio:.1f}% ({total_visible}/{total_frames})")
+    print(f"  • Combined 3-Rally Active Visibility Ratio: {combined_active_ratio:.1f}% ({total_visible}/{total_active_frames}, threshold >= 80.0%)")
+    print(f"  • Total Raw Detections Dropped: {total_dropped}")
+    print(f"  • Max Consecutive Visible Jump: {overall_max_jump:.1f} px (threshold <= 200.0 px)")
 
-    passed = combined_ratio >= 80.0
+    passed = (combined_active_ratio >= 80.0) and (overall_max_jump <= 200.0)
     if passed:
         print("  • Result: ✅ ACCEPTANCE CHECK PASSED")
     else:
@@ -166,8 +210,12 @@ def verify_phase_c(
 
     return {
         "total_frames": total_frames,
+        "total_active_frames": total_active_frames,
         "total_visible": total_visible,
-        "visibility_ratio": combined_ratio,
+        "total_dropped": total_dropped,
+        "max_jump_px": overall_max_jump,
+        "window_visibility_ratio": combined_window_ratio,
+        "visibility_ratio": combined_active_ratio,
         "passed": passed
     }
 

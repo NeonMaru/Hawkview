@@ -10,6 +10,7 @@ Implements:
 
 import os
 import math
+from dataclasses import dataclass
 from typing import List, Dict, Tuple, Optional
 import cv2
 import numpy as np
@@ -312,60 +313,157 @@ class TrackNetV3Pipeline:
                 "inpainted": False
             })
 
-        # Step 4: InpaintNet Trajectory Rectification
+        # Step 3.5: Raw-detection speed gate (drop raw detections > 250 px from neighbours within 2 frames)
+        raw_detections, dropped_frames = self._apply_raw_speed_gate(
+            raw_detections, max_jump_px=250.0, neighbor_window=2
+        )
+        self.last_dropped_frames = dropped_frames
+        self.last_dropped_count = len(dropped_frames)
+
+        # Step 4: InpaintNet Trajectory Rectification (with 0.05 * H top-of-frame ceiling gate)
         if self.inpaintnet is not None and num_frames >= 16:
             raw_detections = self._apply_inpaintnet(raw_detections, orig_w, orig_h)
 
         return raw_detections
 
+    def _apply_raw_speed_gate(
+        self,
+        detections: List[Dict],
+        max_jump_px: float = 250.0,
+        neighbor_window: int = 2
+    ) -> Tuple[List[Dict], List[int]]:
+        """
+        Before inpainting, drops any raw detection that is more than max_jump_px (250 px)
+        from both its visible neighbours within neighbor_window (2) frames.
+        Returns (filtered_detections, dropped_frame_numbers).
+        """
+        num_frames = len(detections)
+        to_drop = []
+        dropped_frame_nums = []
+
+        for i in range(num_frames):
+            if detections[i]["visibility"] != 1:
+                continue
+            prev_n = [
+                detections[j]
+                for j in range(max(0, i - neighbor_window), i)
+                if detections[j]["visibility"] == 1
+            ]
+            next_n = [
+                detections[j]
+                for j in range(i + 1, min(num_frames, i + neighbor_window + 1))
+                if detections[j]["visibility"] == 1
+            ]
+            if not prev_n and not next_n:
+                continue
+
+            far_prev = (
+                all(
+                    math.hypot(detections[i]["x"] - p["x"], detections[i]["y"] - p["y"]) > max_jump_px
+                    for p in prev_n
+                )
+                if prev_n
+                else True
+            )
+            far_next = (
+                all(
+                    math.hypot(detections[i]["x"] - n["x"], detections[i]["y"] - n["y"]) > max_jump_px
+                    for n in next_n
+                )
+                if next_n
+                else True
+            )
+
+            if far_prev and far_next:
+                to_drop.append(i)
+                dropped_frame_nums.append(int(detections[i]["frame"]))
+
+        for i in to_drop:
+            detections[i]["x"] = 0.0
+            detections[i]["y"] = 0.0
+            detections[i]["visibility"] = 0
+            detections[i]["dropped_outlier"] = True
+
+        return detections, dropped_frame_nums
+
     def _apply_inpaintnet(self, detections: List[Dict], width: int, height: int) -> List[Dict]:
         """
-        Uses InpaintNet to temporally bridge gaps where shuttlecock momentarily disappeared.
+        Uses InpaintNet to temporally bridge occlusion gaps.
+        Matches official TrackNetV3 generate_inpaint_mask:
+        - Only fills a gap when BOTH the last detection before it and the first detection
+          after it are below 0.05 * frame_height from the top edge (y > th_h).
+        - Requires gap endpoints to be within 250 px/frame so disconnected tracks are not bridged.
+        - Uses sliding_step=1 weighted temporal ensembling across 16-frame windows.
         """
         num_frames = len(detections)
         xs = np.array([d["x"] for d in detections], dtype=np.float32)
         ys = np.array([d["y"] for d in detections], dtype=np.float32)
         vis = np.array([d["visibility"] for d in detections], dtype=np.int32)
 
+        # Top-of-frame ceiling threshold (5% of frame height = 54 px on 1080p)
+        th_h = float(height) * 0.05
+
         # Generate inpaint mask
         inpaint_mask = np.zeros(num_frames, dtype=np.float32)
         i = 0
         while i < num_frames:
             if vis[i] == 0:
-                # Find start of occlusion
                 gap_start = i
                 while i < num_frames and vis[i] == 0:
                     i += 1
                 gap_end = i
-                # If gap is bounded by detections on both sides and gap length <= 12 frames
-                if gap_start > 0 and gap_end < num_frames and (gap_end - gap_start) <= 12:
-                    inpaint_mask[gap_start:gap_end] = 1.0
+                gap_len = gap_end - gap_start
+                # Bounded by visible detections on both sides, gap <= 12 frames,
+                # both boundary detections below top 5% ceiling border, and reachable speed
+                if gap_start > 0 and gap_end < num_frames and gap_len <= 12:
+                    if ys[gap_start - 1] > th_h and ys[gap_end] > th_h:
+                        gap_dist = math.hypot(
+                            float(xs[gap_end] - xs[gap_start - 1]),
+                            float(ys[gap_end] - ys[gap_start - 1])
+                        )
+                        if gap_dist <= 250.0 * (gap_len + 1):
+                            inpaint_mask[gap_start:gap_end] = 1.0
             else:
                 i += 1
 
-        # Slide 16-frame windows for InpaintNet
+        if np.sum(inpaint_mask) == 0:
+            return detections
+
+        # Slide 16-frame windows with step=1 and positional ensemble weights
         inpaint_len = 16
-        for w_start in range(0, num_frames - inpaint_len + 1, 8):
+        weights = get_ensemble_weights(inpaint_len)
+        accum_coords = np.zeros((num_frames, 2), dtype=np.float32)
+        accum_weights = np.zeros(num_frames, dtype=np.float32)
+        norm_coords = np.stack([xs / float(width), ys / float(height)], axis=-1)
+
+        for w_start in range(0, num_frames - inpaint_len + 1, 1):
             w_mask = inpaint_mask[w_start : w_start + inpaint_len]
+            w_norm = norm_coords[w_start : w_start + inpaint_len]
             if np.sum(w_mask) == 0:
+                for s in range(inpaint_len):
+                    accum_coords[w_start + s] += w_norm[s] * weights[s]
+                    accum_weights[w_start + s] += weights[s]
                 continue
 
-            norm_coords = np.stack([
-                xs[w_start : w_start + inpaint_len] / float(width),
-                ys[w_start : w_start + inpaint_len] / float(height)
-            ], axis=-1)  # (16, 2)
-
-            t_x = torch.from_numpy(norm_coords).unsqueeze(0).to(self.device)  # (1, 16, 2)
-            t_m = torch.from_numpy(w_mask).reshape(1, inpaint_len, 1).to(self.device)  # (1, 16, 1)
+            t_x = torch.from_numpy(w_norm).unsqueeze(0).to(self.device)
+            t_m = torch.from_numpy(w_mask).reshape(1, inpaint_len, 1).to(self.device)
 
             with torch.no_grad():
-                pred_c = self.inpaintnet(t_x, t_m)[0].cpu().numpy()  # (16, 2)
+                pred_c = self.inpaintnet(t_x, t_m)[0].cpu().numpy()
 
+            blended = pred_c * w_mask[:, None] + w_norm * (1.0 - w_mask[:, None])
             for s in range(inpaint_len):
-                if w_mask[s] == 1.0:
-                    idx = w_start + s
-                    detections[idx]["x"] = float(pred_c[s, 0] * width)
-                    detections[idx]["y"] = float(pred_c[s, 1] * height)
+                accum_coords[w_start + s] += blended[s] * weights[s]
+                accum_weights[w_start + s] += weights[s]
+
+        coor_th = 10.0
+        for idx in range(num_frames):
+            if inpaint_mask[idx] == 1.0 and accum_weights[idx] > 1e-6:
+                cx = float((accum_coords[idx, 0] / accum_weights[idx]) * width)
+                cy = float((accum_coords[idx, 1] / accum_weights[idx]) * height)
+                if cx >= coor_th and cy >= coor_th:
+                    detections[idx]["x"] = cx
+                    detections[idx]["y"] = cy
                     detections[idx]["visibility"] = 1
                     detections[idx]["inpainted"] = True
 
@@ -436,3 +534,63 @@ class TrackNetV3Pipeline:
 
         writer.release()
         return output_path
+
+
+@dataclass
+class ShuttleDetection:
+    frame_idx: int
+    timestamp_sec: float
+    pixel_x: float
+    pixel_y: float
+    confidence: float
+    is_interpolated: bool = False
+
+
+class TrackNetProcessor:
+    """
+    Sub-pixel heatmap extraction and trajectory utility class kept for compatibility
+    with pipeline.py and test_physics_engine.py.
+    """
+
+    def __init__(
+        self,
+        input_width: int = 640,
+        input_height: int = 360,
+        detection_threshold: float = 0.50,
+        max_velocity_kmh: float = 550.0
+    ):
+        self.input_width = input_width
+        self.input_height = input_height
+        self.threshold = detection_threshold
+        self.max_velocity_kmh = max_velocity_kmh
+        self.frame_buffer: List[np.ndarray] = []
+
+    def extract_peak_from_heatmap(
+        self,
+        heatmap: np.ndarray,
+        orig_width: int,
+        orig_height: int
+    ) -> Optional[Tuple[float, float, float]]:
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(heatmap)
+        if max_val < self.threshold:
+            return None
+
+        px, py = max_loc
+        h, w = heatmap.shape
+        half = 2
+        y1, y2 = max(0, py - half), min(h, py + half + 1)
+        x1, x2 = max(0, px - half), min(w, px + half + 1)
+
+        patch = heatmap[y1:y2, x1:x2]
+        sum_weights = np.sum(patch)
+        if sum_weights > 1e-6:
+            ys, xs = np.mgrid[y1:y2, x1:x2]
+            sub_x = float(np.sum(xs * patch) / sum_weights)
+            sub_y = float(np.sum(ys * patch) / sum_weights)
+        else:
+            sub_x, sub_y = float(px), float(py)
+
+        orig_x = (sub_x / float(w)) * float(orig_width)
+        orig_y = (sub_y / float(h)) * float(orig_height)
+        return orig_x, orig_y, float(max_val)
+
