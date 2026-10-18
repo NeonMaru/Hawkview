@@ -1,102 +1,63 @@
 ---
 name: Hawkview Badminton Analytics & Sports Vision Protocol
-description: Master architectural vision, Casio Edifice sports chronograph design system, on-device mobile AI pipeline, and 3D physics specifications for the Hawkview badminton match analytics platform.
+description: Master architectural overview, PB-Vision 3D Shot Explorer UI/UX specification, interactive 6-point MP4 calibration wizard, and frontend-backend telemetry contract for Hawkview.
 ---
 
-# Hawkview: Badminton Analytics & Sports Vision Protocol
+# Hawkview: 3D Badminton Shot Explorer & Match Analytics Platform
 
-## 🏸 1. Core Vision & Business Thesis
+## 1. Project Overview & Repository Structure
+- **Repository**: `/Users/anyasmac/GitHub/Hawkview` (`https://github.com/NeonMaru/Hawkview`)
+- **Local Dev Server**: `python3 -u server.py 8123` (`http://localhost:8123`, supports HTTP 206 byte-range video scrubbing + live upload/calibration/streaming APIs)
+- **Design Language**: Clean, high-density **PB-Vision style** sports analytics workspace (`css/hawkview.css`, Light & Dark themes, tabular numerals, zero skeuomorphic/chronograph clutter).
 
-* **The "Mamak Stall" Philosophy**: Badminton is a community sport. Friends, amateur players, and fans debrief matches over drinks at a mamak stall or cafe. They want quick, digestible, high-impact numbers:
-  * *"Did you see that smash? How fast was that?"* (e.g. 412 km/h vs 320 km/h)
-  * *"Why did LZJ win that set? Look at the court coverage!"* (e.g. pinned opponent to the backhand line 65% of the time).
-  * Point-by-point score progression (e.g. 4-5 ➔ 5-5 ➔ 6-5) linked to exact video moments.
-* **The "You Own It" Offline Business Model**:
-  * **Zero Server Overhead ($0.00 / month)**: No cloud GPU servers to rent, no AWS bills, no subscription churn.
-  * **One-Off Purchase**: The user buys the app once (e.g., $19.99 / RM 89). Upgrades can be major paid versions (V2/V3).
-  * **On-Device Edge Computing**: The user's phone (iPhone 15 or Snapdragon 8 Android) performs the computer vision locally using dedicated hardware NPUs (Apple Neural Engine / Qualcomm Hexagon).
-  * **Instant Shareable Telemetry**: Only the lightweight 1MB `match_telemetry.json` is exported/shared, allowing instant web replay on any browser without moving gigabytes of video.
-
----
-
-## ⌚ 2. Design System: Casio Edifice Sports Chronograph
-
-The visual language of Hawkview is inspired directly by the **Casio Edifice High-Performance Sports Chronograph** series (featuring dual-time analog-digital motors, carbon weave dials, tachymeter bezels, and precision split-second telemetry):
-
-### 2.1 Core Materials & Palette
-* **Base Plate / Dial**: Deep Carbon Fiber Weave (`#090a0d` to `#11141c`) with subtle 45° diagonal texture.
-* **Chassis & Bezel**: Brushed Titanium / Gunmetal Steel (`#1e232d` border, `#2a3241` metallic highlights, `#3a4559` chamfered bevels).
-* **Tachymeter Outer Ring**: High-contrast numbered scale markings (`60, 65, 70 ... 400, 500`) for instantaneous velocity reading.
-* **Negative LCD Digital Displays**: Inverted black LCD screens (`#05080c` recessed background) with crisp turquoise / ice-blue (`#00f0ff` / `#38bdf8`) or amber/lime dot-matrix / 7-segment digital readouts for Scorebug, Timers, and Frame counters.
-* **Luminescent Accent Colors**:
-  * **Primary Speed / Electric Accent**: Electric Ice Blue (`#00f0ff` / `#38bdf8`) or Circuit Teal (`#00e5a3`).
-  * **Smash / High-Intensity Needle**: Racing Red / Fluorescent Orange (`#ff2e5b` / `#ff5722`).
-  * **Court Green**: Yonex Official Court Mat Emerald (`#0f766e` / `#10b981`).
-
-### 2.2 Mechanical Telemetry Components
-1. **Chronograph Sub-Dials**:
-   * **Smash Speedometer**: Radial gauge with metallic needle and color-coded zones (Green: <200 km/h, Yellow: 200–320 km/h, Redline: >350 km/h).
-   * **Rally Shot Counter**: Dual-hand 60-shot mechanical register.
-   * **Fatigue / Sprint Intensity Gauge**: Micro-dial showing physical exertion and court sprint pace.
-2. **Knurled Pusher Buttons**:
-   * Industrial tactile buttons (`START/STOP`, `LAP/SPLIT`, `RESET`, `ANALYZE`) with cross-hatched knurled metal borders and active mechanical click states.
-3. **Multi-Stage "Anti-Lag" Progress Bar**:
-   * Designed like a stopwatch countdown complication.
-   * Includes live FPS meter, current stage name, frame counter ticker (e.g. `14,210 / 28,800`), and live telemetry teasers (*"⚡ 398 km/h smash discovered at 04:12"*).
-
----
-
-## 🔬 3. Computer Vision & Physics Architecture
-
-### 3.1 The 5-Stage Pipeline
 ```
-[Video Clip: 1080p60 / 720p60]
-       │
-       ├──► Stage 1: Court Calibration & Homography (CourtKeyNet + OpenCV)
-       │    - Identifies 4 outer corners + net posts.
-       │    - Solves 3x3 ground homography H and 3x4 camera projection matrix P = K[R | t].
-       │
-       ├──► Stage 2: Rally Segmentation & Scoreboard OCR (PaddleOCR / MobileNetV3)
-       │    - Camera view filter discards close-ups and slow-mo replays.
-       │    - Crops BWF scorebug ROI, reads player names & scores (e.g. 4-5 ➔ 5-5).
-       │    - Enforces monotonic +1 score transition rule.
-       │
-       ├──► Stage 3: Shuttlecock 2D Tracking (TrackNetV3 / TrackNetV4)
-       │    - 3-frame concatenated input (9 channels @ 640x360).
-       │    - Predicts Gaussian probability heatmaps.
-       │
-       ├──► Stage 4: Physics-Constrained 3D Monocular Trajectory (MonoTrack)
-       │    - Resolves 2D pixel to 3D ballistic coordinates (X, Y, Z).
-       │    - Aerodynamic drag ODE: m * d^2X/dt^2 = m*g - 0.5 * rho * Cd * A * ||v|| * v.
-       │    - Yields true initial smash velocity (eliminates 2D ground projection error).
-       │
-       └──► Stage 5: Player Pose & Court Heatmap (YOLO11-pose + ByteTrack)
-            - 17 keypoints at 15 FPS; ankle midpoint projected to metric court (13.4m x 6.1m).
-            - Net-side bounding rule guarantees zero player ID swaps.
+Hawkview/
+├── index.html                  # Side-by-side Desktop Cockpit + responsive Mobile layout
+├── css/hawkview.css            # PB-Vision theme tokens (:root light & [data-theme="dark"])
+├── server.py                   # Range-enabled HTTP server + /api/upload-video, /api/auto-calibrate, /api/analyze-start, /api/analyze-status
+├── js/
+│   ├── app.js                  # Master coordinator, theme switcher, keyboard shortcuts
+│   ├── three-viewport.js       # Three.js BWF court, floor-pinned score mats, 16-feather 3D shuttlecock, NURBS directional chevrons
+│   ├── shot-explorer.js        # 3D trajectory arcs, Playback vs Explorer mode, rally scrubber, last-4-shots fade, clutter clearing
+│   ├── video-loader-modal.js   # True "Load MP4" wizard: 6-point homography court/net calibrator, 2.6x touch loupe, live rally streaming
+│   ├── broadcast-player.js     # 1:1 HTML5 video sync, rally timeline ticks, custom MP4 switching
+│   ├── filter-bar.js           # Multi-criteria shot filtering + toggle-off clutter clearing
+│   ├── player-card.js          # Player picker, summary stats, Speed Table with eye toggles (👁), 3x3 Contact Map
+│   ├── rally-deck.js           # Rally list, expandable shot drawer, BWF Section 1.5 score correction cascade
+│   ├── analytics-cards.js      # 4 bottom cards: Court Coverage KDE, Serve, Rally Endings, Attack
+│   └── anti-lag-modal.js       # Pipeline telemetry & measured accuracy inspector
+├── engine/                     # 7-Stage Python CV & 3D Physics Pipeline (see hawkview_shuttle_tracking_and_3d_physics skill)
+└── tests/
+    └── test_physics_engine.py  # 11 unit & smoke tests covering aerodynamics, calibration, classification, and telemetry contract
 ```
 
 ---
 
-## 📱 4. On-Device Mobile Execution Profile
+## 2. Frontend UI/UX Architecture & Key Features
 
-* **Apple iOS (iPhone 15 / 15 Pro / 16)**:
-  * 16-core Apple Neural Engine (ANE) via CoreML (`.mlpackage`).
-  * Dedicated hardware H.264/HEVC decoding via `AVAssetReader` to `CVPixelBuffer`.
-  * TrackNetV3 inference: ~3.5ms per 3-frame bundle (200+ FPS).
-* **Android (Snapdragon 8 Gen 2/3/4)**:
-  * Qualcomm Hexagon NPU via ONNX Runtime with Qualcomm QNN Execution Provider or NNAPI.
-* **Compute Optimization**:
-  * Active Rally Gating skips downtime (saving 65% of frames).
-  * Decoupled rates: Shuttle @ 60 FPS, Player Pose @ 15 FPS.
-  * Turnaround: An 8-minute BWF highlight clip digests in ~2–3 minutes on device.
+### 2.1 Desktop Side-by-Side Cockpit & Mobile Layout (`css/hawkview.css`)
+- **Desktop (`>= 1180px`)**: CSS Grid layout (`295px minmax(0, 1.38fr) minmax(350px, 0.95fr)`) placing the **Player Card** on the left, the **3D Court & Shot Explorer** in the center, and the **Broadcast Video + Rally Deck** on the right so the user can watch the video and the 3D court simultaneously without scrolling.
+- **Mobile / iPhone (`< 860px`)**: Single-column stack with a collapsible filter drawer (`#btn-toggle-mobile-filters`) and touch-friendly controls.
 
----
+### 2.2 3D Court, Shuttlecock & NURBS Trajectory Visualization (`js/three-viewport.js` & `js/shot-explorer.js`)
+- **Strict Resize Loop Guard**: `#three-viewport-container` is `position: absolute; inset: 0` inside `.hv-court-stage` (`overflow: hidden`), and `ResizeObserver` checks delta `>= 2px` via `requestAnimationFrame` so OrbitControls pan/zoom never causes layout feedback loops.
+- **Vertically Resizable 3D Court**: Users can drag `#court-resize-handle` (bottom bar + `◢` corner grip) or `#court-height-slider` (`280px–860px`, persisted in `localStorage`).
+- **Floor-Pinned Scoreboard Mats**: Player side, flag, name, and live rally score are rendered onto crisp `1024×220` canvas textures (`PlaneGeometry(5.6, 1.2)`) pinned flat on the court floor just outside the near (`y = -0.82 m`) and far (`y = 14.22 m`) baselines. They never block 3D trajectories when orbiting, and auto-flip 180° when viewed from the `Far` camera preset.
+- **Blender NURBS-Style Directional Chevrons**: Every 3D shot curve displays sleek directional V-chevrons (`buildShotChevronSegments` in `js/shot-explorer.js`) whose spacing scales inversely with shot speed (`speedKmh = 380` smash → wide spacing `~2.35 m`, few fast chevrons; `speedKmh = 60` drop/net shot → dense spacing `~0.68 m`, many tight chevrons).
+- **3D Feathered Shuttlecock (`buildShuttlecockMesh`)**:
+  - Real 3D badminton shuttlecock (hemispherical cork base, cobalt-blue band, 16-ribbed conical feather skirt, open crown ring) oriented nose-first along the instantaneous 3D velocity tangent vector.
+  - Scaled cleanly (`scale.setScalar(1.02)`) with **zero circle/ring clutter** on the floor.
+  - **Strictly Single-Pass (Non-Looping)**: During a shot, the shuttlecock flies from hitter to receiver **once** and rests at the landing/intercept point until the next shot begins.
+- **Last 4 Shots Fading Trail & Dedicated Rally Scrubber**:
+  - In `Playback` mode, only the **last 4 shots** up to the current timestamp are shown (`100%`, `58%`, `32%`, `15%` opacity; older shots hidden) to prevent mid-rally visual spaghetti.
+  - Hovering or clicking **`👁 Full Rally`** (`#btn-show-full-rally`) reveals all shots in the current rally at once.
+  - The bottom of the 3D court has a dedicated **Rally Scrubber** (`#court-rally-slider`) with color-coded per-shot tick marks (`#court-rally-shot-ticks`) to scrub through the active rally shot-by-shot.
+- **One-Click & Toggle-Off Clutter Clearing**:
+  - Clicking an active **3×3 Contact Map cell** or **Speed Table eye button (`👁`)** a second time toggles it **OFF** and restores clean Playback mode (`clearAllFilters()`).
+  - Whenever Explorer mode or any filter is active, a red **`✕ Clear Clutter`** button (`#btn-clear-3d-clutter`) appears in the 3D court header.
 
-## 📊 5. Output Telemetry Data Contract
-
-The pipeline emits a self-contained `match_telemetry.json` (~800KB to 1.5MB) containing:
-* Match metadata & player assignments.
-* 3x3 homography matrix and court dimensions.
-* Rallies list with start/end timestamps, start/end scores, winning player.
-* Shot-by-shot sequence: timestamp, hitter ID, stroke type (smash, drop, clear, drive, net kill), 3D hit coordinate, 2D landing coordinate, initial velocity (km/h), and 3D trajectory points.
-* Cumulative distance covered and 2D court coverage KDE matrices.
+### 2.3 True `Load MP4` & Interactive 6-Point Court Calibrator (`js/video-loader-modal.js`)
+- Clicking **`📂 Load / Calibrate MP4`** opens `#video-loader-modal`:
+  1. **Upload Any Video**: Supports desktop drag-and-drop or iPhone Camera Roll `.mp4` / `.mov` / `.webm` uploads (`POST /api/upload-video`), probing resolution, FPS, duration, and returning a server-decoded JPEG preview (`frame_jpeg_b64`) so iOS Safari and desktop browsers always show the court frame immediately.
+  2. **6-Point Interactive Calibrator**: Users drag **4 Court Corners** (`Near-L`, `Near-R`, `Far-R`, `Far-L`) + **2 Net Post Tops** (`Net-L`, `Net-R`) on `<canvas id="calib-court-canvas">`. A 60 FPS JS homography solver projects all BWF regulation lines and a 3D net mesh live, with a **2.6× touch magnifier loupe** in the opposite corner while dragging.
+  3. **Progressive Rally-by-Rally Live Streaming**: Clicking **`🚀 Calibrate & Stream 3D Rallies Live`** starts `POST /api/analyze-start` and polls `GET /api/analyze-status` every 1 second. Each rally is streamed into the 3D Court (`hawkview:ralliesStreamUpdated`) the moment that single rally finishes, with a **`⏹ Stop & Keep Rallies`** button in `#live-analysis-banner`.
