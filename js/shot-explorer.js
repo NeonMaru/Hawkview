@@ -946,6 +946,9 @@ class ShotExplorer {
       : (rally.near_player || (shot.hitter === 'LZJ' ? 'POPOV' : 'LZJ'));
 
     const formatTag = (pid) => {
+      const telPlayers = window.HAWKVIEW_TELEMETRY && window.HAWKVIEW_TELEMETRY.players;
+      const metaFlag = telPlayers && telPlayers[pid] && telPlayers[pid].metadata && telPlayers[pid].metadata.flag;
+      if (metaFlag) return `${metaFlag} ${pid}`;
       if (pid === 'LZJ') return '🇲🇾 LZJ';
       if (pid === 'POPOV') return '🇫🇷 POPOV';
       return `🏸 ${pid || 'Player'}`;
@@ -954,9 +957,10 @@ class ShotExplorer {
     const flagTo = formatTag(receiver);
     const typeStr = ShotExplorer.formatShotType(shot.type);
     const spdStr = typeof shot.speed_kmh === 'number' ? `${shot.speed_kmh.toFixed(0)} km/h est.` : '';
+    const swapBadge = rally.side_swapped ? ' ⇄ (Swapped Ends)' : '';
 
     this.dirTextEl.textContent =
-      `🏸 R${rally.rally_id} · Shot #${shotIndexInRally + 1}/${totalShots}: ${flagFrom} (${fromSide}) ──► ${flagTo} (${toSide}) · ${typeStr} ${spdStr}`;
+      `🏸 R${rally.rally_id}${swapBadge} · Shot #${shotIndexInRally + 1}/${totalShots}: ${flagFrom} (${fromSide}) ──► ${flagTo} (${toSide}) · ${typeStr} ${spdStr}`;
   }
 
   updateAnimatedShuttle() {
@@ -1278,6 +1282,23 @@ class ShotExplorer {
       ? `${Math.floor(shot.time / 60).toString().padStart(2, '0')}:${(shot.time % 60).toFixed(1).padStart(4, '0')}`
       : '—';
 
+    const rmseNum = typeof shot.fit_rmse_px === 'number' && Number.isFinite(shot.fit_rmse_px)
+      ? shot.fit_rmse_px
+      : null;
+    const covNum = typeof shot.track_coverage_pct === 'number' && Number.isFinite(shot.track_coverage_pct)
+      ? shot.track_coverage_pct
+      : null;
+    const shotGrade = shot.accuracy_grade || (
+      rmseNum === null ? '—'
+        : (rmseNum <= 4.5 && (covNum === null || covNum >= 65) ? 'A'
+          : (rmseNum <= 8.5 && (covNum === null || covNum >= 45) ? 'B'
+            : (rmseNum <= 16.0 ? 'C' : 'D')))
+    );
+    const gradeColorMap = { A: '#16a34a', B: '#2563eb', C: '#d97706', D: '#dc2626' };
+    const gradeCol = gradeColorMap[shotGrade] || 'var(--muted)';
+    const rmseStr = rmseNum !== null ? `${rmseNum.toFixed(1)} px` : '—';
+    const covStr = covNum !== null ? `${Math.round(covNum)}%` : '—';
+
     this.tooltipEl.innerHTML = `
       <div style="font-weight:700; margin-bottom:4px; display:flex; justify-content:space-between; gap:8px;">
         <span style="text-transform:capitalize;">${ShotExplorer.formatShotType(shot.type)}</span>
@@ -1300,6 +1321,10 @@ class ShotExplorer {
         <span class="hv-tooltip-val">${netClear}</span>
       </div>
       <div class="hv-tooltip-row">
+        <span class="hv-tooltip-label">Accuracy</span>
+        <span class="hv-tooltip-val tabular-nums"><strong style="color:${gradeCol};">Grade ${shotGrade}</strong> · RMSE ${rmseStr} · Cov ${covStr}</span>
+      </div>
+      <div class="hv-tooltip-row">
         <span class="hv-tooltip-label">Time</span>
         <span class="hv-tooltip-val">${timeStr} (R${rally.rally_id} #${shot.shot_num})</span>
       </div>
@@ -1312,8 +1337,8 @@ class ShotExplorer {
     const stageRect = this.viewer.container.getBoundingClientRect();
     let left = e.clientX - stageRect.left + 14;
     let top = e.clientY - stageRect.top + 14;
-    if (left + 210 > stageRect.width) left = Math.max(8, left - 220);
-    if (top + 165 > stageRect.height) top = Math.max(8, top - 170);
+    if (left + 235 > stageRect.width) left = Math.max(8, left - 245);
+    if (top + 195 > stageRect.height) top = Math.max(8, top - 200);
 
     this.tooltipEl.style.left = `${left}px`;
     this.tooltipEl.style.top = `${top}px`;

@@ -65,7 +65,7 @@ class RallySegmenter:
         self.poly_mask: Optional[np.ndarray] = None
         self.poly_area: float = 1.0
         self.sample_pts: List[Tuple[int, int, str]] = []
-        self._init_geometry_masks(1920, 1080)
+        self._init_geometry_masks(self.calibrator.image_width, self.calibrator.image_height)
 
     def _init_geometry_masks(self, width: int, height: int):
         """Precomputes the calibrated court polygon mask and 64 BWF line sample coordinates."""
@@ -111,6 +111,9 @@ class RallySegmenter:
         Evaluates a single BGR frame against the calibrated main camera model.
         Returns (green_in_poly_pct, line_hit_pct, median_line_err_px, is_main_camera).
         """
+        fh, fw = frame_bgr.shape[:2]
+        if self.poly_mask is None or self.poly_mask.shape[:2] != (fh, fw):
+            self._init_geometry_masks(fw, fh)
         hsv = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
         green_mask = cv2.inRange(hsv, (35, 40, 40), (85, 255, 255))
         green_in_poly = float(np.count_nonzero(cv2.bitwise_and(green_mask, self.poly_mask)) / self.poly_area * 100.0)
@@ -159,6 +162,7 @@ class RallySegmenter:
         cam_end: int,
         tracks_by_frame: Dict[int, Dict],
         min_speed_px: float = 4.5,
+        image_height: int = 1080,
     ) -> Tuple[int, int, bool]:
         """
         Trims a main-camera window [cam_start, cam_end] to active shuttle flight [start_frame, end_frame].
@@ -174,6 +178,9 @@ class RallySegmenter:
         if len(vis) < 5:
             return cam_start, cam_end, False
 
+        sy = max(0.35, float(image_height or 1080) / 1080.0)
+        eff_min_speed = min_speed_px * sy
+
         n = len(vis)
         is_moving = [False] * n
         step_speeds = [0.0] * n
@@ -182,14 +189,14 @@ class RallySegmenter:
             if 1 <= dt <= 3:
                 sp = float(np.hypot(vis[i + 1]["x"] - vis[i]["x"], vis[i + 1]["y"] - vis[i]["y"]) / dt)
                 step_speeds[i] = sp
-                if sp >= min_speed_px:
+                if sp >= eff_min_speed:
                     is_moving[i] = True
 
-        # Active rally start: first visible frame below top-banner noise (y >= 180 px)
+        # Active rally start: first visible frame below top-banner noise (y >= 180 * sy px)
         # where at least 3 of the next 4 visible steps exhibit sustained motion
         start_idx = 0
         for i in range(max(1, n - 4)):
-            if vis[i]["y"] >= 180.0 and sum(is_moving[i : i + 4]) >= 3:
+            if vis[i]["y"] >= (180.0 * sy) and sum(is_moving[i : i + 4]) >= 3:
                 start_idx = i
                 break
 
@@ -203,14 +210,68 @@ class RallySegmenter:
         start_frame = vis[start_idx]["frame"]
         end_frame = vis[end_idx]["frame"]
 
+        # Never collapse a rally window into a < 1.5s sliver
+        if (end_frame - start_frame) < 35:
+            return cam_start, cam_end, False
+
         # Detect if broadcast cut started mid-exchange (shuttle already high in flight at cut boundary)
         partial = bool(
             (start_frame - cam_start <= 1)
-            and (vis[start_idx]["y"] < 260.0)
-            and (step_speeds[start_idx] >= 20.0)
+            and (vis[start_idx]["y"] < (260.0 * sy))
+            and (step_speeds[start_idx] >= (20.0 * sy))
         )
 
         return start_frame, end_frame, partial
+
+    @staticmethod
+    def is_slowmo_replay(
+        cam_start: int,
+        cam_end: int,
+        tracks_by_frame: Dict[int, Dict],
+        fps: float = 25.0,
+        image_height: int = 1080,
+    ) -> bool:
+        """
+        Zero-LLM slow-motion replay detector for same-angle main-camera replays.
+        In real-time broadcast play, projected gravity produces positive downward acceleration
+        d^2v/dt^2 ~ 1.1..3.2 * sy px/frame^2 on parabolic flight arcs. In 0.25x-0.5x slow-mo,
+        apparent acceleration scales by s^2 (4x-16x smaller) and shuttle speed drops drastically.
+        """
+        vis = [
+            tracks_by_frame[fn]
+            for fn in range(cam_start, cam_end + 1)
+            if fn in tracks_by_frame and tracks_by_frame[fn]["visibility"] == 1
+        ]
+        if len(vis) < 25:
+            return False
+
+        sy = max(0.35, float(image_height or 1080) / 1080.0)
+        fps_scale = (25.0 / max(15.0, float(fps))) ** 2
+        acc_v = []
+        speeds = []
+        for i in range(1, len(vis) - 1):
+            dt1 = vis[i]["frame"] - vis[i - 1]["frame"]
+            dt2 = vis[i + 1]["frame"] - vis[i]["frame"]
+            if dt1 == 1 and dt2 == 1:
+                vx1 = vis[i]["x"] - vis[i - 1]["x"]
+                vy1 = vis[i]["y"] - vis[i - 1]["y"]
+                vx2 = vis[i + 1]["x"] - vis[i]["x"]
+                vy2 = vis[i + 1]["y"] - vis[i]["y"]
+                sp = float(np.hypot(vx1, vy1))
+                dv = float(np.hypot(vx2 - vx1, vy2 - vy1))
+                # Only sample smooth free-flight frames (not racket hits or stationary floor rest)
+                if sp >= 2.0 * sy and dv < 10.0 * sy:
+                    speeds.append(sp)
+                    acc_v.append((vy2 - vy1) / (sy * fps_scale))
+
+        if len(acc_v) < 18:
+            return False
+
+        med_acc_v = float(np.median(acc_v))
+        p75_speed = float(np.percentile(speeds, 75))
+        # Real-time 25fps free flight has med_acc_v ~ 0.9..2.5 and p75_speed ~ 14..38 * sy;
+        # 0.25x-0.5x slow-mo drops apparent gravity below 0.35 and p75_speed below 7.5 * sy.
+        return bool(0.0 <= med_acc_v < 0.35 and p75_speed < 7.5 * sy)
 
     def segment_video(
         self,
@@ -286,6 +347,75 @@ class RallySegmenter:
 
         cap.release()
         total_frames = frame_idx
+
+        # Two-pass adaptive main-camera verification:
+        # Adapts to different BWF broadcast camera FOVs / line contrast (e.g. 720p Paris 2024 vs 1080p Arctic Open)
+        # AND non-green court mats (BWF World Tour Finals red, Paris blue/purple, grey, wood gym floors)
+        # so real main-camera rallies are never dumped into rejected_replays.
+        if mode != "recreational" and len(sampled_rows) >= 10:
+            all_greens = [r[1] for r in sampled_rows]
+            p90_g = float(np.percentile(all_greens, 90))
+            if p90_g >= 65.0:
+                main_green_thresh = max(60.0, 0.78 * p90_g)
+                green_rows = [r for r in sampled_rows if r[1] >= main_green_thresh]
+                if green_rows:
+                    p90_line = float(np.percentile([r[2] for r in green_rows], 90))
+                    p25_err = float(np.percentile([r[3] for r in green_rows], 25))
+                    eff_line_thresh = min(55.0, max(14.0, 0.55 * p90_line))
+                    eff_err_thresh = max(3.0, min(6.0, p25_err + 2.5))
+
+                    updated_rows = []
+                    for r in sampled_rows:
+                        f_num, g_pct, l_pct, m_err, is_m, h_diff, l1_diff = r
+                        adapt_main = bool(
+                            is_m or (
+                                g_pct >= main_green_thresh
+                                and l_pct >= eff_line_thresh
+                                and m_err <= eff_err_thresh
+                                and l1_diff <= 14.0
+                            )
+                        )
+                        updated_rows.append([f_num, g_pct, l_pct, m_err, adapt_main, h_diff, l1_diff])
+
+                    # Bridge 1-2 frame momentary player occlusions inside the same camera shot
+                    for idx in range(1, len(updated_rows) - 1):
+                        if not updated_rows[idx][4]:
+                            prev_m = updated_rows[idx - 1][4]
+                            next_m = updated_rows[idx + 1][4] or (idx + 2 < len(updated_rows) and updated_rows[idx + 2][4])
+                            not_cut = updated_rows[idx][6] <= 14.0 and updated_rows[idx][5] <= 0.16
+                            if prev_m and next_m and not_cut and updated_rows[idx][1] >= (main_green_thresh - 10.0):
+                                updated_rows[idx][4] = True
+
+                    sampled_rows = [tuple(r) for r in updated_rows]
+            else:
+                # Color-agnostic non-green court fallback (e.g., BWF Finals red mat, blue/grey/wood floor):
+                # Rely directly on calibrated white-line correlation + low pan motion.
+                p90_line = float(np.percentile([r[2] for r in sampled_rows], 90))
+                if p90_line >= 28.0:
+                    line_rows = [r for r in sampled_rows if r[2] >= 0.65 * p90_line]
+                    p25_err = float(np.percentile([r[3] for r in line_rows], 25)) if line_rows else 2.5
+                    eff_line_thresh = max(20.0, 0.55 * p90_line)
+                    eff_err_thresh = max(3.0, min(5.5, p25_err + 2.2))
+
+                    updated_rows = []
+                    for r in sampled_rows:
+                        f_num, g_pct, l_pct, m_err, is_m, h_diff, l1_diff = r
+                        adapt_main = bool(
+                            l_pct >= eff_line_thresh
+                            and m_err <= eff_err_thresh
+                            and l1_diff <= 14.0
+                        )
+                        updated_rows.append([f_num, g_pct, l_pct, m_err, adapt_main, h_diff, l1_diff])
+
+                    for idx in range(1, len(updated_rows) - 1):
+                        if not updated_rows[idx][4]:
+                            prev_m = updated_rows[idx - 1][4]
+                            next_m = updated_rows[idx + 1][4] or (idx + 2 < len(updated_rows) and updated_rows[idx + 2][4])
+                            not_cut = updated_rows[idx][6] <= 14.0 and updated_rows[idx][5] <= 0.16
+                            if prev_m and next_m and not_cut and updated_rows[idx][2] >= (eff_line_thresh * 0.70):
+                                updated_rows[idx][4] = True
+
+                    sampled_rows = [tuple(r) for r in updated_rows]
 
         # Group into contiguous main-camera runs, splitting on hard cuts
         min_frames = int(round(min_duration_sec * fps))
@@ -377,7 +507,7 @@ class RallySegmenter:
         rallies: List[RallyWindow] = []
         for idx, cw in enumerate(raw_cam_windows, start=1):
             cs, ce = cw["cam_start"], cw["cam_end"]
-            sf, ef, partial = self.trim_window_with_tracknet(cs, ce, tracks_by_frame)
+            sf, ef, partial = self.trim_window_with_tracknet(cs, ce, tracks_by_frame, image_height=height)
             s_sec = round(sf / fps, 2)
             e_sec = round(ef / fps, 2)
             rallies.append(

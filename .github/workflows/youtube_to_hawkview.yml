@@ -1,0 +1,94 @@
+name: Hawkview Cloud YouTube to 3D Worker
+
+on:
+  workflow_dispatch:
+    inputs:
+      youtube_url:
+        description: "YouTube video URL"
+        required: true
+        type: string
+      video_id:
+        description: "11-char YouTube video ID"
+        required: false
+        default: ""
+        type: string
+      job_id:
+        description: "Netlify Blobs job_id"
+        required: true
+        type: string
+      match_id:
+        description: "Target match_id (e.g. yt_<id>)"
+        required: true
+        type: string
+      max_rallies:
+        description: "Maximum rallies to reconstruct"
+        required: false
+        default: "3"
+        type: string
+      callback_url:
+        description: "Netlify callback URL for streaming progress & telemetry"
+        required: true
+        type: string
+
+jobs:
+  convert-youtube:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout Hawkview
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup Node.js (for yt-dlp EJS runtime)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Cache Python & RTMPose Weights
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.cache/rtmlib
+            ~/.cache/yt-dlp
+          key: hawkview-cv-v1-${{ runner.os }}-py312
+
+      - name: Install ffmpeg & Python CV Dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg tesseract-ocr > /dev/null
+          python3 -m pip install --upgrade --quiet pip yt-dlp
+          python3 -m pip install --quiet --index-url https://download.pytorch.org/whl/cpu torch
+          python3 -m pip install --quiet opencv-python-headless numpy scipy onnxruntime rtmlib pytesseract pillow
+
+      - name: Prepare YouTube Cookies Secret (if configured)
+        env:
+          YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
+        run: |
+          if [ -n "$YOUTUBE_COOKIES_B64" ]; then
+            echo "$YOUTUBE_COOKIES_B64" | base64 --decode > /tmp/yt_cookies.txt
+            chmod 600 /tmp/yt_cookies.txt
+          fi
+
+      - name: Run Cloud YouTube -> 3D Physics Pipeline
+        env:
+          HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
+        run: |
+          COOKIES_ARG=""
+          if [ -f /tmp/yt_cookies.txt ]; then
+            COOKIES_ARG="--cookies-file /tmp/yt_cookies.txt"
+          fi
+          python3 tools/cloud_youtube_worker.py \
+            --url "${{ inputs.youtube_url }}" \
+            --job-id "${{ inputs.job_id }}" \
+            --match-id "${{ inputs.match_id }}" \
+            --max-rallies "${{ inputs.max_rallies }}" \
+            --callback-url "${{ inputs.callback_url }}" \
+            $COOKIES_ARG
+
+      - name: Cleanup Temporary Cookies
+        if: always()
+        run: rm -f /tmp/yt_cookies.txt

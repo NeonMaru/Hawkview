@@ -30,6 +30,7 @@ class FilterBar {
     this.mobileSummaryEl = document.getElementById('filter-mobile-summary');
     this.filterContainer = document.getElementById('filter-bar-container');
     this.mobileToggleBtn = document.getElementById('btn-toggle-mobile-filters');
+    this.courtFilterPillBtn = document.getElementById('btn-court-filter-pill');
 
     this.populateRallyOptions();
     this.bindEvents();
@@ -76,11 +77,21 @@ class FilterBar {
   }
 
   bindEvents() {
-    if (this.mobileToggleBtn && this.filterContainer) {
-      this.mobileToggleBtn.addEventListener('click', () => {
+    const toggleDrawer = () => {
+      if (!this.filterContainer) return;
+      if (window.innerWidth <= 859) {
         const isOpen = this.filterContainer.classList.toggle('mobile-open');
         this.updateMobileToggleLabel(isOpen);
-      });
+      } else {
+        const isOpen = !this.filterContainer.classList.toggle('desktop-collapsed');
+        this.updateMobileToggleLabel(isOpen);
+      }
+    };
+    if (this.mobileToggleBtn && this.filterContainer) {
+      this.mobileToggleBtn.addEventListener('click', toggleDrawer);
+    }
+    if (this.courtFilterPillBtn && this.filterContainer) {
+      this.courtFilterPillBtn.addEventListener('click', toggleDrawer);
     }
     if (this.gameSelect) {
       this.gameSelect.addEventListener('change', (e) => {
@@ -146,13 +157,19 @@ class FilterBar {
   }
 
   updateMobileToggleLabel(isOpen) {
-    if (!this.mobileToggleBtn || !this.explorer) return;
+    if (!this.explorer) return;
     const hasFilter = typeof this.explorer.hasActiveFilters === 'function'
       ? this.explorer.hasActiveFilters()
       : false;
-    const arrow = isOpen ? '▴' : '▾';
-    this.mobileToggleBtn.textContent = hasFilter ? `Filters (Active) ${arrow}` : `Filters ${arrow}`;
-    this.mobileToggleBtn.classList.toggle('active', hasFilter);
+    const count = this.explorer.getMatchingShotsCount();
+    if (this.mobileToggleBtn) {
+      this.mobileToggleBtn.textContent = isOpen ? '✕ Done' : (hasFilter ? `Filters (${count}) ▾` : 'Filters ▾');
+      this.mobileToggleBtn.classList.toggle('active', hasFilter);
+    }
+    if (this.courtFilterPillBtn) {
+      this.courtFilterPillBtn.textContent = hasFilter ? `⚡ Filters (${count})` : '⚡ Filters';
+      this.courtFilterPillBtn.classList.toggle('active', Boolean(hasFilter || isOpen));
+    }
   }
 
   syncFromExplorer() {

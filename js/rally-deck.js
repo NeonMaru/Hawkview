@@ -119,17 +119,23 @@ class RallyDeck {
     if (!telemetry || !Array.isArray(telemetry.rallies)) return;
 
     const rallies = telemetry.rallies;
+    const [pA, pB] = this.getMatchPlayerIds();
+    const isCompilation = Boolean(
+      telemetry.match_metadata &&
+      telemetry.match_metadata.compilation_warning &&
+      telemetry.match_metadata.compilation_warning.is_compilation
+    );
     let prevRally = null;
 
     rallies.forEach((r) => {
       let review = false;
-      const sb = r.score_before || { LZJ: 0, POPOV: 0 };
-      const sa = r.score_after || { LZJ: 0, POPOV: 0 };
+      const sb = r.score_before || { [pA]: 0, [pB]: 0 };
+      const sa = r.score_after || { [pA]: 0, [pB]: 0 };
       const winner = r.winner;
-      const loser = winner === 'LZJ' ? 'POPOV' : 'LZJ';
+      const loser = winner === pA ? pB : pA;
 
       // Rule 1: score_after must increment winner by +1 and keep loser unchanged
-      if (!winner || sa[winner] !== sb[winner] + 1 || sa[loser] !== sb[loser]) {
+      if (!winner || sa[winner] !== (sb[winner] || 0) + 1 || sa[loser] !== (sb[loser] || 0)) {
         review = true;
       }
 
@@ -162,27 +168,27 @@ class RallyDeck {
         }
       }
 
-      // Rule 5: Progression from previous rally in the same game
-      if (prevRally && prevRally.game === r.game) {
-        const psb = prevRally.score_after || { LZJ: 0, POPOV: 0 };
-        const dLzj = sb.LZJ - psb.LZJ;
-        const dPop = sb.POPOV - psb.POPOV;
+      // Rule 5: Progression from previous rally in the same game (skip strict continuity if compilation)
+      if (!isCompilation && prevRally && prevRally.game === r.game) {
+        const psb = prevRally.score_after || { [pA]: 0, [pB]: 0 };
+        const dA = (sb[pA] || 0) - (psb[pA] || 0);
+        const dB = (sb[pB] || 0) - (psb[pB] || 0);
 
         // Scores cannot go backwards within a game
-        if (dLzj < 0 || dPop < 0) {
+        if (dA < 0 || dB < 0) {
           review = true;
         }
 
         // If consecutive points (no unshown broadcast gap), winner of prevRally must serve
-        if (dLzj === 0 && dPop === 0 && prevRally.winner && r.server !== prevRally.winner) {
+        if (dA === 0 && dB === 0 && prevRally.winner && r.server !== prevRally.winner) {
           review = true;
         }
 
         // Verify game-winning score bounds (21, win by 2, max 30)
-        if (sb.LZJ >= 30 || sb.POPOV >= 30) {
+        if ((sb[pA] || 0) >= 30 || (sb[pB] || 0) >= 30) {
           review = true;
         }
-      } else if (prevRally && prevRally.game !== r.game) {
+      } else if (!isCompilation && prevRally && prevRally.game !== r.game) {
         // Players must swap ends between games
         if (prevRally.near_player && r.near_player && prevRally.near_player === r.near_player) {
           review = true;
@@ -204,6 +210,7 @@ class RallyDeck {
 
     this.snapshotOriginalRallies();
     const rallies = telemetry.rallies;
+    const [pA, pB] = this.getMatchPlayerIds();
 
     // 1. Restore from original snapshot
     rallies.forEach((r) => {
@@ -227,20 +234,20 @@ class RallyDeck {
     });
 
     Object.values(games).forEach((gameRallies) => {
-      const delta = { LZJ: 0, POPOV: 0 };
+      const delta = { [pA]: 0, [pB]: 0 };
 
       for (let i = 0; i < gameRallies.length; i++) {
         const r = gameRallies[i];
-        const origBefore = r._original.score_before;
-        const origPrevAfter = i > 0 ? gameRallies[i - 1]._original.score_after : null;
+        const origBefore = r._original.score_before || {};
+        const origPrevAfter = i > 0 ? (gameRallies[i - 1]._original.score_after || {}) : null;
         const isConsecutive = origPrevAfter &&
-          origBefore.LZJ === origPrevAfter.LZJ &&
-          origBefore.POPOV === origPrevAfter.POPOV;
+          origBefore[pA] === origPrevAfter[pA] &&
+          origBefore[pB] === origPrevAfter[pB];
 
         // Apply accumulated score delta from earlier flipped rallies in this game
         r.score_before = {
-          LZJ: Math.max(0, origBefore.LZJ + delta.LZJ),
-          POPOV: Math.max(0, origBefore.POPOV + delta.POPOV)
+          [pA]: Math.max(0, (origBefore[pA] || 0) + (delta[pA] || 0)),
+          [pB]: Math.max(0, (origBefore[pB] || 0) + (delta[pB] || 0))
         };
 
         // If this rally was flipped by user
@@ -248,14 +255,14 @@ class RallyDeck {
         if (overrideWinner && overrideWinner !== r._original.winner) {
           const oldWinner = r._original.winner;
           r.winner = overrideWinner;
-          delta[oldWinner] -= 1;
-          delta[overrideWinner] += 1;
+          delta[oldWinner] = (delta[oldWinner] || 0) - 1;
+          delta[overrideWinner] = (delta[overrideWinner] || 0) + 1;
         }
 
         // Compute score_after from score_before + winner
         r.score_after = {
-          LZJ: r.score_before.LZJ + (r.winner === 'LZJ' ? 1 : 0),
-          POPOV: r.score_before.POPOV + (r.winner === 'POPOV' ? 1 : 0)
+          [pA]: r.score_before[pA] + (r.winner === pA ? 1 : 0),
+          [pB]: r.score_before[pB] + (r.winner === pB ? 1 : 0)
         };
 
         // Recompute server if consecutive with previous rally (or if previous rally was flipped)
@@ -406,7 +413,7 @@ class RallyDeck {
 
       const shotsHtml = isExpanded ? `
         <div class="hv-rally-shots-drawer">
-          <div style="display:grid; grid-template-columns:32px 48px 54px 1fr 78px 66px; gap:4px; padding:2px 6px 4px; font-size:10px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); margin-bottom:4px;">
+          <div style="display:grid; grid-template-columns:30px 44px minmax(64px, 110px) 1fr 72px 62px; gap:6px; padding:2px 6px 4px; font-size:10px; font-weight:600; color:var(--muted); border-bottom:1px solid var(--border); margin-bottom:4px;">
             <span>#</span>
             <span>Time</span>
             <span>Hitter</span>
@@ -424,8 +431,8 @@ class RallyDeck {
               <div class="hv-shot-item ${isSel ? 'selected' : ''}" data-shot-id="${s.shot_id}" data-rally-index="${rIdx}">
                 <span style="color:var(--muted);">#${s.shot_num}</span>
                 <span>${this.formatTime(s.time)}</span>
-                <span style="font-weight:600;">${s.hitter || '—'}</span>
-                <span style="text-transform:capitalize;">${ShotExplorer.formatShotType(s.type)}</span>
+                <span style="font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${s.hitter || '—'}">${s.hitter || '—'}</span>
+                <span style="text-transform:capitalize; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${ShotExplorer.formatShotType(s.type)}</span>
                 <span style="text-align:right;">${spd}</span>
                 <span style="text-align:right;"><span class="hv-badge ${outCls}">${s.outcome}</span></span>
               </div>
@@ -445,6 +452,7 @@ class RallyDeck {
             </div>
             <div style="display:flex; align-items:center; gap:5px; flex-shrink:0;">
               <span style="color:var(--muted); font-size:11px;">${r.shot_count || (r.shots ? r.shots.length : 0)}s</span>
+              ${r.side_swapped ? `<span class="hv-badge hv-badge-warn" title="Court sides swapped in this rally (${r.near_player} near / ${r.far_player} far)">⇄ ${r.near_player} near</span>` : ''}
               <span class="hv-badge ${endInfo.cls}">${r.winner || ''} ${endInfo.label}</span>
               ${r.partial ? '<span class="hv-badge" title="Rally cut short by broadcast edit">partial</span>' : ''}
               ${r.needs_review ? '<span class="hv-badge hv-badge-warn" title="Score/server sequence flagged for review per Section 1.5">needs_review</span>' : ''}
@@ -467,14 +475,20 @@ class RallyDeck {
     }).join('');
 
     const reviewCount = rallies.filter((r) => r.needs_review).length;
+    const compWarn = telemetry && telemetry.match_metadata && telemetry.match_metadata.compilation_warning;
 
     this.container.innerHTML = `
       <div class="hv-panel-header">
-        <div style="display:flex; align-items:center; gap:8px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <h2 class="hv-panel-title">Rally Deck (${rallies.length})</h2>
           <span class="hv-badge ${reviewCount > 0 ? 'hv-badge-warn' : 'hv-badge-continue'}">
             ${reviewCount > 0 ? `${reviewCount} needs_review` : '1.5 rules OK'}
           </span>
+          ${compWarn && compWarn.detected ? `
+            <span class="hv-badge hv-badge-warn" title="${compWarn.warning_message || ''}">
+              ⚠️ ${compWarn.is_compilation ? `Compilation (${compWarn.swap_count || 0}× side swaps)` : 'Side swap'}
+            </span>
+          ` : ''}
         </div>
         <div style="display:flex; align-items:center; gap:4px;">
           ${hasCorrections ? `

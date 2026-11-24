@@ -21,6 +21,7 @@ class BroadcastPlayer {
     this.fileInput = document.getElementById('video-file-input');
 
     this.videoElement = document.getElementById('real-video-player');
+    this.videoStageEl = document.getElementById('video-stage-container') || (this.videoElement && this.videoElement.closest('.hv-video-stage'));
     this.statusBadgeEl = document.getElementById('video-rally-status-badge');
 
     this.onTimeUpdate = options.onTimeUpdate || (() => {});
@@ -41,6 +42,11 @@ class BroadcastPlayer {
 
     this.isPlaying = false;
     this.hasVideo = false;
+    this.isYouTubeMode = false;
+    this.ytVideoId = null;
+    this.ytPlayer = null;
+    this.ytPlayerReady = false;
+    this.ytPendingSeek = null;
     this.videoOffset = 0;
     this.activeShotIndex = 0;
     this.isUserScrubbing = false;
@@ -50,12 +56,155 @@ class BroadcastPlayer {
     this.updateTimecodeUI();
     this.renderTimelineTicks();
 
-    if (this.videoElement && this.videoElement.getAttribute('src')) {
-      this.loadVideoSource(this.videoElement.getAttribute('src'));
+    const initYtId = this.extractYouTubeIdFromTelemetry(window.HAWKVIEW_TELEMETRY, window.HAWKVIEW_ACTIVE_MATCH_KEY);
+    if (this.shouldPreferYouTube(initYtId)) {
+      this.loadYouTubeVideo(initYtId);
+    } else if (this.videoElement && this.videoElement.getAttribute('src')) {
+      this.loadVideoSource(this.videoElement.getAttribute('src'), initYtId);
     }
 
     this.startPlaybackLoop();
     window.broadcastPlayerInstance = this;
+  }
+
+  isRemoteStaticHost() {
+    if (typeof window === 'undefined' || !window.location) return false;
+    const h = window.location.hostname || '';
+    return h !== 'localhost' && h !== '127.0.0.1' && h !== '';
+  }
+
+  shouldPreferYouTube(ytId) {
+    return Boolean(ytId && this.isRemoteStaticHost());
+  }
+
+  extractYouTubeIdFromTelemetry(telemetry, matchKey = '') {
+    const idRe = /^[A-Za-z0-9_-]{11}$/;
+    const src = (telemetry && telemetry.source) || {};
+    const mm = (telemetry && telemetry.match_metadata) || {};
+    for (const cand of [src.yt_video_id, mm.yt_video_id]) {
+      if (typeof cand === 'string' && idRe.test(cand.trim())) return cand.trim();
+    }
+    const ytUrl = src.yt_url || mm.yt_url || '';
+    if (typeof ytUrl === 'string' && ytUrl) {
+      const m = ytUrl.match(/(?:v=|youtu\.be\/|shorts\/|live\/)([A-Za-z0-9_-]{11})/);
+      if (m) return m[1];
+    }
+    const keyCandidates = [matchKey, mm.match_id].filter(Boolean);
+    for (const k of keyCandidates) {
+      const m = String(k).match(/^(?:yt|stress)_([A-Za-z0-9_-]{11})$/);
+      if (m) return m[1];
+    }
+    const vidPath = String(src.video || '');
+    const mPath = vidPath.match(/(?:yt_|stress_test\/)([A-Za-z0-9_-]{11})\.mp4$/);
+    if (mPath) return mPath[1];
+    return null;
+  }
+
+  ensureYouTubeIframeApi() {
+    if (typeof window === 'undefined') return Promise.resolve(null);
+    if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+    if (window._hvYtApiPromise) return window._hvYtApiPromise;
+    window._hvYtApiPromise = new Promise((resolve) => {
+      const prevCb = window.onYouTubeIframeAPIReady;
+      window.onYouTubeIframeAPIReady = () => {
+        if (typeof prevCb === 'function') {
+          try { prevCb(); } catch (e) {}
+        }
+        resolve(window.YT);
+      };
+      if (!document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+        const tag = document.createElement('script');
+        tag.src = 'https://www.youtube.com/iframe_api';
+        tag.async = true;
+        document.head.appendChild(tag);
+      }
+      setTimeout(() => {
+        if (window.YT && window.YT.Player) resolve(window.YT);
+      }, 4000);
+    });
+    return window._hvYtApiPromise;
+  }
+
+  destroyYouTubePlayer() {
+    this.isYouTubeMode = false;
+    this.ytVideoId = null;
+    this.ytPlayerReady = false;
+    this.ytPendingSeek = null;
+    if (this.ytPlayer) {
+      try { this.ytPlayer.destroy(); } catch (e) {}
+      this.ytPlayer = null;
+    }
+    const host = document.getElementById('yt-iframe-host');
+    if (host) host.remove();
+    if (this.videoElement) {
+      this.videoElement.style.display = '';
+    }
+  }
+
+  loadYouTubeVideo(videoId) {
+    if (!videoId || !this.videoStageEl) return;
+    if (this.isYouTubeMode && this.ytVideoId === videoId && this.ytPlayer) {
+      return;
+    }
+    this.destroyYouTubePlayer();
+    if (this.videoElement) {
+      try { this.videoElement.pause(); } catch (e) {}
+      this.videoElement.style.display = 'none';
+    }
+    this.isYouTubeMode = true;
+    this.ytVideoId = videoId;
+    this.hasVideo = true;
+    this.ytPlayerReady = false;
+
+    const host = document.createElement('div');
+    host.id = 'yt-iframe-host';
+    host.style.cssText = 'position:absolute; inset:0; width:100%; height:100%; z-index:1; background:#000;';
+    const inner = document.createElement('div');
+    inner.id = 'yt-iframe-player-el';
+    inner.style.cssText = 'width:100%; height:100%;';
+    host.appendChild(inner);
+    this.videoStageEl.insertBefore(host, this.videoStageEl.firstChild);
+
+    this.ensureYouTubeIframeApi().then((YT) => {
+      if (!YT || !YT.Player || !this.isYouTubeMode || this.ytVideoId !== videoId) return;
+      const startSec = Math.max(0, Math.floor(this.currentTime || 0));
+      this.ytPlayer = new YT.Player('yt-iframe-player-el', {
+        width: '100%',
+        height: '100%',
+        videoId,
+        playerVars: {
+          playsinline: 1,
+          rel: 0,
+          modestbranding: 1,
+          enablejsapi: 1,
+          origin: window.location.origin,
+          start: startSec
+        },
+        events: {
+          onReady: () => {
+            this.ytPlayerReady = true;
+            try {
+              const dur = this.ytPlayer.getDuration();
+              if (dur && dur > 0) this.totalDuration = dur;
+              this.ytPlayer.mute();
+              if (this.muteBtn) this.muteBtn.textContent = '🔇 Muted';
+              const target = this.ytPendingSeek !== null ? this.ytPendingSeek : this.currentTime;
+              this.ytPendingSeek = null;
+              if (typeof target === 'number' && target > 0) {
+                this.ytPlayer.seekTo(target, true);
+              }
+            } catch (e) {}
+            this.updateTimecodeUI();
+            this.renderTimelineTicks();
+          },
+          onStateChange: (ev) => {
+            const playing = ev && YT.PlayerState && ev.data === YT.PlayerState.PLAYING;
+            this.isPlaying = Boolean(playing);
+            this.updatePlayBtnUI();
+          }
+        }
+      });
+    });
   }
 
   getRallyStart(r) {
@@ -90,7 +239,13 @@ class BroadcastPlayer {
   }
 
   getDuration() {
-    if (this.hasVideo && this.videoElement && this.videoElement.duration > 0) {
+    if (this.isYouTubeMode && this.ytPlayer && this.ytPlayerReady) {
+      try {
+        const d = this.ytPlayer.getDuration();
+        if (d && d > 0) return d;
+      } catch (e) {}
+    }
+    if (!this.isYouTubeMode && this.hasVideo && this.videoElement && this.videoElement.duration > 0) {
       return this.videoElement.duration;
     }
     return this.totalDuration || 498.44;
@@ -190,18 +345,39 @@ class BroadcastPlayer {
     };
   }
 
-  loadVideoSource(src) {
-    if (!this.videoElement) return;
+  loadVideoSource(src, fallbackYtId = null) {
+    if (this.shouldPreferYouTube(fallbackYtId)) {
+      this.loadYouTubeVideo(fallbackYtId);
+      return;
+    }
+    if (!this.videoElement || !src) {
+      if (fallbackYtId) this.loadYouTubeVideo(fallbackYtId);
+      return;
+    }
+    this.destroyYouTubePlayer();
+    this.hasVideo = false;
     this.videoElement.src = src;
     this.videoElement.load();
 
-    this.videoElement.onloadedmetadata = () => {
+    const syncInitialFrame = () => {
       this.hasVideo = true;
       this.videoOffset = 0;
       this.updateTimecodeUI();
       this.renderTimelineTicks();
-      const targetTime = Math.max(0, Math.min(this.videoElement.duration || 498, this.currentTime));
-      this.videoElement.currentTime = targetTime;
+      const targetTime = Math.max(0.05, Math.min((this.videoElement.duration || 498) - 0.1, this.currentTime || 0.1));
+      try {
+        if (Math.abs((this.videoElement.currentTime || 0) - targetTime) > 0.05) {
+          this.videoElement.currentTime = targetTime;
+        }
+      } catch (e) {}
+    };
+
+    this.videoElement.onloadedmetadata = syncInitialFrame;
+    this.videoElement.onloadeddata = syncInitialFrame;
+    this.videoElement.onerror = () => {
+      if (fallbackYtId) {
+        this.loadYouTubeVideo(fallbackYtId);
+      }
     };
   }
 
@@ -215,7 +391,13 @@ class BroadcastPlayer {
     }
     this.updateTimecodeUI();
 
-    if (this.hasVideo && this.videoElement) {
+    if (this.isYouTubeMode) {
+      if (this.ytPlayer && this.ytPlayerReady) {
+        try { this.ytPlayer.seekTo(clamped, true); } catch (e) {}
+      } else {
+        this.ytPendingSeek = clamped;
+      }
+    } else if (this.hasVideo && this.videoElement) {
       this.videoElement.currentTime = Math.max(0, Math.min(this.videoElement.duration || maxDur, clamped));
     }
 
@@ -226,7 +408,17 @@ class BroadcastPlayer {
     this.isPlaying = !this.isPlaying;
     this.updatePlayBtnUI();
 
-    if (this.hasVideo && this.videoElement) {
+    if (this.isYouTubeMode) {
+      if (this.ytPlayer && this.ytPlayerReady) {
+        try {
+          if (this.isPlaying) {
+            this.ytPlayer.playVideo();
+          } else {
+            this.ytPlayer.pauseVideo();
+          }
+        } catch (e) {}
+      }
+    } else if (this.hasVideo && this.videoElement) {
       if (this.isPlaying) {
         this.videoElement.play().catch(() => {});
       } else {
@@ -235,7 +427,21 @@ class BroadcastPlayer {
     }
   }
 
+  wakeVideoHUD(durationMs = 4000) {
+    if (!this.videoStageEl) return;
+    this.videoStageEl.classList.add('hud-awake');
+    if (this._videoHudWakeTimer) {
+      clearTimeout(this._videoHudWakeTimer);
+    }
+    this._videoHudWakeTimer = setTimeout(() => {
+      this.videoStageEl.classList.remove('hud-awake');
+    }, durationMs);
+  }
+
   updatePlayBtnUI() {
+    if (this.videoStageEl) {
+      this.videoStageEl.classList.toggle('is-playing', this.isPlaying);
+    }
     if (!this.playBtn) return;
     this.playBtn.textContent = this.isPlaying ? '⏸ Pause' : '▶ Play';
     this.playBtn.classList.toggle('active', this.isPlaying);
@@ -256,6 +462,13 @@ class BroadcastPlayer {
   }
 
   bindEvents() {
+    if (this.videoStageEl) {
+      // Top video overlay (.hv-video-overlay-top) starts at 10% opacity by default
+      // and wakes to 100% opacity for 4 seconds (4000ms) when the user taps/clicks the video view
+      ['pointerdown', 'touchstart', 'click'].forEach((evt) => {
+        this.videoStageEl.addEventListener(evt, () => this.wakeVideoHUD(4000), { passive: true });
+      });
+    }
     if (this.playBtn) {
       this.playBtn.addEventListener('click', () => this.togglePlay());
     }
@@ -273,6 +486,18 @@ class BroadcastPlayer {
     }
     if (this.muteBtn && this.videoElement) {
       this.muteBtn.addEventListener('click', () => {
+        if (this.isYouTubeMode && this.ytPlayer && this.ytPlayerReady) {
+          try {
+            if (this.ytPlayer.isMuted()) {
+              this.ytPlayer.unMute();
+              this.muteBtn.textContent = '🔊 Audio';
+            } else {
+              this.ytPlayer.mute();
+              this.muteBtn.textContent = '🔇 Muted';
+            }
+          } catch (e) {}
+          return;
+        }
         this.videoElement.muted = !this.videoElement.muted;
         this.muteBtn.textContent = this.videoElement.muted ? '🔇 Muted' : '🔊 Audio';
       });
@@ -326,7 +551,19 @@ class BroadcastPlayer {
 
     window.addEventListener('hawkview:matchChanged', (e) => {
       const t = (e.detail && e.detail.telemetry) || window.HAWKVIEW_TELEMETRY;
+      const mKey = (e.detail && e.detail.matchKey) || window.HAWKVIEW_ACTIVE_MATCH_KEY || '';
       this.rallies = (t && t.rallies) || [];
+      const ytId = this.extractYouTubeIdFromTelemetry(t, mKey);
+      if (this.shouldPreferYouTube(ytId)) {
+        this.loadYouTubeVideo(ytId);
+      } else if (t && t.source && t.source.video && this.videoElement) {
+        const currentSrc = this.videoElement.getAttribute('src') || '';
+        if (currentSrc !== t.source.video && !currentSrc.startsWith('blob:')) {
+          this.loadVideoSource(t.source.video, ytId);
+        }
+      } else if (ytId) {
+        this.loadYouTubeVideo(ytId);
+      }
       if (t && t.source && t.source.duration_sec) {
         this.totalDuration = t.source.duration_sec;
       }
@@ -396,13 +633,17 @@ class BroadcastPlayer {
 
     if (this.statusBadgeEl && rally) {
       if (isDowntime) {
-        this.statusBadgeEl.textContent = `Between rallies · Next/Last R${rally.rally_id}`;
+        const msg = `R${rally.rally_id} · Next Rally`;
+        this.statusBadgeEl.textContent = msg;
+        this.statusBadgeEl.title = `Between rallies · Next/Last R${rally.rally_id}`;
       } else if (activeShot) {
         const spd = typeof activeShot.speed_kmh === 'number'
-          ? `${activeShot.speed_kmh.toFixed(1)} km/h est.`
+          ? `${Math.round(activeShot.speed_kmh)} km/h`
           : '—';
-        this.statusBadgeEl.textContent =
-          `R${rally.rally_id} · Shot #${activeShot.shot_num}/${rally.shot_count} · ${activeShot.hitter} ${activeShot.type.replace(/_/g, ' ')} (${spd})`;
+        const shotTypeShort = (activeShot.type || 'shot').replace(/^serve_/, 'serve ').replace(/_/g, ' ');
+        const msg = `R${rally.rally_id} · #${activeShot.shot_num}/${rally.shot_count} · ${activeShot.hitter} ${shotTypeShort} (${spd})`;
+        this.statusBadgeEl.textContent = msg;
+        this.statusBadgeEl.title = msg;
       } else {
         this.statusBadgeEl.textContent = `R${rally.rally_id} · ${rally.shot_count} shots`;
       }
@@ -432,7 +673,17 @@ class BroadcastPlayer {
       const deltaSec = (timestamp - lastTimestamp) / 1000;
       lastTimestamp = timestamp;
 
-      if (this.hasVideo && this.videoElement && !this.videoElement.paused) {
+      if (this.isYouTubeMode && this.ytPlayer && this.ytPlayerReady && this.isPlaying) {
+        if (!this.isUserScrubbing) {
+          try {
+            const ytNow = this.ytPlayer.getCurrentTime();
+            if (typeof ytNow === 'number' && !isNaN(ytNow)) {
+              this.currentTime = ytNow;
+              this.syncRallyState();
+            }
+          } catch (e) {}
+        }
+      } else if (!this.isYouTubeMode && this.hasVideo && this.videoElement && !this.videoElement.paused) {
         if (!this.isUserScrubbing) {
           this.currentTime = this.videoElement.currentTime;
           this.syncRallyState();

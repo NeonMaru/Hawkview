@@ -21,9 +21,18 @@ npm-debug.log*
 .venv
 env/
 
-# Model weights
+# Model weights (keep compact cloud inference weights tracked; ignore 130MB training ckpt)
 *.pt
-engine/weights/
+!engine/weights/TrackNet_infer_slim.pt
+!engine/weights/InpaintNet_best.pt
+
+# Secrets & local-only runtime artifacts
+cookies.txt
+dist/
+data/tunnel_url.json
+assets/stress_test/
+data/stress_test/
+
 # Media assets
 assets/*.mp4
 assets/*.mov

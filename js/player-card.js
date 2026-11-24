@@ -12,7 +12,11 @@ class PlayerCard {
   constructor(shotExplorer, broadcastPlayer) {
     this.explorer = shotExplorer;
     this.player = broadcastPlayer;
-    this.activePlayerId = 'LZJ';
+    let savedPlayer = 'LZJ';
+    try {
+      savedPlayer = localStorage.getItem('hawkview_last_stat_player') || 'LZJ';
+    } catch (e) {}
+    this.activePlayerId = savedPlayer;
 
     this.container = document.getElementById('player-card-container');
     this.bindEvents();
@@ -51,24 +55,53 @@ class PlayerCard {
     return out;
   }
 
+  getCompilationWarning() {
+    const telemetry = window.HAWKVIEW_TELEMETRY;
+    if (!telemetry) return null;
+    const cw = telemetry.match_metadata && telemetry.match_metadata.compilation_warning;
+    if (cw && cw.detected) return cw;
+    const rallies = telemetry.rallies || [];
+    if (rallies.length >= 2) {
+      const firstNear = rallies[0].near_player;
+      const swappedRallies = rallies.filter((r) => r.near_player && r.near_player !== firstNear);
+      if (swappedRallies.length > 0) {
+        return {
+          detected: true,
+          is_compilation: false,
+          swap_count: 1,
+          swapped_rally_ids: swappedRallies.map((r) => r.rally_id),
+          summary: `Court-Side Swap Detected (${swappedRallies.length}/${rallies.length} rallies swapped)`,
+          warning_message: 'Players switch court ends across rallies in this clip. If this is a compilation across different games or players, names and aggregate stats may differ.'
+        };
+      }
+    }
+    return null;
+  }
+
   getCurrentEnd(playerId) {
     const rally = (this.player && this.player.currentRally) ||
       (window.HAWKVIEW_TELEMETRY && window.HAWKVIEW_TELEMETRY.rallies && window.HAWKVIEW_TELEMETRY.rallies[0]);
     if (!rally) return '—';
-    if (rally.near_player === playerId) return 'Near';
-    if (rally.far_player === playerId) return 'Far';
+    const swapTag = rally.side_swapped ? ' ⇄' : '';
+    if (rally.near_player === playerId) return `Near${swapTag}`;
+    if (rally.far_player === playerId) return `Far${swapTag}`;
     return '—';
   }
 
   updateCurrentEndBadge() {
     const el = document.getElementById('player-card-current-end');
     if (el) {
-      el.textContent = `${this.getCurrentEnd(this.activePlayerId)} end`;
+      const endStr = this.getCurrentEnd(this.activePlayerId);
+      el.textContent = `${endStr} end`;
+      el.classList.toggle('hv-badge-warn', endStr.includes('⇄'));
     }
   }
 
   selectPlayer(playerId) {
     this.activePlayerId = playerId;
+    try {
+      localStorage.setItem('hawkview_last_stat_player', playerId);
+    } catch (e) {}
     this.render();
   }
 
@@ -248,20 +281,48 @@ class PlayerCard {
       }).join('');
     }).join('');
 
+    const compWarn = this.getCompilationWarning();
+    const warnHtml = compWarn ? `
+      <div style="margin-bottom:10px; padding:7px 9px; border-radius:6px; border:1px solid rgba(217, 119, 6, 0.45); background:rgba(245, 158, 11, 0.10); font-size:11px; line-height:1.38;">
+        <div style="font-weight:700; color:#d97706; display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:2px;">
+          <span>⚠️ ${compWarn.is_compilation ? 'Compilation / Side-Swap Clip' : 'Court-Side Change Detected'}</span>
+          ${compWarn.swap_count ? `<span class="hv-badge hv-badge-warn" style="font-size:10px;">${compWarn.swap_count}× swap</span>` : ''}
+        </div>
+        <div style="color:var(--text); opacity:0.92;">
+          ${compWarn.warning_message || 'Court sides or player names may differ across rallies, which can affect Left Panel & Bottom Analytics totals.'}
+        </div>
+      </div>
+    ` : '';
+
     this.container.innerHTML = `
       <div class="hv-panel-header">
         <h2 class="hv-panel-title">Player Card</h2>
-        <span id="player-card-current-end" class="hv-badge">${currentEnd} end</span>
+        <span id="player-card-current-end" class="hv-badge ${currentEnd.includes('⇄') ? 'hv-badge-warn' : ''}">${currentEnd} end</span>
       </div>
+      ${warnHtml}
 
       <!-- Player Picker Tabs -->
       <div class="hv-player-tabs">
         ${playerIds.map((pid) => {
           const pm = (telemetry.players[pid] && telemetry.players[pid].metadata) || {};
           const active = pid === this.activePlayerId;
+          const u = `${pid || ''} ${pm.name || ''}`.toUpperCase();
+          const toks = u.match(/[A-Z]+/g) || [];
+          const has = (arr) => arr.some((t) => toks.includes(t));
+          let flag = pm.flag;
+          if (!flag || flag === '🏸') {
+            if (has(['IWANAGA', 'IWANA', 'NAKANISHI', 'NAKAN', 'NARAOKA', 'MOMOTA', 'YAMAGUCHI', 'SHIDA', 'MATSUYAMA'])) flag = '🇯🇵';
+            else if (has(['TAN', 'THINAAH', 'MURALITHARAN', 'LZJ', 'CHIA', 'SOH', 'GOH']) || u.includes('ZII JIA')) flag = '🇲🇾';
+            else if (has(['SINDHU', 'PUSARLA', 'PURSARLA', 'SEN', 'PRANNOY', 'RANKIREDDY', 'SHETTY'])) flag = '🇮🇳';
+            else if (has(['AN', 'SY', 'SE', 'YOUNG', 'BAEK', 'KIM', 'SEO']) || u.includes('AN S')) flag = '🇰🇷';
+            else if (has(['ANTONSEN', 'AXELSEN', 'ASTRUP', 'RASMUSSEN'])) flag = '🇩🇰';
+            else if (has(['POPOV', 'LANIER', 'GICQUEL', 'DELRUE'])) flag = '🇫🇷';
+            else if (has(['SHI', 'CHEN', 'LIANG', 'WANG', 'ZHENG', 'HUANG', 'LIU'])) flag = '🇨🇳';
+            else flag = '🏸';
+          }
           return `
             <button class="hv-player-tab ${active ? 'active' : ''}" data-select-player="${pid}">
-              <span>${pm.flag || ''}</span>
+              <span>${flag}</span>
               <span>${pid}</span>
             </button>
           `;
@@ -271,7 +332,23 @@ class PlayerCard {
       <!-- Player Identity Row -->
       <div class="hv-player-profile">
         <div>
-          <div style="font-weight:700; font-size:13.5px;">${meta.flag || ''} ${meta.name || this.activePlayerId}</div>
+          <div style="font-weight:700; font-size:13.5px;">${(() => {
+            const u = `${this.activePlayerId || ''} ${meta.name || ''}`.toUpperCase();
+            const toks = u.match(/[A-Z]+/g) || [];
+            const has = (arr) => arr.some((t) => toks.includes(t));
+            let f = meta.flag;
+            if (!f || f === '🏸') {
+              if (has(['IWANAGA', 'IWANA', 'NAKANISHI', 'NAKAN', 'NARAOKA', 'MOMOTA', 'YAMAGUCHI', 'SHIDA', 'MATSUYAMA'])) f = '🇯🇵';
+              else if (has(['TAN', 'THINAAH', 'MURALITHARAN', 'LZJ', 'CHIA', 'SOH', 'GOH']) || u.includes('ZII JIA')) f = '🇲🇾';
+              else if (has(['SINDHU', 'PUSARLA', 'PURSARLA', 'SEN', 'PRANNOY', 'RANKIREDDY', 'SHETTY'])) f = '🇮🇳';
+              else if (has(['AN', 'SY', 'SE', 'YOUNG', 'BAEK', 'KIM', 'SEO']) || u.includes('AN S')) f = '🇰🇷';
+              else if (has(['ANTONSEN', 'AXELSEN', 'ASTRUP', 'RASMUSSEN'])) f = '🇩🇰';
+              else if (has(['POPOV', 'LANIER', 'GICQUEL', 'DELRUE'])) f = '🇫🇷';
+              else if (has(['SHI', 'CHEN', 'LIANG', 'WANG', 'ZHENG', 'HUANG', 'LIU'])) f = '🇨🇳';
+              else f = '🏸';
+            }
+            return f;
+          })()} ${meta.name || this.activePlayerId}</div>
           <div style="font-size:11px; color:var(--muted);">${meta.country || ''} · ${handedness}-handed</div>
         </div>
         <div style="text-align:right; font-size:11px; color:var(--muted);">

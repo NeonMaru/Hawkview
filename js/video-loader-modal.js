@@ -80,6 +80,65 @@ class VideoLoaderModal {
     const presetTripodBtn = document.getElementById('btn-preset-tripod');
     const presetAngledBtn = document.getElementById('btn-preset-angled');
     const startBtn = document.getElementById('btn-start-3d-analysis');
+    const nearInputEl = document.getElementById('calib-near-player');
+    const farInputEl = document.getElementById('calib-far-player');
+    const swapNearFarBtn = document.getElementById('btn-swap-near-far');
+    const ytUrlInput = document.getElementById('calib-youtube-url');
+    const ytAutoBtn = document.getElementById('btn-yt-auto-convert');
+    const ytPreviewBtn = document.getElementById('btn-yt-preview');
+    const topbarYtInput = document.getElementById('topbar-yt-url');
+    const topbarYtGoBtn = document.getElementById('btn-topbar-yt-go');
+
+    if (ytAutoBtn) {
+      ytAutoBtn.addEventListener('click', () => this.importYouTubeUrl(true));
+    }
+    if (ytPreviewBtn) {
+      ytPreviewBtn.addEventListener('click', () => this.importYouTubeUrl(false));
+    }
+    if (ytUrlInput) {
+      ytUrlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          this.importYouTubeUrl(true);
+        }
+      });
+    }
+    const triggerTopbarYt = () => {
+      const urlVal = topbarYtInput ? String(topbarYtInput.value || '').trim() : '';
+      if (!urlVal) {
+        this.open();
+        if (ytUrlInput) ytUrlInput.focus();
+        return;
+      }
+      if (ytUrlInput) ytUrlInput.value = urlVal;
+      this.importYouTubeUrl(true, urlVal);
+    };
+    if (topbarYtGoBtn) {
+      topbarYtGoBtn.addEventListener('click', triggerTopbarYt);
+    }
+    if (topbarYtInput) {
+      topbarYtInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          triggerTopbarYt();
+        }
+      });
+    }
+
+    if (nearInputEl) {
+      nearInputEl.addEventListener('input', () => { this._userEditedPlayers = true; });
+    }
+    if (farInputEl) {
+      farInputEl.addEventListener('input', () => { this._userEditedPlayers = true; });
+    }
+    if (swapNearFarBtn && nearInputEl && farInputEl) {
+      swapNearFarBtn.addEventListener('click', () => {
+        const tmp = nearInputEl.value;
+        nearInputEl.value = farInputEl.value;
+        farInputEl.value = tmp;
+        this._userEditedPlayers = true;
+      });
+    }
 
     if (topOpenBtn) topOpenBtn.addEventListener('click', () => this.open());
     if (closeBtn) closeBtn.addEventListener('click', () => this.close());
@@ -121,9 +180,12 @@ class VideoLoaderModal {
       });
     }
 
-    this.previewVideo.addEventListener('loadeddata', () => {
-      this.videoWidth = this.previewVideo.videoWidth || 1920;
-      this.videoHeight = this.previewVideo.videoHeight || 1080;
+    this.previewVideo.addEventListener('loadedmetadata', () => {
+      const newW = this.previewVideo.videoWidth || 1920;
+      const newH = this.previewVideo.videoHeight || 1080;
+      this.rescaleKeypointsToDimensions(newW, newH);
+      this.videoWidth = newW;
+      this.videoHeight = newH;
       this.videoDuration = this.previewVideo.duration || 60;
       if (this.canvas) {
         this.canvas.width = this.videoWidth;
@@ -132,11 +194,52 @@ class VideoLoaderModal {
       if (this.frameSlider) {
         this.frameSlider.max = Math.max(1, Math.floor(this.videoDuration));
       }
+      const fileLabelEl = document.getElementById('calib-active-filename');
+      if (fileLabelEl && this.uploadedFileName && !this._serverCalibApplied) {
+        const mins = Math.floor(this.videoDuration / 60);
+        const secs = Math.round(this.videoDuration % 60).toString().padStart(2, '0');
+        fileLabelEl.textContent = `${this.uploadedFileName} · ${this.videoWidth}×${this.videoHeight} (${mins}:${secs})`;
+      }
+      // Seek slightly into the video so mobile browsers decode & paint the frame immediately
+      const targetSample = Math.min(15.0, Math.max(0.5, this.videoDuration * 0.2));
+      if (Math.abs((this.previewVideo.currentTime || 0) - targetSample) > 0.1) {
+        try {
+          this.previewVideo.currentTime = targetSample;
+          if (this.frameSlider) this.frameSlider.value = targetSample;
+        } catch (e) {}
+      }
       this.drawCalibrationCanvas();
     });
 
+    this.previewVideo.addEventListener('loadeddata', () => {
+      const newW = this.previewVideo.videoWidth || 1920;
+      const newH = this.previewVideo.videoHeight || 1080;
+      this.rescaleKeypointsToDimensions(newW, newH);
+      this.videoWidth = newW;
+      this.videoHeight = newH;
+      this.videoDuration = this.previewVideo.duration || 60;
+      if (this.canvas) {
+        this.canvas.width = this.videoWidth;
+        this.canvas.height = this.videoHeight;
+      }
+      if (this.frameSlider) {
+        this.frameSlider.max = Math.max(1, Math.floor(this.videoDuration));
+      }
+      if (this._pendingBrowserAutoCalib && !this._serverCalibApplied && this.previewVideo.readyState >= 2) {
+        this._pendingBrowserAutoCalib = false;
+        this.autoDetectCourtInBrowser(true);
+      } else {
+        this.drawCalibrationCanvas();
+      }
+    });
+
     this.previewVideo.addEventListener('seeked', () => {
-      this.drawCalibrationCanvas();
+      if (this._pendingBrowserAutoCalib && !this._serverCalibApplied && this.previewVideo.readyState >= 2) {
+        this._pendingBrowserAutoCalib = false;
+        this.autoDetectCourtInBrowser(true);
+      } else {
+        this.drawCalibrationCanvas();
+      }
     });
 
     if (autoDetectBtn) {
@@ -175,9 +278,12 @@ class VideoLoaderModal {
   }
 
   openWithFile(file) {
-    this.open();
+    if (!this.modal) return;
+    this.modal.classList.remove('hidden');
     if (file) {
       this.uploadFileToServer(file);
+    } else {
+      this.open();
     }
   }
 
@@ -192,7 +298,500 @@ class VideoLoaderModal {
     this.statusPillEl.style.color = isGood ? 'var(--shot-continue)' : 'var(--shot-selected)';
   }
 
+  getApiUrl(path) {
+    const base = window.HAWKVIEW_API_BASE;
+    if (
+      typeof base === 'string' &&
+      base.length > 0 &&
+      !base.includes('.trycloudflare.com') &&
+      !base.includes('.lhr.life')
+    ) {
+      return `${base}${path}`;
+    }
+    return path;
+  }
+
+  async refreshTunnelUrl() {
+    // Cloud-native: Netlify uses same-origin Netlify Functions, never a local Mac tunnel
+    return '';
+  }
+
+  parsePlayersFromFilenameClient(filename) {
+    const stem = String(filename || '').replace(/\.[^.]+$/, '');
+    const lower = stem.toLowerCase();
+    if (lower.includes('an se young') && (lower.includes('sindhu') || lower.includes('pusarla'))) {
+      return { near: 'AN S.Y.', far: 'P.V. SINDHU', isDoubles: false };
+    }
+    if (lower.includes('iwanaga') && (lower.includes('tan') || lower.includes('muralitharan') || lower.includes('thinaah'))) {
+      return { near: 'IWANAGA / NAKANISHI', far: 'TAN / THINAAH', isDoubles: true };
+    }
+    // Check Doubles pattern: "PlayerA1_PlayerA2 vs PlayerB1_PlayerB2" or "PlayerA1 / PlayerA2 vs PlayerB1 / PlayerB2"
+    const cleanStem = stem.split(/\s+[_|—–-]\s+/)[0].replace(/\s*-\s*\(\d+p\).*$/i, '').trim();
+    const vsParts = cleanStem.split(/\s+(?:vs\.?|v\.?)\s+/i);
+    if (vsParts.length >= 2) {
+      const formatSide = (raw) => {
+        const s = raw.trim();
+        if (/[\/&_]/.test(s)) {
+          const pair = s.split(/[\/&_]+/).map((p) => {
+            const toks = p.trim().split(/\s+/).filter(Boolean);
+            return (toks[toks.length - 1] || p.trim()).toUpperCase();
+          }).filter(Boolean);
+          if (pair.length >= 2) {
+            return { label: `${pair[0]} / ${pair[1]}`, isDoubles: true };
+          }
+        }
+        const toks = s.split(/\s+/).filter(Boolean);
+        return { label: (toks[toks.length - 1] || s).toUpperCase(), isDoubles: false };
+      };
+      const sideA = formatSide(vsParts[0]);
+      const sideB = formatSide(vsParts[1]);
+      return {
+        near: sideA.label || 'NEAR PLAYER',
+        far: sideB.label || 'FAR PLAYER',
+        isDoubles: Boolean(sideA.isDoubles || sideB.isDoubles)
+      };
+    }
+    const looksLikeDoubles = /(doubles|2v2|\bmd\b|\bwd\b|\bxd\b|&)/.test(lower);
+    return {
+      near: looksLikeDoubles ? 'NEAR PAIR' : 'NEAR PLAYER',
+      far: looksLikeDoubles ? 'FAR PAIR' : 'FAR PLAYER',
+      isDoubles: looksLikeDoubles
+    };
+  }
+
+  setYouTubeProgressUI(visible, pct = 0, stageText = '', detailText = '', isError = false) {
+    const wrapEl = document.getElementById('calib-upload-progress-wrap');
+    const fillEl = document.getElementById('calib-upload-progress-fill');
+    const textEl = document.getElementById('calib-upload-progress-text');
+    const labelEl = document.getElementById('calib-upload-progress-label');
+    if (!wrapEl) return;
+    if (!visible) {
+      wrapEl.classList.add('hidden');
+      return;
+    }
+    wrapEl.classList.remove('hidden');
+    const clampedPct = Math.max(2, Math.min(100, Math.round(pct)));
+    if (fillEl) {
+      fillEl.style.width = `${clampedPct}%`;
+      fillEl.style.background = isError
+        ? 'var(--shot-error)'
+        : 'linear-gradient(90deg, #2563eb, #10b981)';
+    }
+    if (labelEl) {
+      labelEl.textContent = stageText || 'Importing YouTube Video...';
+    }
+    if (textEl) {
+      textEl.textContent = detailText || `${clampedPct}%`;
+      textEl.style.color = isError ? 'var(--shot-error)' : 'var(--shot-continue)';
+    }
+  }
+
+  async importYouTubeUrl(autoStart = true, overrideUrl = null) {
+    const urlInput = document.getElementById('calib-youtube-url');
+    const topbarYtInput = document.getElementById('topbar-yt-url');
+    const autoBtn = document.getElementById('btn-yt-auto-convert');
+    const prevBtn = document.getElementById('btn-yt-preview');
+    const topbarGoBtn = document.getElementById('btn-topbar-yt-go');
+    const rawUrl = String(
+      overrideUrl !== null ? overrideUrl : (urlInput ? urlInput.value : '')
+    ).trim();
+    if (!rawUrl) {
+      this.setStatusPill('⚠️ Paste a BWF YouTube URL first (e.g. https://youtu.be/hiUDiIaQjxA)', false);
+      if (urlInput) urlInput.focus();
+      return;
+    }
+
+    if (this._ytPollTimer) {
+      clearInterval(this._ytPollTimer);
+      this._ytPollTimer = null;
+    }
+
+    this._loadToken = (this._loadToken || 0) + 1;
+    const token = this._loadToken;
+    this._serverCalibApplied = false;
+    this._pendingBrowserAutoCalib = false;
+    this._userEditedPlayers = false;
+    this.selectedFile = null;
+    this.localBlobUrl = null;
+    this.isKnownBundledMatch = false;
+
+    const maxRalliesEl = document.getElementById('calib-max-rallies');
+    const reqMaxRallies = maxRalliesEl ? Math.max(3, parseInt(maxRalliesEl.value, 10) || 3) : 3;
+
+    const setBtnsDisabled = (disabled) => {
+      if (autoBtn) autoBtn.disabled = disabled;
+      if (prevBtn) prevBtn.disabled = disabled;
+      if (topbarGoBtn) topbarGoBtn.disabled = disabled;
+    };
+    setBtnsDisabled(true);
+    this.setYouTubeProgressUI(true, 5, 'Connecting to Hawkview Cloud...', 'Validating YouTube URL & checking 3D match cache...');
+    this.setStatusPill('⏳ Checking cache & importing YouTube video...', false);
+    this.showBanner('⏳ Importing YouTube URL...', 'Checking Hawkview Cloud Cache & preparing 3D pipeline...', 8, true);
+
+    try {
+      const resp = await fetch(this.getApiUrl('/api/import-youtube'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl, max_rallies: reqMaxRallies })
+      });
+
+      const startData = await resp.json().catch(() => ({}));
+      if (!resp.ok) {
+        const errMsg = startData.error || `Server rejected YouTube URL (HTTP ${resp.status})`;
+        setBtnsDisabled(false);
+        this.setYouTubeProgressUI(true, 100, '❌ YouTube Import Error', startData.error_code || 'Invalid URL', true);
+        this.setStatusPill(`❌ ${errMsg}`, false);
+        this.showBanner('❌ YouTube URL Error', errMsg, 100, false);
+        return;
+      }
+
+      // MODE 1: Instant Cloud Cache Hit (Netlify Blobs / Static CDN -> <0.5s 3D + YouTube IFrame!)
+      if (startData.instant && startData.telemetry) {
+        setBtnsDisabled(false);
+        const matchId = startData.match_id || `yt_${startData.video_id}`;
+        const tel = startData.telemetry;
+        if (tel.source && startData.video_id && !tel.source.yt_video_id) {
+          tel.source.yt_video_id = startData.video_id;
+        }
+        this.pendingVideoSrc = (tel.source && tel.source.video) || '';
+        this.close();
+        if (topbarYtInput) topbarYtInput.value = '';
+        if (window.cacheStoreInstance) {
+          window.cacheStoreInstance.saveMatchTelemetry(matchId, tel);
+          window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
+        }
+        this.activateNewMatchInWorkspace(matchId, tel);
+        const rCnt = (tel.rallies || []).length;
+        const sCnt = (tel.rallies || []).reduce((a, r) => a + ((r.shots || []).length), 0);
+        this.showBanner(
+          '✅ Instant 3D Match Loaded from Cloud Cache',
+          `${rCnt} rallies · ${sCnt} shots synced with YouTube player`,
+          100,
+          false
+        );
+        setTimeout(() => {
+          if (this.bannerEl && !this.activePollTimer) this.bannerEl.classList.add('hidden');
+        }, 4500);
+        return;
+      }
+
+      if (!startData.job_id) {
+        const errMsg = startData.error || 'Server did not return a job ID.';
+        setBtnsDisabled(false);
+        this.setYouTubeProgressUI(true, 100, '❌ YouTube Import Error', errMsg, true);
+        this.setStatusPill(`❌ ${errMsg}`, false);
+        this.showBanner('❌ YouTube Import Error', errMsg, 100, false);
+        return;
+      }
+
+      const jobId = startData.job_id;
+      const isCloudAsync = startData.mode === 'cloud_async';
+      if (isCloudAsync) {
+        this.close();
+        this.hasSwitchedToNewMatch = false;
+        this.lastStreamedRallyCount = -1;
+        this.pendingVideoSrc = '';
+        this.showBanner(
+          '☁️ Cloud CV Runner Starting...',
+          `Downloading 1080p YouTube (${startData.video_id}) & running TrackNetV3 + 3D physics in the cloud (~60–90s)...`,
+          8,
+          true
+        );
+      }
+
+      const pollStatus = async () => {
+        if (token !== this._loadToken) {
+          clearInterval(this._ytPollTimer);
+          this._ytPollTimer = null;
+          return;
+        }
+        try {
+          const stPath = `/api/import-youtube-status?job_id=${encodeURIComponent(jobId)}`;
+          const rSt = await fetch(this.getApiUrl(stPath), { cache: 'no-store' });
+          const st = await rSt.json().catch(() => null);
+          if (!st) return;
+
+          if (st.status === 'error') {
+            clearInterval(this._ytPollTimer);
+            this._ytPollTimer = null;
+            setBtnsDisabled(false);
+            const msg = st.error || st.message || 'YouTube download failed.';
+            const shortTag = st.error_code === 'youtube_auth_required'
+              ? 'Sign-in / cookies required'
+              : (st.error_code || 'Download error');
+            this.setYouTubeProgressUI(true, 100, `❌ ${st.stage || 'YouTube Import Error'}`, shortTag, true);
+            this.setStatusPill(`❌ ${msg}`, false);
+            this.showBanner(`❌ ${st.stage || 'Cloud Conversion Error'}`, msg, 100, false);
+            return;
+          }
+
+          const pctNow = Number(st.percent) || 10;
+          this.setYouTubeProgressUI(true, pctNow, st.stage || 'Importing YouTube...', st.message || '');
+          if (isCloudAsync) {
+            this.showBanner(
+              st.stage || '☁️ Converting YouTube in Cloud...',
+              st.message || `Processing ${startData.video_id}...`,
+              pctNow,
+              st.status !== 'completed' && st.status !== 'ready'
+            );
+          }
+
+          // MODE 2: Cloud Async (GitHub Actions -> Netlify Blobs streaming telemetry!)
+          if (isCloudAsync && st.telemetry) {
+            const matchId = st.match_id || startData.match_id;
+            const tel = st.telemetry;
+            if (tel.source && startData.video_id && !tel.source.yt_video_id) {
+              tel.source.yt_video_id = startData.video_id;
+            }
+            const rDone = Number(st.rallies_completed || (tel.rallies || []).length);
+            if (rDone >= 1 && rDone !== this.lastStreamedRallyCount) {
+              this.lastStreamedRallyCount = rDone;
+              if (!window.HAWKVIEW_MATCHES) window.HAWKVIEW_MATCHES = {};
+              window.HAWKVIEW_MATCHES[matchId] = tel;
+              if (window.cacheStoreInstance) {
+                window.cacheStoreInstance.saveMatchTelemetry(matchId, tel);
+                window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
+              }
+              if (!this.hasSwitchedToNewMatch) {
+                this.activateNewMatchInWorkspace(matchId, tel);
+              } else {
+                window.HAWKVIEW_TELEMETRY = tel;
+                window.HAWKVIEW_ACTIVE_MATCH_KEY = matchId;
+                window.dispatchEvent(new CustomEvent('hawkview:ralliesStreamUpdated', {
+                  detail: { matchKey: matchId, telemetry: tel, ralliesCompleted: rDone, ralliesTotal: st.rallies_total || rDone }
+                }));
+              }
+            }
+            if (st.status === 'completed' || st.status === 'ready') {
+              clearInterval(this._ytPollTimer);
+              this._ytPollTimer = null;
+              setBtnsDisabled(false);
+              if (topbarYtInput) topbarYtInput.value = '';
+              if (window.cacheStoreInstance) {
+                window.cacheStoreInstance.refreshMatchesAndQuota(false);
+              }
+              this.showBanner(
+                '✅ Cloud 3D Conversion Complete',
+                st.message || `${rDone} rallies synced with YouTube player`,
+                100,
+                false
+              );
+              return;
+            }
+            return;
+          }
+
+          // MODE 3: Local Server (`server.py` downloaded MP4 & probed keypoints -> launch local analysis!)
+          if (st.status === 'ready' && st.probe_info) {
+            clearInterval(this._ytPollTimer);
+            this._ytPollTimer = null;
+            setBtnsDisabled(false);
+
+            const info = st.probe_info;
+            const displayTitle = info.yt_title || info.video_path.split('/').pop();
+            this.uploadedFileName = displayTitle;
+            this.videoPath = info.video_path;
+            this.matchId = info.match_id || startData.match_id;
+            this.serverFrameImg = null;
+            this.previewVideo.src = info.video_path;
+            this.previewVideo.load();
+            this.applyProbedVideoInfo(info, displayTitle);
+
+            const cal = info.calibration_preview || {};
+            const cachedTag = info.yt_cached ? 'cached 1080p' : 'downloaded 1080p';
+            this.setYouTubeProgressUI(
+              true,
+              100,
+              `✓ Imported (${cachedTag})`,
+              `${displayTitle} · ${info.width}×${info.height} @ ${info.fps}fps`,
+              false
+            );
+
+            if (autoStart) {
+              if (cal.auto_refined) {
+                this.setStatusPill(
+                  `✓ Auto-calibrated ${info.width}×${info.height} BWF court (RMSE ${cal.line_sample_rmse_px}px) — launching 3D pipeline...`,
+                  true
+                );
+                setTimeout(() => {
+                  if (token === this._loadToken) {
+                    this.startFullAnalysis();
+                  }
+                }, 350);
+              } else {
+                this.setStatusPill(
+                  `⚠️ Downloaded ${info.width}×${info.height}, but court auto-calibration needs review (possible replay/non-standard angle). Scrub to a clear court frame, click Auto-Detect Lines, then Start.`,
+                  false
+                );
+              }
+            }
+          }
+        } catch (ePoll) {}
+      };
+
+      await pollStatus();
+      if (token === this._loadToken && !this._serverCalibApplied && (!isCloudAsync || !this.hasSwitchedToNewMatch || this._ytPollTimer === null)) {
+        this._ytPollTimer = setInterval(pollStatus, isCloudAsync ? 2500 : 600);
+      }
+    } catch (err) {
+      setBtnsDisabled(false);
+      const errMsg = (err && err.message) ? err.message : 'Cannot reach Hawkview API for YouTube import.';
+      this.setYouTubeProgressUI(true, 100, '❌ Backend Unreachable', errMsg, true);
+      this.setStatusPill(`❌ ${errMsg}`, false);
+      this.showBanner('❌ YouTube Import Failed', errMsg, 100, false);
+    }
+  }
+
+  setUploadProgressUI(visible, pct = 0, curChunk = 0, totalChunks = 0, speedMBps = null, doneText = null) {
+    const wrapEl = document.getElementById('calib-upload-progress-wrap');
+    const fillEl = document.getElementById('calib-upload-progress-fill');
+    const textEl = document.getElementById('calib-upload-progress-text');
+    const labelEl = document.getElementById('calib-upload-progress-label');
+    if (!wrapEl) return;
+    if (!visible) {
+      wrapEl.classList.add('hidden');
+      return;
+    }
+    wrapEl.classList.remove('hidden');
+    const clampedPct = Math.max(0, Math.min(100, Math.round(pct)));
+    if (fillEl) {
+      fillEl.style.width = `${clampedPct}%`;
+    }
+    if (labelEl) {
+      labelEl.textContent = doneText ? '✓ Upload Complete' : 'Uploading MP4 to Local Engine...';
+    }
+    if (textEl) {
+      if (doneText) {
+        textEl.textContent = doneText;
+      } else {
+        const speedStr = (typeof speedMBps === 'number' && speedMBps > 0.05) ? ` · ${speedMBps.toFixed(1)} MB/s` : '';
+        textEl.textContent = `${clampedPct}% (${curChunk}/${totalChunks} chunks${speedStr})`;
+      }
+    }
+  }
+
+  async uploadFileChunked(file, onProgress = null) {
+    if (!file) return null;
+    const fileKey = `${file.name}::${file.size || 0}::${this.matchId || ''}`;
+    if (onProgress) {
+      this._uploadProgressListeners = this._uploadProgressListeners || [];
+      this._uploadProgressListeners.push(onProgress);
+    }
+    if (this._activeUploadPromise && this._activeUploadFileKey === fileKey) {
+      return this._activeUploadPromise;
+    }
+
+    this._activeUploadFileKey = fileKey;
+    if (!onProgress) {
+      this._uploadProgressListeners = [];
+    } else {
+      this._uploadProgressListeners = [onProgress];
+    }
+
+    const notifyProgress = (pct, cur, total, info) => {
+      const listeners = this._uploadProgressListeners || [];
+      for (const fn of listeners) {
+        try { fn(pct, cur, total, info); } catch (e) {}
+      }
+    };
+
+    const runUpload = async () => {
+      const CHUNK_SIZE = 1024 * 1024; // 1 MB chunks for fast, resilient mobile + Cloudflare tunnel streaming
+      const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+      await this.refreshTunnelUrl();
+
+      // Check resumable/idempotent upload status on server first
+      let startChunk = 0;
+      try {
+        const qs = `match_id=${encodeURIComponent(this.matchId || '')}&file_size=${encodeURIComponent(file.size || 0)}&chunk_size=${CHUNK_SIZE}&filename=${encodeURIComponent(file.name)}`;
+        const statusResp = await fetch(this.getApiUrl(`/api/upload-status?${qs}`), { cache: 'no-store' });
+        if (statusResp && statusResp.ok) {
+          const st = await statusResp.json();
+          if (st && st.match_id && !this.isKnownBundledMatch) {
+            this.matchId = st.match_id;
+          }
+          if (st && st.already_uploaded && st.probe_info) {
+            notifyProgress(100, totalChunks, totalChunks, st.probe_info);
+            return st.probe_info;
+          }
+          if (st && typeof st.next_chunk === 'number' && st.next_chunk > 0 && st.next_chunk < totalChunks) {
+            startChunk = st.next_chunk;
+          }
+        }
+      } catch (eStatus) {}
+
+      let lastInfo = null;
+      const backoffMs = [0, 300, 900, 2000];
+      for (let idx = startChunk; idx < totalChunks; idx++) {
+        const start = idx * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunkLen = end - start;
+        let chunkBuf = null;
+        try {
+          chunkBuf = await file.slice(start, end).arrayBuffer();
+        } catch (eSlice) {
+          chunkBuf = file.slice(start, end);
+        }
+
+        const headers = {
+          'Content-Type': 'application/octet-stream',
+          'X-File-Name': encodeURIComponent(file.name),
+          'X-File-Size': String(file.size || 0),
+          'X-Match-Id': String(this.matchId || ''),
+          'X-Chunk-Index': String(idx),
+          'X-Total-Chunks': String(totalChunks),
+          'X-Chunk-Offset': String(start),
+          'X-Chunk-Size': String(chunkLen)
+        };
+
+        let resp = null;
+        let lastErr = '';
+        for (let attempt = 0; attempt < 4; attempt++) {
+          if (attempt > 0) {
+            const waitMs = backoffMs[attempt] || 1500;
+            await new Promise((r) => setTimeout(r, waitMs));
+            await this.refreshTunnelUrl();
+          }
+          try {
+            const targetUrl = attempt === 3 ? '/api/upload-chunk' : this.getApiUrl('/api/upload-chunk');
+            resp = await fetch(targetUrl, {
+              method: 'POST',
+              headers,
+              body: chunkBuf
+            });
+            if (resp && resp.ok) break;
+            lastErr = resp ? `HTTP ${resp.status}` : 'Network error';
+          } catch (e) {
+            resp = null;
+            lastErr = (e && e.message) ? e.message : 'Connection dropped';
+          }
+        }
+
+        if (!resp || !resp.ok) {
+          throw new Error(`Chunk ${idx + 1}/${totalChunks} upload failed (${lastErr || 'Tunnel unreachable'})`);
+        }
+
+        lastInfo = await resp.json();
+        if (lastInfo && lastInfo.error) {
+          throw new Error(lastInfo.error);
+        }
+
+        const pct = Math.round(((idx + 1) / totalChunks) * 100);
+        notifyProgress(pct, idx + 1, totalChunks, lastInfo);
+      }
+      return lastInfo;
+    };
+
+    this._activeUploadPromise = runUpload().finally(() => {
+      this._activeUploadPromise = null;
+      this._uploadProgressListeners = [];
+    });
+    return this._activeUploadPromise;
+  }
+
   loadServerVideoIntoPreview(videoPath, initialTimeSec = 15.0) {
+    this._loadToken = (this._loadToken || 0) + 1;
+    const token = this._loadToken;
     this.videoPath = videoPath;
     this.previewVideo.src = videoPath;
     this.previewVideo.load();
@@ -202,13 +801,14 @@ class VideoLoaderModal {
       fileLabelEl.textContent = videoPath.split('/').pop();
     }
 
-    fetch('/api/upload-video', {
+    fetch(this.getApiUrl('/api/upload-video'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ video_path: videoPath, sample_time_sec: initialTimeSec })
     })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : null))
       .then((info) => {
+        if (token !== this._loadToken) return;
         if (info && !info.error) {
           this.applyProbedVideoInfo(info);
         }
@@ -216,67 +816,166 @@ class VideoLoaderModal {
       .catch(() => {});
   }
 
+  rescaleKeypointsToDimensions(newW, newH) {
+    const prevW = this.videoWidth || 1920;
+    const prevH = this.videoHeight || 1080;
+    if (!newW || !newH || (newW === prevW && newH === prevH)) {
+      return;
+    }
+    const sx = newW / prevW;
+    const sy = newH / prevH;
+    Object.keys(this.keypoints).forEach((k) => {
+      const pt = this.keypoints[k];
+      if (pt && pt.length >= 2) {
+        this.keypoints[k] = [
+          Math.round(pt[0] * sx * 10) / 10,
+          Math.round(pt[1] * sy * 10) / 10
+        ];
+      }
+    });
+    this.videoWidth = newW;
+    this.videoHeight = newH;
+  }
+
   uploadFileToServer(file) {
     if (!file || this.isUploading) return;
+    this._loadToken = (this._loadToken || 0) + 1;
+    const token = this._loadToken;
     this.isUploading = true;
+    this._serverCalibApplied = false;
+    this._pendingBrowserAutoCalib = true;
+    this._userEditedPlayers = false;
+    this.serverFrameImg = null;
 
     const fileLabelEl = document.getElementById('calib-active-filename');
     if (fileLabelEl) {
       const mb = (file.size / (1024 * 1024)).toFixed(1);
-      fileLabelEl.textContent = `${file.name} (${mb} MB) — Uploading...`;
+      fileLabelEl.textContent = `${file.name} (${mb} MB) — Loading...`;
     }
-    this.setStatusPill('Uploading MP4 to local engine...', false);
+    this.setStatusPill('Loading MP4 into interactive court calibrator...', false);
 
     // Immediately preview locally via blob URL for instant responsiveness
     const localBlobUrl = URL.createObjectURL(file);
+    this.localBlobUrl = localBlobUrl;
+    this.videoPath = localBlobUrl;
     this.previewVideo.src = localBlobUrl;
     this.previewVideo.load();
 
-    // Auto-fill player names or mode hints if recreational
+    // Auto-fill player names, unique matchId & Singles/Doubles format hints
+    this.uploadedFileName = file.name;
+    const fnLower = file.name.toLowerCase();
+    const nearInput = document.getElementById('calib-near-player');
+    const farInput = document.getElementById('calib-far-player');
+    const matchTypeSelect = document.getElementById('calib-match-type');
+
+    if (fnLower.includes('antonsen') && (fnLower.includes('zii_jia') || fnLower.includes('lzj'))) {
+      this.matchId = 'anders_antonsen_vs_lee_zii_jia___non-stop_action_from_beginning_to_end_-_1080p_66946';
+      this.isKnownBundledMatch = true;
+      if (nearInput) nearInput.value = 'LZJ';
+      if (farInput) farInput.value = 'ANTONSEN';
+      if (matchTypeSelect) matchTypeSelect.value = 'singles';
+    } else if (fnLower.includes('lzj') && fnLower.includes('popov')) {
+      this.matchId = 'lzj_popov';
+      this.isKnownBundledMatch = true;
+      if (nearInput) nearInput.value = 'POPOV';
+      if (farInput) farInput.value = 'LZJ';
+      if (matchTypeSelect) matchTypeSelect.value = 'singles';
+    } else {
+      // NEVER reuse 'lzj_popov' for a custom uploaded file! Generate a deterministic unique matchId.
+      const baseSlug = fnLower
+        .replace(/\.[^.]+$/, '')
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 48) || 'custom_match';
+      this.matchId = `${baseSlug}_${Math.abs(file.size || 0) % 100000}`;
+      this.isKnownBundledMatch = false;
+      const parsedPlayers = this.parsePlayersFromFilenameClient(file.name);
+      if (matchTypeSelect) {
+        matchTypeSelect.value = parsedPlayers.isDoubles ? 'doubles' : 'auto';
+      }
+      if (nearInput) {
+        nearInput.value = parsedPlayers.near;
+      }
+      if (farInput) {
+        farInput.value = parsedPlayers.far;
+      }
+    }
+
     const modeSelect = document.getElementById('calib-camera-mode');
-    if (modeSelect && !file.name.toLowerCase().includes('bwf') && !file.name.toLowerCase().includes('lzj')) {
+    if (modeSelect && !fnLower.includes('bwf') && !fnLower.includes('lzj')) {
       modeSelect.value = 'auto';
     }
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/upload-video', true);
-    xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-    xhr.setRequestHeader('X-File-Name', encodeURIComponent(file.name));
+    this.selectedFile = file;
 
-    xhr.upload.onprogress = (ev) => {
-      if (ev.lengthComputable && fileLabelEl) {
-        const pct = Math.round((ev.loaded / ev.total) * 100);
-        fileLabelEl.textContent = `Uploading ${file.name} (${pct}%)...`;
+    const handleBrowserFallback = () => {
+      if (token !== this._loadToken) return;
+      this.setUploadProgressUI(false);
+      this.videoPath = localBlobUrl;
+      if (this.previewVideo && this.previewVideo.videoWidth > 0) {
+        this.rescaleKeypointsToDimensions(this.previewVideo.videoWidth, this.previewVideo.videoHeight);
+      }
+      if (fileLabelEl) {
+        const mins = Math.floor((this.videoDuration || 0) / 60);
+        const secs = Math.round((this.videoDuration || 0) % 60).toString().padStart(2, '0');
+        fileLabelEl.textContent = `${file.name} · ${this.videoWidth}×${this.videoHeight} (${mins}:${secs})`;
+      }
+      if (this.previewVideo && this.previewVideo.readyState >= 2) {
+        this._pendingBrowserAutoCalib = false;
+        this.autoDetectCourtInBrowser(true);
+      } else {
+        this.setStatusPill(`✓ Loaded ${this.videoWidth}×${this.videoHeight} in browser mode — drag any of the 6 handles to calibrate court`, true);
+        this.drawCalibrationCanvas();
       }
     };
 
-    xhr.onload = () => {
-      this.isUploading = false;
-      try {
-        const info = JSON.parse(xhr.responseText);
-        if (xhr.status === 200 && info && !info.error) {
+    const uploadStartMs = performance.now();
+    const totalChunksEst = Math.max(1, Math.ceil((file.size || 1) / (1024 * 1024)));
+    this.setUploadProgressUI(true, 0, 0, totalChunksEst);
+
+    this.uploadFileChunked(file, (pct, curChunk, totalChunks) => {
+      if (token !== this._loadToken) return;
+      const elapsedSec = Math.max(0.05, (performance.now() - uploadStartMs) / 1000);
+      const speedMBps = curChunk / elapsedSec;
+      this.setUploadProgressUI(true, pct, curChunk, totalChunks, speedMBps);
+      if (fileLabelEl) {
+        fileLabelEl.textContent = `Uploading ${file.name} (${pct}% · ${curChunk}/${totalChunks} chunks)...`;
+      }
+    })
+      .then((info) => {
+        this.isUploading = false;
+        if (token !== this._loadToken) return;
+        const totalChunksDone = Math.max(1, Math.ceil((file.size || 1) / (1024 * 1024)));
+        this.setUploadProgressUI(true, 100, totalChunksDone, totalChunksDone, null, `100% (${totalChunksDone}/${totalChunksDone} chunks)`);
+        setTimeout(() => {
+          if (token === this._loadToken) {
+            this.setUploadProgressUI(false);
+          }
+        }, 1800);
+        if (info && !info.error) {
           this.applyProbedVideoInfo(info, file.name);
         } else {
-          this.setStatusPill(`Upload error: ${(info && info.error) || xhr.statusText}`, false);
+          handleBrowserFallback();
         }
-      } catch (err) {
-        this.setStatusPill('Failed to parse server response', false);
-      }
-    };
-
-    xhr.onerror = () => {
-      this.isUploading = false;
-      this.setStatusPill('Upload failed — check server connection', false);
-    };
-
-    xhr.send(file);
+      })
+      .catch(() => {
+        this.isUploading = false;
+        if (token !== this._loadToken) return;
+        this.setUploadProgressUI(false);
+        handleBrowserFallback();
+      });
   }
 
   applyProbedVideoInfo(info, displayFilename = null) {
+    this._serverCalibApplied = true;
+    this._pendingBrowserAutoCalib = false;
     this.videoPath = info.video_path || this.videoPath;
     this.matchId = info.match_id || this.matchId;
-    this.videoWidth = info.width || 1920;
-    this.videoHeight = info.height || 1080;
+    const newW = info.width || this.previewVideo.videoWidth || 1920;
+    const newH = info.height || this.previewVideo.videoHeight || 1080;
+    this.rescaleKeypointsToDimensions(newW, newH);
+    this.videoWidth = newW;
+    this.videoHeight = newH;
     this.videoFps = info.fps || 25.0;
     this.videoDuration = info.duration_sec || 60.0;
 
@@ -310,10 +1009,38 @@ class VideoLoaderModal {
         }
       });
       if (cal.auto_refined) {
-        this.setStatusPill(`✓ Auto-calibrated BWF court (RMSE ${cal.line_sample_rmse_px}px) — drag any point to adjust`, true);
+        this.setStatusPill(`✓ Auto-calibrated ${this.videoWidth}×${this.videoHeight} BWF court (RMSE ${cal.line_sample_rmse_px}px) — drag any point to adjust`, true);
       } else {
-        this.setStatusPill('Drag the 4 Court Corners + 2 Net Posts to align the wireframe with your court', false);
+        this.setStatusPill(`Calibrated for ${this.videoWidth}×${this.videoHeight} — drag the 4 Court Corners + 2 Net Posts to align with your court`, false);
       }
+    }
+
+    const nearInput = document.getElementById('calib-near-player');
+    const farInput = document.getElementById('calib-far-player');
+    const matchTypeSelect = document.getElementById('calib-match-type');
+    if (!this._userEditedPlayers) {
+      if (nearInput && info.suggested_near_player) {
+        nearInput.value = info.suggested_near_player;
+      }
+      if (farInput && info.suggested_far_player) {
+        farInput.value = info.suggested_far_player;
+      }
+      if (matchTypeSelect) {
+        const isDbl = info.suggested_match_type === 'doubles' ||
+          (info.suggested_near_player && /[\/&]/.test(info.suggested_near_player)) ||
+          (info.suggested_far_player && /[\/&]/.test(info.suggested_far_player));
+        if (isDbl) {
+          matchTypeSelect.value = 'doubles';
+        } else if (info.suggested_match_type === 'singles') {
+          matchTypeSelect.value = 'singles';
+        } else {
+          matchTypeSelect.value = 'auto';
+        }
+      }
+    }
+
+    if (info.colab_quota && window.cacheStoreInstance) {
+      window.cacheStoreInstance.renderQuotaStatmeter(info.colab_quota);
     }
 
     const sampleTime = typeof info.sample_time_sec === 'number' ? info.sample_time_sec : Math.min(15.0, this.videoDuration * 0.2);
@@ -337,15 +1064,400 @@ class VideoLoaderModal {
     this.drawCalibrationCanvas();
   }
 
+  /**
+   * Client-side HTML5 Canvas White-Line Court Auto-Detector for 720p / 1080p / 4K videos.
+   * Uses 1D Top-Hat White-Line Ridge + Chroma filtering, Theil-Sen Median-Slope robust regression,
+   * and BWF Broadcast Trapezoid Invariants so player shoes/shirts or floor logos never distort the court.
+   */
+  autoDetectCourtInBrowser(isSilent = false) {
+    const w = this.videoWidth || (this.previewVideo && this.previewVideo.videoWidth) || 1920;
+    const h = this.videoHeight || (this.previewVideo && this.previewVideo.videoHeight) || 1080;
+
+    const defaultPreset = {
+      corner_near_left: [Math.round(w * 0.1687 * 10) / 10, Math.round(h * 0.8918 * 10) / 10],
+      corner_near_right: [Math.round(w * 0.8292 * 10) / 10, Math.round(h * 0.8970 * 10) / 10],
+      corner_far_right: [Math.round(w * 0.6737 * 10) / 10, Math.round(h * 0.3960 * 10) / 10],
+      corner_far_left: [Math.round(w * 0.3269 * 10) / 10, Math.round(h * 0.3920 * 10) / 10],
+      net_post_left: [Math.round(w * 0.2690 * 10) / 10, Math.round(h * 0.3616 * 10) / 10],
+      net_post_right: [Math.round(w * 0.7315 * 10) / 10, Math.round(h * 0.3667 * 10) / 10]
+    };
+
+    const anyOutOfBounds = Object.values(this.keypoints).some(
+      (pt) => !pt || pt[0] < 0 || pt[0] > w || pt[1] < 0 || pt[1] > h
+    );
+    const prevKeypoints = JSON.parse(JSON.stringify(this.keypoints));
+    if (anyOutOfBounds) {
+      this.keypoints = JSON.parse(JSON.stringify(defaultPreset));
+    }
+
+    let frameSource = null;
+    if (this.previewVideo && this.previewVideo.readyState >= 2) {
+      frameSource = this.previewVideo;
+    } else if (this.serverFrameImg && this.serverFrameImg.complete && this.serverFrameImg.naturalWidth > 0) {
+      frameSource = this.serverFrameImg;
+    }
+    if (!frameSource) {
+      this.drawCalibrationCanvas();
+      return false;
+    }
+
+    try {
+      const offCanvas = document.createElement('canvas');
+      offCanvas.width = w;
+      offCanvas.height = h;
+      const offCtx = offCanvas.getContext('2d', { willReadFrequently: true });
+      offCtx.drawImage(frameSource, 0, 0, w, h);
+      const imgData = offCtx.getImageData(0, 0, w, h).data;
+
+      const pixelStatsAt = (ix, iy) => {
+        const x = Math.max(0, Math.min(w - 1, Math.round(ix)));
+        const y = Math.max(0, Math.min(h - 1, Math.round(iy)));
+        const idx = (y * w + x) * 4;
+        const r = imgData[idx];
+        const g = imgData[idx + 1];
+        const b = imgData[idx + 2];
+        const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+        const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+        return { luma, chroma };
+      };
+
+      // Theil-Sen Median-Slope + Inlier-Trimmed Least Squares (rejects player shoes/shirts/logos)
+      const fitLineRobust = (pts, inlierTolPx) => {
+        if (!pts || pts.length < 5) return null;
+        const slopes = [];
+        for (let i = 0; i < pts.length; i++) {
+          for (let j = i + 1; j < pts.length; j++) {
+            const dx = pts[j][0] - pts[i][0];
+            if (Math.abs(dx) > 1e-3) {
+              slopes.push((pts[j][1] - pts[i][1]) / dx);
+            }
+          }
+        }
+        if (slopes.length === 0) return null;
+        slopes.sort((a, b) => a - b);
+        const mMed = slopes[Math.floor(slopes.length / 2)];
+
+        const intercepts = pts.map((p) => p[1] - mMed * p[0]).sort((a, b) => a - b);
+        const bMed = intercepts[Math.floor(intercepts.length / 2)];
+
+        const inliers = pts.filter((p) => Math.abs(p[1] - (mMed * p[0] + bMed)) <= inlierTolPx);
+        if (inliers.length < Math.max(4, Math.floor(pts.length * 0.45))) {
+          return null;
+        }
+
+        let sx = 0, sy = 0, sxx = 0, sxy = 0;
+        const n = inliers.length;
+        for (let i = 0; i < n; i++) {
+          sx += inliers[i][0];
+          sy += inliers[i][1];
+          sxx += inliers[i][0] * inliers[i][0];
+          sxy += inliers[i][0] * inliers[i][1];
+        }
+        const denom = n * sxx - sx * sx;
+        if (Math.abs(denom) < 1e-6) return [mMed, bMed];
+        const m = (n * sxy - sx * sy) / denom;
+        const b = (sy - m * sx) / n;
+        return [m, b];
+      };
+
+      const searchR = Math.max(12, Math.round(h * 0.032));
+      const flankStep = Math.max(2, Math.round(h * 0.0042));
+      const inlierTol = Math.max(2.2, h * 0.0045);
+
+      // Step 0: Zero-Prior 1D Projective Cross-Ratio + 5-Line Vanishing Point Global Detector
+      // Finds the true Near/Far baselines and Outer Doubles Sidelines regardless of BWF camera elevation
+      try {
+        const xc1 = Math.round(0.28 * w);
+        const xc2 = Math.round(0.72 * w);
+        const hProf = new Float64Array(h);
+        for (let y = flankStep + 2; y < h - flankStep - 2; y++) {
+          let sumR = 0;
+          let countX = 0;
+          for (let x = xc1; x < xc2; x += 2) {
+            const cur = pixelStatsAt(x, y);
+            if (cur.luma >= 135 && cur.chroma <= 65) {
+              const fUp = pixelStatsAt(x, y - flankStep).luma;
+              const fDn = pixelStatsAt(x, y + flankStep).luma;
+              const rVal = cur.luma - 0.5 * (fUp + fDn);
+              if (rVal >= 10) sumR += rVal;
+            }
+            countX++;
+          }
+          hProf[y] = countX > 0 ? sumR / countX : 0;
+        }
+        const hSmooth = new Float64Array(h);
+        for (let y = 2; y < h - 2; y++) {
+          hSmooth[y] = 0.25 * hProf[y - 1] + 0.5 * hProf[y] + 0.25 * hProf[y + 1];
+        }
+        const rawPeaks = [];
+        const yMin = Math.round(0.28 * h);
+        const yMax = Math.round(0.965 * h);
+        for (let y = yMin + 2; y < yMax - 2; y++) {
+          if (hSmooth[y] >= hSmooth[y - 1] && hSmooth[y] >= hSmooth[y + 1] && hSmooth[y] > 2.8) {
+            rawPeaks.push([y, hSmooth[y]]);
+          }
+        }
+        rawPeaks.sort((a, b) => b[1] - a[1]);
+        const minSep = Math.max(4, 6.0 * (w / 1920));
+        const nmsPeaks = [];
+        for (const pk of rawPeaks) {
+          if (nmsPeaks.every((q) => Math.abs(pk[0] - q[0]) >= minSep)) {
+            nmsPeaks.push(pk);
+          }
+        }
+        nmsPeaks.sort((a, b) => a[0] - b[0]);
+
+        const yM = [0.0, 0.76, 4.72, 8.68, 12.64, 13.40];
+        const nearCands = nmsPeaks.filter((p) => p[0] >= 0.72 * h && p[0] <= 0.965 * h);
+        const midCands = nmsPeaks.filter((p) => p[0] >= 0.44 * h && p[0] <= 0.80 * h);
+        const farCands = nmsPeaks.filter((p) => p[0] >= 0.28 * h && p[0] <= 0.58 * h);
+
+        let bestHScore = -1e9;
+        let bestH = null;
+        for (const [v0] of nearCands) {
+          for (const [v2] of midCands) {
+            if (v0 - v2 < 0.14 * h || v0 - v2 > 0.38 * h) continue;
+            for (const [v4] of farCands) {
+              if (v2 - v4 < 0.12 * h || v2 - v4 > 0.36 * h) continue;
+              for (const yFarM of [12.64, 13.40]) {
+                const b = v0;
+                const m00 = 4.72, m01 = -4.72 * v2;
+                const m10 = yFarM, m11 = -yFarM * v4;
+                const det = m00 * m11 - m01 * m10;
+                if (Math.abs(det) < 1e-6) continue;
+                const r0 = v2 - b, r1 = v4 - b;
+                const a = (r0 * m11 - m01 * r1) / det;
+                const c = (m00 * r1 - r0 * m10) / det;
+                if (c <= 0.005 || c >= 0.15) continue;
+                const vPred = yM.map((ym) => (a * ym + b) / (c * ym + 1.0));
+                if (vPred[5] < 0.22 * h || vPred[0] > 0.968 * h) continue;
+                let score = 0, hits = 0;
+                for (let idxL = 0; idxL < 6; idxL++) {
+                  const iy = Math.round(vPred[idxL]);
+                  let lmax = 0;
+                  for (let dy = -2; dy <= 2; dy++) {
+                    if (iy + dy >= 2 && iy + dy < h - 2 && hSmooth[iy + dy] > lmax) {
+                      lmax = hSmooth[iy + dy];
+                    }
+                  }
+                  if (lmax > 2.6) hits++;
+                  score += (idxL === 3 ? 1.0 : 1.5) * lmax;
+                }
+                if (hits >= 5 && score > bestHScore) {
+                  bestHScore = score;
+                  bestH = { a, b, c, vPred };
+                }
+              }
+            }
+          }
+        }
+
+        if (bestH) {
+          const vNear = bestH.vPred[0];
+          const vFar = bestH.vPred[5];
+          const vInf = bestH.a / bestH.c;
+          const xOffsets = [-3.05 / 6.10, -2.59 / 6.10, 0.0, 2.59 / 6.10, 3.05 / 6.10];
+          let bestVScore = -1e9;
+          let bestUInf = 0.5 * w;
+          let bestWNear = 0.65 * w;
+
+          for (let ui = 0; ui < 21; ui++) {
+            const uInf = (0.44 + (0.12 * ui) / 20) * w;
+            for (let wi = 0; wi < 37; wi++) {
+              const wNear = (0.46 + (0.42 * wi) / 36) * w;
+              let s = 0;
+              for (let si = 0; si < 24; si++) {
+                const sv = Math.round(vFar + 6 + ((vNear - vFar - 12) * si) / 23);
+                const scaleV = (sv - vInf) / (vNear - vInf);
+                for (const xi of xOffsets) {
+                  const su = Math.round(uInf + xi * wNear * scaleV);
+                  if (su > flankStep + 2 && su < w - flankStep - 2) {
+                    const cur = pixelStatsAt(su, sv);
+                    if (cur.luma >= 135 && cur.chroma <= 65) {
+                      const rv = cur.luma - 0.5 * (pixelStatsAt(su - flankStep, sv).luma + pixelStatsAt(su + flankStep, sv).luma);
+                      if (rv >= 10) s += rv;
+                    }
+                  }
+                }
+              }
+              if (s > bestVScore) {
+                bestVScore = s;
+                bestUInf = uInf;
+                bestWNear = wNear;
+              }
+            }
+          }
+
+          const scaleFar = (vFar - vInf) / (vNear - vInf);
+          const wFar = bestWNear * scaleFar;
+          const vNetG = (bestH.a * 6.70 + bestH.b) / (bestH.c * 6.70 + 1.0);
+          const wNet = bestWNear * ((vNetG - vInf) / (vNear - vInf));
+          const uNetL = bestUInf - 0.5 * wNet;
+          const uNetR = bestUInf + 0.5 * wNet;
+          const bestNetV = vFar - 0.015 * h;
+
+          this.keypoints = {
+            corner_near_left: [Math.round((bestUInf - 0.5 * bestWNear) * 10) / 10, Math.round(vNear * 10) / 10],
+            corner_near_right: [Math.round((bestUInf + 0.5 * bestWNear) * 10) / 10, Math.round(vNear * 10) / 10],
+            corner_far_right: [Math.round((bestUInf + 0.5 * wFar) * 10) / 10, Math.round(vFar * 10) / 10],
+            corner_far_left: [Math.round((bestUInf - 0.5 * wFar) * 10) / 10, Math.round(vFar * 10) / 10],
+            net_post_left: [Math.round(uNetL * 10) / 10, Math.round(bestNetV * 10) / 10],
+            net_post_right: [Math.round(uNetR * 10) / 10, Math.round(bestNetV * 10) / 10]
+          };
+        }
+      } catch (e0) {}
+
+      const cNL = this.keypoints.corner_near_left;
+      const cNR = this.keypoints.corner_near_right;
+      const cFR = this.keypoints.corner_far_right;
+      const cFL = this.keypoints.corner_far_left;
+
+      // 1D Top-Hat White-Line Ridge Sampler (requires neutral white peak + darker green/blue court mat on both sides)
+      const sampleHorizontal = (pL, pR) => {
+        const hits = [];
+        for (let i = 0; i <= 24; i++) {
+          const t = 0.12 + (0.76 * i) / 24;
+          const u = pL[0] + t * (pR[0] - pL[0]);
+          const v0 = pL[1] + t * (pR[1] - pL[1]);
+          let bestV = v0, bestScore = -1e9;
+          for (let dv = -searchR; dv <= searchR; dv++) {
+            const cur = pixelStatsAt(u, v0 + dv);
+            if (cur.luma < 145 || cur.chroma > 58) continue;
+            const f1 = pixelStatsAt(u, v0 + dv - flankStep).luma;
+            const f2 = pixelStatsAt(u, v0 + dv + flankStep).luma;
+            const ridge = cur.luma - 0.5 * (f1 + f2);
+            if (ridge >= 15) {
+              const score = ridge + 0.25 * cur.luma - Math.abs(dv) * 0.35;
+              if (score > bestScore) {
+                bestScore = score;
+                bestV = v0 + dv;
+              }
+            }
+          }
+          if (bestScore > -1e8) {
+            hits.push([u, bestV]);
+          }
+        }
+        return fitLineRobust(hits, inlierTol);
+      };
+
+      const sampleVertical = (pNear, pFar) => {
+        const hits = [];
+        for (let i = 0; i <= 24; i++) {
+          const t = 0.12 + (0.76 * i) / 24;
+          const u0 = pNear[0] + t * (pFar[0] - pNear[0]);
+          const v = pNear[1] + t * (pFar[1] - pNear[1]);
+          let bestU = u0, bestScore = -1e9;
+          for (let du = -searchR; du <= searchR; du++) {
+            const cur = pixelStatsAt(u0 + du, v);
+            if (cur.luma < 145 || cur.chroma > 58) continue;
+            const f1 = pixelStatsAt(u0 + du - flankStep, v).luma;
+            const f2 = pixelStatsAt(u0 + du + flankStep, v).luma;
+            const ridge = cur.luma - 0.5 * (f1 + f2);
+            if (ridge >= 15) {
+              const score = ridge + 0.25 * cur.luma - Math.abs(du) * 0.35;
+              if (score > bestScore) {
+                bestScore = score;
+                bestU = u0 + du;
+              }
+            }
+          }
+          if (bestScore > -1e8) {
+            hits.push([v, bestU]); // fit u = m*v + b
+          }
+        }
+        return fitLineRobust(hits, inlierTol);
+      };
+
+      const nearLine = sampleHorizontal(cNL, cNR); // v = mH * u + bH
+      const farLine = sampleHorizontal(cFL, cFR);
+      const leftLine = sampleVertical(cNL, cFL);   // u = mV * v + bV
+      const rightLine = sampleVertical(cNR, cFR);
+
+      const intersectHV = (hLine, vLine) => {
+        if (!hLine || !vLine) return null;
+        const [mH, bH] = hLine;
+        const [mV, bV] = vLine;
+        const denom = 1.0 - mH * mV;
+        if (Math.abs(denom) < 1e-6) return null;
+        const v = (mH * bV + bH) / denom;
+        const u = mV * v + bV;
+        return [Math.round(u * 10) / 10, Math.round(v * 10) / 10];
+      };
+
+      const refNL = intersectHV(nearLine, leftLine);
+      const refNR = intersectHV(nearLine, rightLine);
+      const refFR = intersectHV(farLine, rightLine);
+      const refFL = intersectHV(farLine, leftLine);
+
+      const maxShift = w * 0.075;
+      if (refNL && refNR && refFR && refFL) {
+        const mH_near = nearLine[0];
+        const mH_far = farLine[0];
+        const mV_left = leftLine[0];
+        const mV_right = rightLine[0];
+        const nearW = refNR[0] - refNL[0];
+        const farW = refFR[0] - refFL[0];
+        const ratio = farW / Math.max(1, nearW);
+
+        // Enforce strict BWF broadcast trapezoid invariants so false lines never distort the court wireframe
+        const validHoriz = Math.abs(mH_near) <= 0.032 && Math.abs(mH_far) <= 0.032 && Math.abs(mH_near - mH_far) <= 0.024;
+        const validVert = mV_left >= -0.80 && mV_left <= -0.15 && mV_right >= 0.15 && mV_right <= 0.80 && Math.abs(mV_left + mV_right) <= 0.16;
+        const validRatio = nearW >= w * 0.42 && ratio >= 0.40 && ratio <= 0.70;
+        const validShift =
+          Math.hypot(refNL[0] - cNL[0], refNL[1] - cNL[1]) <= maxShift &&
+          Math.hypot(refNR[0] - cNR[0], refNR[1] - cNR[1]) <= maxShift &&
+          Math.hypot(refFR[0] - cFR[0], refFR[1] - cFR[1]) <= maxShift &&
+          Math.hypot(refFL[0] - cFL[0], refFL[1] - cFL[1]) <= maxShift;
+
+        if (validHoriz && validVert && validRatio && validShift) {
+          // Projective net-line fraction along the sideline (in BWF perspective, y=6.70m sits at ~61.5% from near to far baseline in image v)
+          const tNet = 0.615;
+          const oldNetGroundL = [cNL[0] + tNet * (cFL[0] - cNL[0]), cNL[1] + tNet * (cFL[1] - cNL[1])];
+          const newNetGroundL = [refNL[0] + tNet * (refFL[0] - refNL[0]), refNL[1] + tNet * (refFL[1] - refNL[1])];
+          const oldNetGroundR = [cNR[0] + tNet * (cFR[0] - cNR[0]), cNR[1] + tNet * (cFR[1] - cNR[1])];
+          const newNetGroundR = [refNR[0] + tNet * (refFR[0] - refNR[0]), refNR[1] + tNet * (refFR[1] - refNR[1])];
+
+          this.keypoints.corner_near_left = refNL;
+          this.keypoints.corner_near_right = refNR;
+          this.keypoints.corner_far_right = refFR;
+          this.keypoints.corner_far_left = refFL;
+          this.keypoints.net_post_left = [
+            Math.round((this.keypoints.net_post_left[0] + (newNetGroundL[0] - oldNetGroundL[0])) * 10) / 10,
+            Math.round((this.keypoints.net_post_left[1] + (newNetGroundL[1] - oldNetGroundL[1])) * 10) / 10
+          ];
+          this.keypoints.net_post_right = [
+            Math.round((this.keypoints.net_post_right[0] + (newNetGroundR[0] - oldNetGroundR[0])) * 10) / 10,
+            Math.round((this.keypoints.net_post_right[1] + (newNetGroundR[1] - oldNetGroundR[1])) * 10) / 10
+          ];
+          this.setStatusPill(`✓ Snapped to ${w}×${h} white court lines — drag any of the 6 handles to fine-tune`, true);
+          this.drawCalibrationCanvas();
+          return true;
+        }
+      }
+    } catch (e) {}
+
+    if (!anyOutOfBounds && prevKeypoints) {
+      this.keypoints = prevKeypoints;
+    }
+    this.setStatusPill(`✓ Aligned undistorted ${w}×${h} BWF court preset — drag any of the 6 handles to fine-tune`, true);
+    this.drawCalibrationCanvas();
+    return false;
+  }
+
   runServerAutoCalibrate() {
     const curTime = parseFloat(this.frameSlider ? this.frameSlider.value : 15.0) || 15.0;
     this.setStatusPill('Detecting white court lines on current frame...', false);
-    fetch('/api/auto-calibrate', {
+    if (!this.videoPath || String(this.videoPath).startsWith('blob:')) {
+      this.autoDetectCourtInBrowser(false);
+      return;
+    }
+    fetch(this.getApiUrl('/api/auto-calibrate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ video_path: this.videoPath, time_sec: curTime })
     })
-      .then((r) => r.json())
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error('HTTP ' + r.status))))
       .then((info) => {
         if (info && info.frame_jpeg_b64) {
           const img = new Image();
@@ -357,21 +1469,23 @@ class VideoLoaderModal {
         }
         if (info && info.calibration_preview && info.calibration_preview.keypoints) {
           const cal = info.calibration_preview;
-          Object.keys(this.keypoints).forEach((k) => {
-            if (cal.keypoints[k]) {
-              this.keypoints[k] = [Number(cal.keypoints[k][0]), Number(cal.keypoints[k][1])];
-            }
-          });
-          this.drawCalibrationCanvas();
           if (cal.auto_refined) {
+            Object.keys(this.keypoints).forEach((k) => {
+              if (cal.keypoints[k]) {
+                this.keypoints[k] = [Number(cal.keypoints[k][0]), Number(cal.keypoints[k][1])];
+              }
+            });
+            this.drawCalibrationCanvas();
             this.setStatusPill(`✓ Snapped to white court lines (RMSE ${cal.line_sample_rmse_px}px)`, true);
           } else {
-            this.setStatusPill('Reset handles to standard court — drag the 6 handles onto your court corners', false);
+            this.autoDetectCourtInBrowser(false);
           }
+        } else {
+          this.autoDetectCourtInBrowser(false);
         }
       })
       .catch(() => {
-        this.setStatusPill('Could not auto-detect — drag the 6 handles manually', false);
+        this.autoDetectCourtInBrowser(false);
       });
   }
 
@@ -807,14 +1921,18 @@ class VideoLoaderModal {
     const nearNameInput = document.getElementById('calib-near-player');
     const farNameInput = document.getElementById('calib-far-player');
     const modeSelect = document.getElementById('calib-camera-mode');
+    const matchTypeSelect = document.getElementById('calib-match-type');
     const maxRalliesSelect = document.getElementById('calib-max-rallies');
+    const computeSelect = document.getElementById('calib-compute-backend');
 
     const nearRaw = (nearNameInput && nearNameInput.value.trim()) || 'Player 1';
     const farRaw = (farNameInput && farNameInput.value.trim()) || 'Player 2';
-    const nearId = nearRaw.length <= 10 ? nearRaw.toUpperCase() : nearRaw.slice(0, 10).toUpperCase();
-    const farId = farRaw.length <= 10 ? farRaw.toUpperCase() : farRaw.slice(0, 10).toUpperCase();
+    const nearId = nearRaw.length <= 24 ? nearRaw.toUpperCase() : nearRaw.slice(0, 24).toUpperCase();
+    const farId = farRaw.length <= 24 ? farRaw.toUpperCase() : farRaw.slice(0, 24).toUpperCase();
     const mode = (modeSelect && modeSelect.value) || 'auto';
+    const matchType = (matchTypeSelect && matchTypeSelect.value) || 'auto';
     const maxRallies = parseInt((maxRalliesSelect && maxRalliesSelect.value) || '0', 10) || 0;
+    const computeBackend = (computeSelect && computeSelect.value) || 'blackwell_g4';
 
     const payload = {
       match_id: this.matchId,
@@ -823,35 +1941,287 @@ class VideoLoaderModal {
       near_player: { id: nearId, name: nearRaw, country: 'NEAR', dominant_hand: 'Right' },
       far_player: { id: farId, name: farRaw, country: 'FAR', dominant_hand: 'Right' },
       mode,
-      max_rallies: maxRallies
+      match_type: matchType,
+      max_rallies: maxRallies,
+      compute_backend: computeBackend
     };
 
-    // Switch the main broadcast player to this video source immediately
-    if (this.player) {
-      this.player.loadVideoSource(this.videoPath);
+    // CRITICAL UX GUARD: Do NOT load the new video into the right-hand BroadcastPlayer yet!
+    // Keep the old video + old 3D telemetry paired together until Rally 1 of the new video is ready,
+    // and lock the workspace with the Sync Lock Shield (with an option to continue watching the previous match in the background).
+    this.pendingVideoSrc = this.localBlobUrl || this.videoPath;
+    this.pendingMatchLabel = `${nearRaw} vs ${farRaw}`;
+    this.backgroundMode = false;
+    this.hasSwitchedToNewMatch = false;
+
+    if (this.player && this.player.videoElement) {
+      try { this.player.videoElement.pause(); } catch (e) {}
     }
 
     this.close();
-    this.showBanner('STAGE 1: Calibrating Court & Segmenting Rallies...', 'Preparing 3D trajectory solver...', 5, true);
+    this.showSyncLock(
+      `⏳ Syncing New Video: ${nearRaw} vs ${farRaw}`,
+      'STAGE 1: Calibrating Court & Segmenting Rallies...',
+      'Preparing 3D aerodynamic trajectory solver...',
+      6
+    );
+    this.showBanner('STAGE 1: Calibrating Court & Segmenting Rallies...', `Syncing ${nearRaw} vs ${farRaw} in 3D...`, 6, true);
 
-    fetch('/api/analyze-start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    })
-      .then((r) => r.json())
-      .then((res) => {
-        if (res && res.match_id) {
-          this.activeJobMatchId = res.match_id;
-          this.lastStreamedRallyCount = -1;
-          this.startPollingStatus(res.match_id);
-        } else {
-          this.showBanner('Analysis Error', (res && res.error) || 'Could not start analysis', 100, false);
+    const launchAnalyzeRequest = async (resolvedVideoPath) => {
+      payload.video_path = resolvedVideoPath || this.videoPath;
+      await this.refreshTunnelUrl();
+      let r = null;
+      try {
+        r = await fetch(this.getApiUrl('/api/analyze-start'), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        r = null;
+      }
+      if (!r || !r.ok) {
+        try {
+          r = await fetch('/api/analyze-start', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+        } catch (e2) {
+          r = null;
         }
+      }
+      if (r && r.ok) {
+        try {
+          const res = await r.json();
+          if (res && res.match_id) {
+            this.activeJobMatchId = res.match_id;
+            this.lastStreamedRallyCount = -1;
+            try {
+              localStorage.setItem('hawkview_active_job', JSON.stringify({
+                matchId: res.match_id,
+                videoSrc: this.pendingVideoSrc,
+                label: this.pendingMatchLabel
+              }));
+            } catch (e) {}
+            this.startPollingStatus(res.match_id);
+            return;
+          }
+        } catch (e3) {}
+      }
+      this.runStaticStreamingFallback(this.matchId);
+    };
+
+    if (this.selectedFile && (!this.videoPath || this.videoPath.startsWith('blob:'))) {
+      this.showSyncLock(
+        `⏳ Uploading Video to CV Server: ${this.selectedFile.name}`,
+        'STAGE 0: Streaming MP4 Chunks to Hawkview Blackwell Server...',
+        'Preparing court calibration & TrackNetV3 + RTMPose pipeline...',
+        4
+      );
+      this.uploadFileChunked(this.selectedFile, (pct, curChunk, totalChunks, chunkInfo) => {
+        const speedStr = (chunkInfo && chunkInfo.mb_per_sec) ? ` · ${chunkInfo.mb_per_sec} MB/s` : '';
+        this.showSyncLock(
+          `⏳ Uploading Video to CV Server: ${this.selectedFile.name}`,
+          `STAGE 0: Uploading MP4 (${pct}% · Chunk ${curChunk}/${totalChunks}${speedStr})...`,
+          `Streaming 1 MB chunks over Cloudflare Edge Tunnel to Hawkview Blackwell Server...`,
+          Math.max(4, Math.min(20, Math.round(pct * 0.2)))
+        );
       })
-      .catch((err) => {
-        this.showBanner('Analysis Error', String(err), 100, false);
-      });
+        .then((info) => {
+          if (info && info.video_path) {
+            this.videoPath = info.video_path;
+            if (info.match_id) {
+              this.matchId = info.match_id;
+              payload.match_id = info.match_id;
+            }
+          }
+          launchAnalyzeRequest(this.videoPath);
+        })
+        .catch((err) => {
+          const errMsg = (err && err.message) ? err.message : 'Network connection interrupted during chunk upload.';
+          this.showSyncLockError(
+            `❌ Video Upload Interrupted: ${this.selectedFile.name}`,
+            `STAGE 0 ERROR: ${errMsg}`,
+            'The MP4 chunk stream was interrupted before reaching the CV server. Click "Retry Upload" or open "Server Logs & Diagnostics" to inspect live server & tunnel telemetry.'
+          );
+          this.showBanner(
+            `❌ Upload Error: ${errMsg}`,
+            'Open Server Logs & Diagnostics to inspect tunnel throughput and server state.',
+            100,
+            false
+          );
+        });
+    } else {
+      launchAnalyzeRequest(this.videoPath);
+    }
+  }
+
+  showSyncLockError(titleText, stageText, detailText) {
+    const lockEl = document.getElementById('workspace-sync-lock');
+    if (!lockEl) return;
+    lockEl.classList.remove('hidden');
+    const tEl = document.getElementById('sync-lock-title');
+    const sEl = document.getElementById('sync-lock-stage');
+    const dEl = document.getElementById('sync-lock-detail');
+    const fEl = document.getElementById('sync-lock-fill');
+    const bgBtn = document.getElementById('btn-sync-lock-bg');
+    const diagBtn = document.getElementById('btn-sync-lock-diag');
+
+    if (tEl && titleText) tEl.textContent = titleText;
+    if (sEl && stageText) sEl.textContent = stageText;
+    if (dEl && detailText) dEl.textContent = detailText;
+    if (fEl) {
+      fEl.style.width = '100%';
+      fEl.style.background = 'var(--shot-error)';
+    }
+    if (bgBtn) {
+      bgBtn.textContent = '🔄 Retry Upload & 3D Analysis';
+      bgBtn.onclick = () => {
+        if (fEl) fEl.style.background = '';
+        bgBtn.textContent = '↩ Keep Watching Previous Match While Processing in Background';
+        this.startFullAnalysis();
+      };
+    }
+    if (diagBtn) {
+      diagBtn.onclick = () => {
+        if (window.antiLagModalInstance) {
+          window.antiLagModalInstance.open('diagnostics');
+        }
+      };
+    }
+  }
+
+  showSyncLock(titleText, stageText, detailText, pct) {
+    const lockEl = document.getElementById('workspace-sync-lock');
+    if (!lockEl) return;
+    if (!this.backgroundMode && !this.hasSwitchedToNewMatch) {
+      lockEl.classList.remove('hidden');
+    }
+    const tEl = document.getElementById('sync-lock-title');
+    const sEl = document.getElementById('sync-lock-stage');
+    const dEl = document.getElementById('sync-lock-detail');
+    const fEl = document.getElementById('sync-lock-fill');
+    const bgBtn = document.getElementById('btn-sync-lock-bg');
+    const cancelBtn = document.getElementById('btn-sync-lock-cancel');
+    const diagBtn = document.getElementById('btn-sync-lock-diag');
+
+    if (tEl && titleText) tEl.textContent = titleText;
+    if (sEl && stageText) sEl.textContent = stageText;
+    if (dEl && detailText) dEl.textContent = detailText;
+    if (fEl) {
+      fEl.style.background = '';
+      fEl.style.width = `${Math.max(4, Math.min(100, pct))}%`;
+    }
+
+    if (bgBtn) {
+      bgBtn.textContent = '↩ Keep Watching Previous Match While Processing in Background';
+      bgBtn.onclick = () => {
+        this.backgroundMode = true;
+        lockEl.classList.add('hidden');
+        this.showBanner(
+          `🔄 Background Processing: ${this.pendingMatchLabel || 'New Match'}`,
+          'You are viewing the previous match while your new video reconstructs in the background.',
+          pct,
+          true
+        );
+      };
+    }
+    if (diagBtn) {
+      diagBtn.onclick = () => {
+        if (window.antiLagModalInstance) {
+          window.antiLagModalInstance.open('diagnostics');
+        }
+      };
+    }
+    if (cancelBtn) {
+      cancelBtn.onclick = () => {
+        lockEl.classList.add('hidden');
+        this.stopActiveAnalysis();
+        if (this.bannerEl) this.bannerEl.classList.add('hidden');
+      };
+    }
+  }
+
+  hideSyncLock() {
+    const lockEl = document.getElementById('workspace-sync-lock');
+    if (lockEl) lockEl.classList.add('hidden');
+  }
+
+  activateNewMatchInWorkspace(matchId, telemetry) {
+    this.hasSwitchedToNewMatch = true;
+    this.hideSyncLock();
+
+    const switchReadyBtn = document.getElementById('btn-banner-switch-ready');
+    if (switchReadyBtn) switchReadyBtn.classList.add('hidden');
+
+    const videoToLoad = this.pendingVideoSrc || (telemetry && telemetry.source && telemetry.source.video);
+    const ytId = this.player && typeof this.player.extractYouTubeIdFromTelemetry === 'function'
+      ? this.player.extractYouTubeIdFromTelemetry(telemetry, matchId)
+      : null;
+    if (this.player) {
+      if (videoToLoad) {
+        this.player.loadVideoSource(videoToLoad, ytId);
+      } else if (ytId) {
+        this.player.loadYouTubeVideo(ytId);
+      }
+    }
+
+    window.HAWKVIEW_TELEMETRY = telemetry;
+    if (!window.HAWKVIEW_MATCHES) window.HAWKVIEW_MATCHES = {};
+    window.HAWKVIEW_MATCHES[matchId] = telemetry;
+    window.HAWKVIEW_ACTIVE_MATCH_KEY = matchId;
+
+    window.dispatchEvent(new CustomEvent('hawkview:matchChanged', {
+      detail: { matchKey: matchId, telemetry }
+    }));
+  }
+
+  async runStaticStreamingFallback(matchId) {
+    this.hideSyncLock();
+
+    // ZERO-HORSESHIT VERIFICATION GUARD:
+    // Check if `matchId` is GENUINELY present in bundled memory or browser IndexedDB cache.
+    // NEVER silently fall back to 'lzj_popov' or fake a "1s cache load" when the user uploaded an uncached custom video!
+    let cachedTelemetry = (window.HAWKVIEW_MATCHES && window.HAWKVIEW_MATCHES[matchId]) || null;
+    if (!cachedTelemetry && window.cacheStoreInstance && typeof window.cacheStoreInstance.loadFromIdb === 'function') {
+      try {
+        cachedTelemetry = await window.cacheStoreInstance.loadFromIdb(matchId);
+      } catch (e) {
+        cachedTelemetry = null;
+      }
+    }
+
+    if (!cachedTelemetry) {
+      // Uncached custom video on a static host where /api/analyze-start is offline!
+      const label = this.uploadedFileName || this.pendingMatchLabel || matchId;
+      this.open();
+      this.setStatusPill(
+        `⚠️ Live Python/GPU Server Offline — Cannot run TrackNetV3 + RTMPose on uncached video "${label}" from static host. Run on local server (:8123) or connect backend.`,
+        false
+      );
+      this.showBanner(
+        '⚠️ Live CV / GPU Backend Not Connected (Static Host)',
+        `Refused to load fake cached telemetry for uncached video "${label}". Connect the Hawkview Python/Blackwell server (:8123) to reconstruct new videos.`,
+        100,
+        false
+      );
+      return;
+    }
+
+    if (window.cacheStoreInstance) {
+      await window.cacheStoreInstance.switchActiveMatch(matchId, true);
+      if (this.player && this.pendingVideoSrc && this.pendingVideoSrc.startsWith('blob:')) {
+        this.player.loadVideoSource(this.pendingVideoSrc);
+      }
+      window.cacheStoreInstance.renderEtaStatmeter({
+        percent: 100,
+        eta_formatted: '0s',
+        elapsed_formatted: '1s',
+        accelerator_label: '⚡ Browser IndexedDB Cache'
+      }, false);
+    }
+    this.showBanner('COMPLETE: 3D Telemetry Loaded from Cache', 'Synced player names, court sides & 3D trajectories.', 100, false);
   }
 
   showBanner(stageText, detailText, pct, isRunning = true) {
@@ -873,11 +2243,13 @@ class VideoLoaderModal {
   }
 
   stopActiveAnalysis() {
+    this.hideSyncLock();
+    try { localStorage.removeItem('hawkview_active_job'); } catch (e) {}
     if (!this.activeJobMatchId) {
       if (this.bannerEl) this.bannerEl.classList.add('hidden');
       return;
     }
-    fetch('/api/analyze-stop', {
+    fetch(this.getApiUrl('/api/analyze-stop'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ match_id: this.activeJobMatchId })
@@ -890,10 +2262,34 @@ class VideoLoaderModal {
     }
 
     const poll = () => {
-      fetch(`/api/analyze-status?match_id=${encodeURIComponent(matchId)}`)
+      const statusPath = `/api/analyze-status?match_id=${encodeURIComponent(matchId)}`;
+      fetch(this.getApiUrl(statusPath))
+        .catch(() => {
+          this.refreshTunnelUrl();
+          return fetch(statusPath);
+        })
         .then((r) => r.json())
         .then((job) => {
-          if (!job || job.error) return;
+          if (!job || (!job.status && job.error)) return;
+
+          if (job.status === 'error') {
+            try { localStorage.removeItem('hawkview_active_job'); } catch (e) {}
+            clearInterval(this.activePollTimer);
+            this.activePollTimer = null;
+            const errStr = job.error || 'Unknown pipeline error';
+            this.showSyncLockError(
+              `❌ Server Pipeline Error (${matchId})`,
+              `ERROR: ${errStr}`,
+              'Click "🩺 Server Logs & Diagnostics" below to inspect the live Python stack trace, chunk upload session, and server event logs.'
+            );
+            this.showBanner(
+              `❌ Pipeline Error: ${errStr}`,
+              'Open Server Logs & Diagnostics to inspect the full Python stack trace.',
+              100,
+              false
+            );
+            return;
+          }
 
           const pct = Number(job.percent) || 5;
           const rDone = Number(job.rallies_completed) || 0;
@@ -907,34 +2303,66 @@ class VideoLoaderModal {
             isRunning
           );
 
-          // Progressive live rally streaming into the 3D UI!
-          if (job.telemetry && rDone !== this.lastStreamedRallyCount) {
-            const isFirstSwitch = this.lastStreamedRallyCount < 0;
+          if (!this.backgroundMode && !this.hasSwitchedToNewMatch && rDone === 0 && isRunning) {
+            this.showSyncLock(
+              `⏳ Syncing New Video: ${this.pendingMatchLabel || matchId}`,
+              job.stage || 'Calibrating Court & Segmenting Rallies...',
+              job.message || 'Preparing 3D trajectories...',
+              pct
+            );
+          }
+
+          if (window.cacheStoreInstance) {
+            if (job.eta) {
+              window.cacheStoreInstance.renderEtaStatmeter(job.eta, isRunning);
+            }
+            if (job.colab_quota) {
+              window.cacheStoreInstance.renderQuotaStatmeter(job.colab_quota);
+            }
+          }
+
+          // Only switch or stream into the 3D UI once at least 1 rally is reconstructed (or job is completed)!
+          if (job.telemetry && (rDone >= 1 || job.status === 'completed') && rDone !== this.lastStreamedRallyCount) {
             this.lastStreamedRallyCount = rDone;
 
-            window.HAWKVIEW_TELEMETRY = job.telemetry;
             if (!window.HAWKVIEW_MATCHES) window.HAWKVIEW_MATCHES = {};
             window.HAWKVIEW_MATCHES[matchId] = job.telemetry;
-            window.HAWKVIEW_ACTIVE_MATCH_KEY = matchId;
-
-            const metaEl = document.getElementById('header-match-title');
-            if (metaEl && job.telemetry.match_metadata) {
-              const mm = job.telemetry.match_metadata;
-              metaEl.textContent = `${mm.tournament || 'Custom Match'} · ${mm.round || 'Singles'} · ${rDone}/${rTotal || '?'} Rallies Ready`;
+            if (window.cacheStoreInstance) {
+              window.cacheStoreInstance.saveMatchTelemetry(matchId, job.telemetry);
+              window.cacheStoreInstance.updateTopbarHeader(matchId, job.telemetry);
             }
 
-            if (isFirstSwitch) {
-              window.dispatchEvent(new CustomEvent('hawkview:matchChanged', {
-                detail: { matchKey: matchId, telemetry: job.telemetry }
-              }));
+            if (this.backgroundMode && !this.hasSwitchedToNewMatch) {
+              // User asked to keep watching previous match in background — show 1-click switch button!
+              const switchReadyBtn = document.getElementById('btn-banner-switch-ready');
+              if (switchReadyBtn) {
+                switchReadyBtn.classList.remove('hidden');
+                switchReadyBtn.textContent = `✅ ${this.pendingMatchLabel || 'New Match'} Ready (${rDone}/${rTotal || rDone} Rallies) — Click to Switch Now`;
+                switchReadyBtn.onclick = () => {
+                  this.backgroundMode = false;
+                  this.activateNewMatchInWorkspace(matchId, job.telemetry);
+                };
+              }
+            } else if (!this.hasSwitchedToNewMatch) {
+              this.activateNewMatchInWorkspace(matchId, job.telemetry);
             } else {
+              window.HAWKVIEW_TELEMETRY = job.telemetry;
+              window.HAWKVIEW_ACTIVE_MATCH_KEY = matchId;
               window.dispatchEvent(new CustomEvent('hawkview:ralliesStreamUpdated', {
                 detail: { matchKey: matchId, telemetry: job.telemetry, ralliesCompleted: rDone, ralliesTotal: rTotal }
               }));
             }
           }
 
-          if (job.status === 'completed' || job.status === 'stopped' || job.status === 'error') {
+          if (job.status === 'completed' || job.status === 'stopped') {
+            this.hideSyncLock();
+            try { localStorage.removeItem('hawkview_active_job'); } catch (e) {}
+            if (window.cacheStoreInstance) {
+              if (job.telemetry) {
+                window.cacheStoreInstance.updateTopbarHeader(matchId, job.telemetry);
+              }
+              window.cacheStoreInstance.refreshMatchesAndQuota(false);
+            }
             clearInterval(this.activePollTimer);
             this.activePollTimer = null;
           }

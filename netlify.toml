@@ -1,0 +1,12 @@
+[build]
+  command = "python3 scripts/build_netlify_dist.py"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/data/matches/*"
+  [headers.values]
+    Cache-Control = "public, max-age=300"

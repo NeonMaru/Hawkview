@@ -18,5 +18,9 @@
     "telemetry"
   ],
   "author": "Hawkview Engineering Team",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "@netlify/blobs": "^11.1.11",
+    "@netlify/functions": "^6.1.2"
+  }
 }

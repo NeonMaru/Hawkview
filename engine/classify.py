@@ -148,6 +148,47 @@ class ShotClassifier:
         ):
             return "push", contact_zone, target_zone
 
+        # 10.5 Physical net-referenced rules for underhand/low-contact strokes and mid-court drops/blocks:
+        #      (A low contact z0 = 0.30..0.85m must rise by 0.90..1.45m just to cross the 1.524m net!)
+        shot_idx = int(shot.get("shot_index") or shot.get("shot_num") or 0)
+        if is_serve and shot_idx == 1 and z0 <= 1.34 and contact_zone in ("front", "mid") and speed_kmh <= 115.0:
+            if 2.45 <= peak_z <= 4.0 and t_dist_net >= 2.60:
+                return "serve_flick", contact_zone, target_zone
+            return "serve_short", contact_zone, target_zone
+
+        # Overhead / high-contact strokes from rear or mid court
+        if z0 >= 1.75 and contact_zone in ("rear", "mid"):
+            if speed_kmh >= 145.0 and (down_ang >= 4.0 or (peak_z - z0) <= 0.35):
+                return "smash", contact_zone, target_zone
+            if (target_zone == "front" or t_dist_net <= 3.35) and peak_z <= 3.45 and speed_kmh < 155.0:
+                return "drop", contact_zone, target_zone
+            if (target_zone == "rear" or t_dist_back <= 2.60) and peak_z >= 3.40:
+                return "attacking_clear", contact_zone, target_zone
+
+        # Deep rear-court landing strokes (medium-arc lifts & attacking clears)
+        if (target_zone == "rear" or t_dist_back <= 2.50) and peak_z >= 3.00:
+            if z0 < 1.70 and contact_zone in ("front", "mid"):
+                return "lift", contact_zone, target_zone
+            return ("attacking_clear" if peak_z < 6.50 else "defensive_clear"), contact_zone, target_zone
+
+        # Front-court landing strokes (net shots, defensive blocks, and slice drops)
+        if target_zone == "front" or t_dist_net <= 2.30:
+            if contact_zone == "front" and peak_z <= 2.45:
+                return "net_shot", contact_zone, target_zone
+            if prev_shot_type in ("smash", "drive", "net_kill", "push", "attacking_clear") and z0 < 1.80:
+                return "block", contact_zone, target_zone
+            if contact_zone in ("rear", "mid") and z0 >= 1.45 and peak_z <= 3.30:
+                return "drop", contact_zone, target_zone
+            return ("net_shot" if contact_zone == "front" else "block"), contact_zone, target_zone
+
+        # Flat / medium-height net-crossing strokes (low-contact drives & pushes)
+        if peak_z <= 2.65 and net_clear <= 1.10 and speed_kmh >= 100.0:
+            return "drive", contact_zone, target_zone
+        if peak_z <= 2.95 and target_zone in ("mid", "rear"):
+            return ("drive" if speed_kmh >= 115.0 else "push"), contact_zone, target_zone
+        if peak_z > 2.95 and target_zone in ("mid", "rear"):
+            return ("lift" if z0 < 1.75 else "attacking_clear"), contact_zone, target_zone
+
         # 11. Other: Anything left over
         return "other", contact_zone, target_zone
 
@@ -175,13 +216,17 @@ class ShotClassifier:
         x_land, y_land = float(landing_xy[0]), float(landing_xy[1])
         side = shot["side"]
 
-        # Opponent half-court Y boundaries
+        # Opponent half-court Y boundaries (in Doubles, serves are bounded by the 0.76m doubles long service line!)
+        is_doubles_serve = bool(self.match_type == "doubles" and is_serve)
+        long_srv_margin = BWF.doubles_long_service_dist if is_doubles_serve else 0.0
         if side == "near":
-            y_min, y_max = BWF.net_y, BWF.length
-            back_line_y = BWF.length
+            y_min = BWF.net_y
+            y_max = BWF.length - long_srv_margin
+            back_line_y = y_max
         else:
-            y_min, y_max = 0.0, BWF.net_y
-            back_line_y = 0.0
+            y_min = 0.0 + long_srv_margin
+            y_max = BWF.net_y
+            back_line_y = y_min
 
         # A line (40mm wide) is part of the court it bounds; cork footprint radius ~13mm
         tol = 0.025
@@ -189,7 +234,7 @@ class ShotClassifier:
         in_y = (y_min - tol) <= y_land <= (y_max + tol)
         is_in = bool(in_x and in_y)
 
-        # Distance to nearest singles boundary line (left sideline, right sideline, back boundary line)
+        # Distance to nearest active boundary line (left sideline, right sideline, back boundary / service line)
         dist_left = abs(x_land - self.x_min)
         dist_right = abs(x_land - self.x_max)
         dist_back = abs(y_land - back_line_y)

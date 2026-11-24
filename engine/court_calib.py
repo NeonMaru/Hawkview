@@ -186,16 +186,205 @@ class CourtCalibrator:
         errors = np.linalg.norm(proj - img_pts, axis=1)
         self.reprojection_error_px = float(np.sqrt(np.mean(errors ** 2)))
 
+    def _validate_homography_geometry(self, H: np.ndarray, check_shift: bool = True) -> bool:
+        """
+        Enforces BWF broadcast trapezoid geometry invariants on a candidate homography H
+        so player shoes/shirts, floor logos, or net banners can never twist or distort the court wireframe.
+        Supports both wide-angle and telephoto BWF broadcast cameras (e.g., Hong Kong Open, Paris, Arctic Open).
+        """
+        if H is None:
+            return False
+        try:
+            corners_m = np.array([
+                [0.0, 0.0],
+                [self.bwf.width, 0.0],
+                [self.bwf.width, self.bwf.length],
+                [0.0, self.bwf.length],
+            ], dtype=np.float32).reshape(-1, 1, 2)
+            pts = cv2.perspectiveTransform(corners_m, H).reshape(-1, 2)
+        except Exception:
+            return False
+
+        w = float(self.image_width or 1920)
+        h = float(self.image_height or 1080)
+        nl, nr, fr, fl = pts[0], pts[1], pts[2], pts[3]
+
+        # 1. Bounds check
+        for u, v in pts:
+            if not (np.isfinite(u) and np.isfinite(v)):
+                return False
+            if u < -0.08 * w or u > 1.08 * w or v < 0.10 * h or v > 1.05 * h:
+                return False
+
+        # 2. Width & perspective foreshortening invariants (supports telephoto BWF cameras up to ratio 0.90)
+        near_w = float(nr[0] - nl[0])
+        far_w = float(fr[0] - fl[0])
+        if near_w < 0.36 * w or far_w < 0.18 * w:
+            return False
+        ratio = far_w / max(1.0, near_w)
+        if ratio < 0.35 or ratio > 0.90:
+            return False
+
+        # 3. Baseline horizontality & anti-shear check
+        m_near = (nr[1] - nl[1]) / max(1.0, nr[0] - nl[0])
+        m_far = (fr[1] - fl[1]) / max(1.0, fr[0] - fl[0])
+        if abs(m_near) > 0.045 or abs(m_far) > 0.045 or abs(m_near - m_far) > 0.032:
+            return False
+
+        # 4. Sideline convergence & symmetry check (u = mV * v + bV)
+        dy_l = nl[1] - fl[1]
+        dy_r = nr[1] - fr[1]
+        if dy_l < 0.22 * h or dy_r < 0.22 * h:
+            return False
+        mv_left = (nl[0] - fl[0]) / dy_l   # should be negative (left sideline leans inward toward top)
+        mv_right = (nr[0] - fr[0]) / dy_r  # should be positive (right sideline leans inward toward top)
+        if not (-0.88 <= mv_left <= -0.07 and 0.07 <= mv_right <= 0.88):
+            return False
+        if abs(mv_left + mv_right) > 0.22:
+            return False
+
+        # 5. Maximum displacement guard against current corners (skipped for zero-prior trapezoid detection)
+        if check_shift:
+            max_shift = 0.085 * w
+            for key, pt in zip(
+                ["corner_near_left", "corner_near_right", "corner_far_right", "corner_far_left"],
+                [nl, nr, fr, fl],
+            ):
+                if key in self.pixel_points:
+                    old_u, old_v = self.pixel_points[key]
+                    if float(np.hypot(pt[0] - old_u, pt[1] - old_v)) > max_shift:
+                        return False
+
+        return True
+
+    def measure_court_line_coverage(self, frame_bgr: np.ndarray) -> Dict:
+        """
+        Probes all 12 official BWF ground court lines (20 samples each) using the Top-Hat
+        white-line ridge + chroma filter to verify that the projected homography actually aligns
+        with real court markings (rejecting zoomed/angled replays and misaligned fallbacks).
+        """
+        empty = {
+            "segment_hits_count": 0,
+            "total_segments": 12,
+            "segment_coverage_pct": 0.0,
+            "outer_boundary_ok": False,
+            "mean_line_hit_pct": 0.0,
+            "green_in_poly_pct": 0.0,
+        }
+        if self.H_court_to_pixel is None or frame_bgr is None or frame_bgr.size == 0:
+            return empty
+
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
+        chroma = (
+            np.max(frame_bgr, axis=2).astype(np.float64)
+            - np.min(frame_bgr, axis=2).astype(np.float64)
+        )
+        h_img, w_img = gray.shape
+        scale = float(w_img) / 1920.0
+        flank = max(2, int(round(4.0 * scale)))
+        r = max(2, int(round(4.0 * scale)))
+        pad = r + flank + 1
+
+        bwf = self.bwf
+        segments = [
+            (0.0, 0.0, bwf.width, 0.0, "h", True),                        # Near baseline (outer)
+            (0.0, 0.76, bwf.width, 0.76, "h", False),                     # Near doubles service line
+            (0.0, 4.72, bwf.width, 4.72, "h", False),                     # Near short service line
+            (0.0, 8.68, bwf.width, 8.68, "h", False),                     # Far short service line
+            (0.0, 12.64, bwf.width, 12.64, "h", False),                   # Far doubles service line
+            (0.0, 13.40, bwf.width, 13.40, "h", True),                    # Far baseline (outer)
+            (0.0, 0.0, 0.0, 13.40, "v", True),                            # Left doubles sideline (outer)
+            (0.46, 0.0, 0.46, 13.40, "v", False),                         # Left singles sideline
+            (3.05, 0.0, 3.05, 4.72, "v", False),                          # Center service line near
+            (3.05, 8.68, 3.05, 13.40, "v", False),                        # Center service line far
+            (bwf.width - 0.46, 0.0, bwf.width - 0.46, 13.40, "v", False), # Right singles sideline
+            (bwf.width, 0.0, bwf.width, 13.40, "v", True),                # Right doubles sideline (outer)
+        ]
+
+        num_samples = 20
+        seg_pcts = []
+        outer_pcts = []
+
+        for x1, y1, x2, y2, orient, is_outer in segments:
+            xs = np.linspace(x1, x2, num_samples)
+            ys = np.linspace(y1, y2, num_samples)
+            hits = 0
+            for cx, cy in zip(xs, ys):
+                p = self.H_court_to_pixel @ np.array([cx, cy, 1.0], dtype=np.float64)
+                if abs(p[2]) < 1e-9:
+                    continue
+                u, v = p[0] / p[2], p[1] / p[2]
+                if not (np.isfinite(u) and np.isfinite(v)):
+                    continue
+                ix, iy = int(round(u)), int(round(v))
+                if ix < pad or ix >= w_img - pad or iy < pad or iy >= h_img - pad:
+                    continue
+                if orient == "h":
+                    win = gray[iy - r : iy + r + 1, ix]
+                    c_win = chroma[iy - r : iy + r + 1, ix]
+                    f_neg = gray[iy - r - flank : iy + r + 1 - flank, ix]
+                    f_pos = gray[iy - r + flank : iy + r + 1 + flank, ix]
+                else:
+                    win = gray[iy, ix - r : ix + r + 1]
+                    c_win = chroma[iy, ix - r : ix + r + 1]
+                    f_neg = gray[iy, ix - r - flank : ix + r + 1 - flank]
+                    f_pos = gray[iy, ix - r + flank : ix + r + 1 + flank]
+                ridge = win - 0.5 * (f_neg + f_pos)
+                if np.any((win >= 140.0) & (c_win <= 68.0) & (ridge >= 12.0)):
+                    hits += 1
+            pct = 100.0 * float(hits) / float(num_samples)
+            seg_pcts.append(pct)
+            if is_outer:
+                outer_pcts.append(pct)
+
+        segment_hits_count = sum(1 for pct in seg_pcts if pct >= 20.0)
+        total_segments = len(segments)
+        segment_coverage_pct = 100.0 * float(segment_hits_count) / float(total_segments)
+        outer_boundary_ok = len(outer_pcts) == 4 and all(pct >= 20.0 for pct in outer_pcts)
+        mean_line_hit_pct = float(np.mean(seg_pcts)) if seg_pcts else 0.0
+
+        # Measure green BWF court mat coverage inside projected outer court polygon
+        green_in_poly_pct = 0.0
+        try:
+            corners_m = np.array([
+                [0.0, 0.0],
+                [bwf.width, 0.0],
+                [bwf.width, bwf.length],
+                [0.0, bwf.length],
+            ], dtype=np.float32).reshape(-1, 1, 2)
+            poly_pts = cv2.perspectiveTransform(corners_m, self.H_court_to_pixel).reshape(-1, 2)
+            if np.all(np.isfinite(poly_pts)):
+                poly_mask = np.zeros((h_img, w_img), dtype=np.uint8)
+                cv2.fillPoly(poly_mask, [np.round(poly_pts).astype(np.int32)], 255)
+                poly_area = int(np.count_nonzero(poly_mask))
+                if poly_area > 0:
+                    hsv_frame = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2HSV)
+                    g_mask = cv2.inRange(hsv_frame, (32, 35, 35), (92, 255, 255))
+                    green_in_poly_pct = 100.0 * float(np.count_nonzero(cv2.bitwise_and(g_mask, poly_mask))) / float(poly_area)
+        except Exception:
+            pass
+
+        return {
+            "segment_hits_count": int(segment_hits_count),
+            "total_segments": int(total_segments),
+            "segment_coverage_pct": round(float(segment_coverage_pct), 1),
+            "outer_boundary_ok": bool(outer_boundary_ok),
+            "mean_line_hit_pct": round(float(mean_line_hit_pct), 1),
+            "green_in_poly_pct": round(float(green_in_poly_pct), 1),
+        }
+
     def refine_with_white_lines(self, frame_bgr: np.ndarray, search_radius_px: int = 12) -> float:
         """
-        Samples visible white court lines across the court, searches for sub-pixel intensity peaks
-        perpendicular to each line, and refines the homography and camera pose.
-        Returns the measured line-sample RMSE in pixels.
+        Samples visible white court lines across the court using a 1D Top-Hat White-Line Ridge
+        + Chroma filter (rejecting player shoes/shirts and floor logos), refines the homography
+        with RANSAC, validates BWF trapezoid geometry invariants, co-updates net posts, and
+        re-solves 3D camera pose. Returns the measured line-sample RMSE in pixels.
         """
         if self.H_court_to_pixel is None:
             raise ValueError("Initial calibration must be set before line refinement.")
 
-        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
+        chroma = (np.max(frame_bgr, axis=2).astype(np.float64) - np.min(frame_bgr, axis=2).astype(np.float64))
 
         # Standard BWF line segments in metric court coordinates (x1, y1, x2, y2, orientation)
         segments = [
@@ -217,6 +406,10 @@ class CourtCalibrator:
         sample_target_pix = []
 
         h_img, w_img = gray.shape
+        scale_factor = float(w_img) / 1920.0
+        flank_step = max(2, int(round(4.0 * scale_factor)))
+        margin = max(16, int(round(30.0 * scale_factor)))
+        r = max(8, int(search_radius_px))
 
         for x1, y1, x2, y2, orient in segments:
             num_samples = 25
@@ -226,43 +419,73 @@ class CourtCalibrator:
                 p = self.H_court_to_pixel @ np.array([cx, cy, 1.0])
                 u, v = p[0] / p[2], p[1] / p[2]
                 ix, iy = int(round(u)), int(round(v))
-                if ix < 30 or ix >= w_img - 30 or iy < 30 or iy >= h_img - 30:
+                if ix < margin + r + flank_step or ix >= w_img - (margin + r + flank_step):
+                    continue
+                if iy < margin + r + flank_step or iy >= h_img - (margin + r + flank_step):
                     continue
 
                 if orient == "h":
-                    r = search_radius_px
-                    window = gray[iy - r : iy + r + 1, ix].astype(np.float64)
-                    if np.max(window) > 155:
-                        pk = np.argmax(window)
+                    window = gray[iy - r : iy + r + 1, ix]
+                    c_win = chroma[iy - r : iy + r + 1, ix]
+                    flank_up = gray[iy - r - flank_step : iy + r + 1 - flank_step, ix]
+                    flank_dn = gray[iy - r + flank_step : iy + r + 1 + flank_step, ix]
+                    ridge = window - 0.5 * (flank_up + flank_dn)
+                    valid = (window >= 145.0) & (c_win <= 65.0) & (ridge >= 14.0)
+                    if np.any(valid):
+                        scores = np.where(valid, ridge + 0.25 * window, -1e9)
+                        pk = int(np.argmax(scores))
                         if 0 < pk < len(window) - 1:
                             dy = (window[pk + 1] - window[pk - 1]) / (
                                 2.0 * (2.0 * window[pk] - window[pk - 1] - window[pk + 1]) + 1e-6
                             )
+                            dy = float(np.clip(dy, -0.5, 0.5))
                             target_v = iy - r + pk + dy
                             sample_court_pts.append([cx, cy])
                             sample_target_pix.append([u, target_v])
                 else:
-                    r = search_radius_px
-                    window = gray[iy, ix - r : ix + r + 1].astype(np.float64)
-                    if np.max(window) > 155:
-                        pk = np.argmax(window)
+                    window = gray[iy, ix - r : ix + r + 1]
+                    c_win = chroma[iy, ix - r : ix + r + 1]
+                    flank_l = gray[iy, ix - r - flank_step : ix + r + 1 - flank_step]
+                    flank_r = gray[iy, ix - r + flank_step : ix + r + 1 + flank_step]
+                    ridge = window - 0.5 * (flank_l + flank_r)
+                    valid = (window >= 145.0) & (c_win <= 65.0) & (ridge >= 14.0)
+                    if np.any(valid):
+                        scores = np.where(valid, ridge + 0.25 * window, -1e9)
+                        pk = int(np.argmax(scores))
                         if 0 < pk < len(window) - 1:
                             dx = (window[pk + 1] - window[pk - 1]) / (
                                 2.0 * (2.0 * window[pk] - window[pk - 1] - window[pk + 1]) + 1e-6
                             )
+                            dx = float(np.clip(dx, -0.5, 0.5))
                             target_u = ix - r + pk + dx
                             sample_court_pts.append([cx, cy])
                             sample_target_pix.append([target_u, v])
 
         if len(sample_court_pts) >= 20:
-            sample_court_pts = np.array(sample_court_pts, dtype=np.float32)
-            sample_target_pix = np.array(sample_target_pix, dtype=np.float32)
+            sample_court_pts_arr = np.array(sample_court_pts, dtype=np.float32)
+            sample_target_pix_arr = np.array(sample_target_pix, dtype=np.float32)
 
-            # Refine H using RANSAC to eliminate player / logo occlusions
+            ransac_thresh = max(2.2, 4.0 * scale_factor)
             H_ref, inlier_mask = cv2.findHomography(
-                sample_court_pts, sample_target_pix, cv2.RANSAC, 4.0
+                sample_court_pts_arr, sample_target_pix_arr, cv2.RANSAC, ransac_thresh
             )
-            if H_ref is not None:
+            if H_ref is not None and self._validate_homography_geometry(H_ref):
+                # Backup current calibration state in case PnP error degrades
+                backup_H = self.H_court_to_pixel.copy()
+                backup_H_inv = self.H_pixel_to_court.copy()
+                backup_pixels = dict(self.pixel_points)
+                backup_reproj = self.reprojection_error_px
+
+                # Compute ground displacement at the net line (y = 6.70m) so 2D net posts stay locked to the refined sidelines
+                net_ground_m = np.array([
+                    [0.0, self.bwf.net_y],
+                    [self.bwf.width, self.bwf.net_y],
+                    [self.bwf.center_x, self.bwf.net_y],
+                ], dtype=np.float32).reshape(-1, 1, 2)
+                old_net_g = cv2.perspectiveTransform(net_ground_m, backup_H).reshape(-1, 2)
+                new_net_g = cv2.perspectiveTransform(net_ground_m, H_ref).reshape(-1, 2)
+                d_net = new_net_g - old_net_g
+
                 self.H_court_to_pixel = H_ref
                 self.H_pixel_to_court = np.linalg.inv(H_ref)
 
@@ -279,14 +502,29 @@ class CourtCalibrator:
                 self.pixel_points["corner_far_right"] = (float(p_corners[2, 0]), float(p_corners[2, 1]))
                 self.pixel_points["corner_far_left"] = (float(p_corners[3, 0]), float(p_corners[3, 1]))
 
+                # Co-update net post pixel coordinates before solving 3D camera pose
+                for idx, nkey in enumerate(["net_post_left", "net_post_right", "net_tape_center"]):
+                    if nkey in self.pixel_points:
+                        ou, ov = self.pixel_points[nkey]
+                        self.pixel_points[nkey] = (float(ou + d_net[idx, 0]), float(ov + d_net[idx, 1]))
+
                 # Update 3D camera pose and reprojection error with refined points
                 self._solve_camera_pose()
 
-                # Calculate inlier line RMSE
-                proj_lines = cv2.perspectiveTransform(sample_court_pts.reshape(-1, 1, 2), H_ref).reshape(-1, 2)
-                err_lines = np.linalg.norm(proj_lines - sample_target_pix, axis=1)
-                inliers = err_lines[inlier_mask.ravel() == 1]
-                self.line_sample_rmse_px = float(np.sqrt(np.mean(inliers ** 2))) if len(inliers) > 0 else 0.0
+                max_allowed_reproj = max(6.5, 11.0 * scale_factor)
+                if self.reprojection_error_px <= max_allowed_reproj:
+                    proj_lines = cv2.perspectiveTransform(sample_court_pts_arr.reshape(-1, 1, 2), H_ref).reshape(-1, 2)
+                    err_lines = np.linalg.norm(proj_lines - sample_target_pix_arr, axis=1)
+                    inliers = err_lines[inlier_mask.ravel() == 1]
+                    self.line_sample_rmse_px = float(np.sqrt(np.mean(inliers ** 2))) if len(inliers) > 0 else 0.0
+                else:
+                    # Roll back if PnP reprojection error spiked
+                    self.H_court_to_pixel = backup_H
+                    self.H_pixel_to_court = backup_H_inv
+                    self.pixel_points = backup_pixels
+                    self._solve_camera_pose()
+                    self.reprojection_error_px = backup_reproj
+                    self.line_sample_rmse_px = 0.0
 
         return self.line_sample_rmse_px
 
@@ -460,10 +698,180 @@ class CourtCalibrator:
         }
 
     @classmethod
+    def detect_court_trapezoid_from_frame(cls, frame_bgr: np.ndarray) -> Optional[Dict[str, Tuple[float, float]]]:
+        """
+        Zero-prior BWF court & net detector using:
+        1. 1D Projective Cross-Ratio matching across the 6 horizontal BWF lines [0.0, 0.76, 4.72, 8.68, 12.64, 13.40]m
+        2. Analytical vertical vanishing point (v_inf = a/c) + 5-line BWF sideline cross-ratio matching [-0.5, -0.4246, 0, +0.4246, +0.5]
+        3. Outer-wing net top cord ridge detection for 3D net post tops (z = 1.55m)
+        """
+        if frame_bgr is None or frame_bgr.size == 0:
+            return None
+        h, w = frame_bgr.shape[:2]
+        gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY).astype(np.float64)
+        chroma = (np.max(frame_bgr, axis=2).astype(np.float64) - np.min(frame_bgr, axis=2).astype(np.float64))
+        scale = float(w) / 1920.0
+        flank = max(2, int(round(4.0 * scale)))
+
+        valid_white = (gray >= 135.0) & (chroma <= 65.0)
+        R_h = np.zeros_like(gray)
+        R_h[flank:-flank, :] = gray[flank:-flank, :] - 0.5 * (gray[:-2 * flank, :] + gray[2 * flank:, :])
+        R_h = np.where(valid_white & (R_h >= 10.0), R_h, 0.0)
+
+        R_v = np.zeros_like(gray)
+        R_v[:, flank:-flank] = gray[:, flank:-flank] - 0.5 * (gray[:, :-2 * flank] + gray[:, 2 * flank:])
+        R_v = np.where(valid_white & (R_v >= 10.0), R_v, 0.0)
+
+        x_c1, x_c2 = int(0.28 * w), int(0.72 * w)
+        h_prof = np.mean(R_h[:, x_c1:x_c2], axis=1)
+        h_smooth = np.convolve(h_prof, [0.25, 0.5, 0.25], mode="same")
+
+        y_min, y_max = int(0.26 * h), int(0.965 * h)
+        peaks = []
+        for y in range(y_min + 2, y_max - 2):
+            if h_smooth[y] >= h_smooth[y - 1] and h_smooth[y] >= h_smooth[y + 1] and h_smooth[y] > 2.8:
+                denom = 2.0 * (2.0 * h_smooth[y] - h_smooth[y - 1] - h_smooth[y + 1])
+                dy = (h_smooth[y + 1] - h_smooth[y - 1]) / denom if abs(denom) > 1e-6 else 0.0
+                peaks.append((float(y + np.clip(dy, -0.5, 0.5)), float(h_smooth[y])))
+
+        peaks.sort(key=lambda x: -x[1])
+        nms_peaks = []
+        min_sep = max(4.0, 6.0 * scale)
+        for yp, val in peaks:
+            if all(abs(yp - yq) >= min_sep for yq, _ in nms_peaks):
+                nms_peaks.append((yp, val))
+        nms_peaks.sort(key=lambda x: x[0])
+
+        y_m = np.array([0.0, 0.76, 4.72, 8.68, 12.64, 13.40], dtype=np.float64)
+        best_h_score = -1e9
+        best_h = None
+
+        near_cands = [p for p in nms_peaks if 0.72 * h <= p[0] <= 0.965 * h]
+        mid_cands = [p for p in nms_peaks if 0.44 * h <= p[0] <= 0.80 * h]
+        far_cands = [p for p in nms_peaks if 0.26 * h <= p[0] <= 0.62 * h]
+
+        for v0, _ in near_cands:
+            for v2, _ in mid_cands:
+                if not (0.14 * h <= v0 - v2 <= 0.38 * h):
+                    continue
+                for v4, _ in far_cands:
+                    if not (0.12 * h <= v2 - v4 <= 0.36 * h):
+                        continue
+                    for y_far_m in (12.64, 13.40):
+                        b = v0
+                        M = np.array([[4.72, -4.72 * v2], [y_far_m, -y_far_m * v4]], dtype=np.float64)
+                        if abs(np.linalg.det(M)) < 1e-6:
+                            continue
+                        a, c = np.linalg.solve(M, np.array([v2 - b, v4 - b], dtype=np.float64))
+                        if not (0.005 < c < 0.15):
+                            continue
+                        v_pred = (a * y_m + b) / (c * y_m + 1.0)
+                        if v_pred[5] < 0.22 * h or v_pred[0] > 0.968 * h:
+                            continue
+                        score = 0.0
+                        hits = 0
+                        for idx_l, vp in enumerate(v_pred):
+                            iy = int(round(vp))
+                            if 2 <= iy < h - 2:
+                                lmax = float(np.max(h_smooth[iy - 2 : iy + 3]))
+                                if lmax > 2.6:
+                                    hits += 1
+                                # Cap per-line peak magnitude so a single bright net tape (85+)
+                                # never outweighs matching all 6 true horizontal BWF court lines.
+                                score += (1.5 if idx_l in (0, 1, 2, 4, 5) else 1.0) * min(lmax, 32.0)
+                        score += 28.0 * hits
+                        if hits >= 5 and score > best_h_score:
+                            best_h_score = score
+                            best_h = (float(a), float(b), float(c), v_pred)
+
+        if best_h is None:
+            return None
+
+        a, b, c, v_pred = best_h
+        v_near = float(v_pred[0])
+        v_far = float(v_pred[5])
+        v_inf = float(a / c)
+
+        R_v_smooth = cv2.GaussianBlur(R_v, (3, 1), 0)
+        sample_vs = np.linspace(v_far + 6.0, v_near - 6.0, 40).astype(int)
+        x_offsets = np.array([-3.05, -2.59, 0.0, 2.59, 3.05], dtype=np.float64) / 6.10
+        scales_v = (sample_vs - v_inf) / (v_near - v_inf)
+
+        best_v_score = -1e9
+        best_u_inf = 0.5 * w
+        best_w_near = 0.65 * w
+
+        for u_inf in np.linspace(0.44 * w, 0.56 * w, 25):
+            for w_near in np.linspace(0.40 * w, 0.88 * w, 61):
+                total_s = 0.0
+                for xi in x_offsets:
+                    us = np.round(u_inf + (xi * w_near) * scales_v).astype(int)
+                    valid_u = (us >= 4) & (us < w - 4)
+                    if np.any(valid_u):
+                        total_s += float(np.sum(R_v_smooth[sample_vs[valid_u], us[valid_u]]))
+                if total_s > best_v_score:
+                    best_v_score = total_s
+                    best_u_inf = float(u_inf)
+                    best_w_near = float(w_near)
+
+        for u_inf in np.linspace(best_u_inf - 0.015 * w, best_u_inf + 0.015 * w, 21):
+            for w_near in np.linspace(best_w_near - 0.025 * w, best_w_near + 0.025 * w, 25):
+                total_s = 0.0
+                for xi in x_offsets:
+                    us = np.round(u_inf + (xi * w_near) * scales_v).astype(int)
+                    valid_u = (us >= 4) & (us < w - 4)
+                    if np.any(valid_u):
+                        total_s += float(np.sum(R_v_smooth[sample_vs[valid_u], us[valid_u]]))
+                if total_s > best_v_score:
+                    best_v_score = total_s
+                    best_u_inf = float(u_inf)
+                    best_w_near = float(w_near)
+
+        scale_far = (v_far - v_inf) / (v_near - v_inf)
+        w_far = best_w_near * scale_far
+        c_nl = (best_u_inf - 0.5 * best_w_near, v_near)
+        c_nr = (best_u_inf + 0.5 * best_w_near, v_near)
+        c_fr = (best_u_inf + 0.5 * w_far, v_far)
+        c_fl = (best_u_inf - 0.5 * w_far, v_far)
+
+        v_net_g = float((a * 6.70 + b) / (c * 6.70 + 1.0))
+        scale_net = (v_net_g - v_inf) / (v_near - v_inf)
+        w_net = best_w_near * scale_net
+        u_net_l = best_u_inf - 0.5 * w_net
+        u_net_r = best_u_inf + 0.5 * w_net
+
+        wing_l1, wing_l2 = int(round(u_net_l + 6)), int(round(c_fl[0] - 6))
+        wing_r1, wing_r2 = int(round(c_fr[0] + 6)), int(round(u_net_r - 6))
+        net_y_min = max(10, int(round(v_net_g - 0.28 * h)))
+        net_y_max = min(h - 10, int(round(v_net_g - 0.08 * h)))
+        best_net_v = v_far - 0.025 * h
+        if wing_l2 > wing_l1 + 8 and wing_r2 > wing_r1 + 8 and net_y_max > net_y_min + 4:
+            wing_prof = 0.5 * (
+                np.mean(R_h[net_y_min:net_y_max, wing_l1:wing_l2], axis=1)
+                + np.mean(R_h[net_y_min:net_y_max, wing_r1:wing_r2], axis=1)
+            )
+            pk_net = int(np.argmax(wing_prof))
+            if wing_prof[pk_net] > 4.0:
+                best_net_v = float(net_y_min + pk_net)
+
+        return {
+            "corner_near_left": c_nl,
+            "corner_near_right": c_nr,
+            "corner_far_right": c_fr,
+            "corner_far_left": c_fl,
+            "net_post_left": (u_net_l, best_net_v),
+            "net_post_right": (u_net_r, best_net_v),
+            "net_tape_center": (0.5 * (u_net_l + u_net_r), best_net_v + 1.5 * scale),
+        }
+
+    @classmethod
     def auto_detect_court_keypoints(cls, frame_bgr: Optional[np.ndarray] = None, width: int = 1920, height: int = 1080) -> Dict:
         """
         Attempts automatic BWF court corner & white-line refinement on a video frame.
-        Returns { keypoints, reprojection_error_px, line_sample_rmse_px, auto_refined }.
+        First runs the zero-prior projective cross-ratio + vanishing-point court detector,
+        then refines sub-pixel white line intersections via RANSAC, and verifies full
+        12-segment & 4-outer-boundary line coverage so zoomed/angled replays are rejected.
+        Returns { keypoints, reprojection_error_px, line_sample_rmse_px, segment_coverage_pct, outer_boundary_ok, auto_refined }.
         """
         if frame_bgr is not None:
             height, width = frame_bgr.shape[:2]
@@ -473,12 +881,48 @@ class CourtCalibrator:
         cal.set_keypoints({k: (v[0], v[1]) for k, v in kps.items()}, image_width=width, image_height=height)
 
         auto_refined = False
+        cov = {
+            "segment_hits_count": 0,
+            "total_segments": 12,
+            "segment_coverage_pct": 0.0,
+            "outer_boundary_ok": False,
+            "mean_line_hit_pct": 0.0,
+            "green_in_poly_pct": 0.0,
+        }
         if frame_bgr is not None:
             try:
-                line_rmse = cal.refine_with_white_lines(frame_bgr, search_radius_px=max(12, int(round(16 * width / 1920.0))))
-                if line_rmse > 0.0 and line_rmse < 5.0 and cal.reprojection_error_px < 12.0:
+                detected_kps = cls.detect_court_trapezoid_from_frame(frame_bgr)
+                if detected_kps is not None:
+                    cal_det = cls("auto_detect_proj", image_width=width, image_height=height)
+                    cal_det.set_keypoints(detected_kps, image_width=width, image_height=height)
+                    det_cov = cal_det.measure_court_line_coverage(frame_bgr)
+                    if (
+                        det_cov["green_in_poly_pct"] >= 55.0
+                        and cal_det._validate_homography_geometry(cal_det.H_court_to_pixel, check_shift=False)
+                        and cal_det.reprojection_error_px < 14.0
+                    ):
+                        cal = cal_det
+
+                pre_cov = cal.measure_court_line_coverage(frame_bgr)
+                if pre_cov["green_in_poly_pct"] >= 55.0:
+                    line_rmse = cal.refine_with_white_lines(
+                        frame_bgr, search_radius_px=max(12, int(round(18 * width / 1920.0)))
+                    )
+                    if line_rmse > 0.0:
+                        # Second tight pass for crisp sub-pixel alignment across all 12 segments
+                        cal.refine_with_white_lines(
+                            frame_bgr, search_radius_px=max(6, int(round(8 * width / 1920.0)))
+                        )
+
+                cov = cal.measure_court_line_coverage(frame_bgr)
+                if (
+                    cov["outer_boundary_ok"]
+                    and cov["segment_coverage_pct"] >= 58.0
+                    and cov["green_in_poly_pct"] >= 55.0
+                    and cal.reprojection_error_px < 10.0
+                    and (cal.line_sample_rmse_px > 0.0 and cal.line_sample_rmse_px < 4.5)
+                ):
                     auto_refined = True
-                    # Also project updated 3D net posts if corners shifted slightly
                     if cal.K is not None and cal.rvec is not None and cal.tvec is not None:
                         net_pts = cal.project_3d_to_pixel(np.array([
                             cal.ref_3d_points["net_post_left"],
@@ -501,6 +945,9 @@ class CourtCalibrator:
             "image_height": height,
             "reprojection_error_px": round(cal.reprojection_error_px, 2),
             "line_sample_rmse_px": round(cal.line_sample_rmse_px, 2),
+            "segment_coverage_pct": round(float(cov["segment_coverage_pct"]), 1),
+            "outer_boundary_ok": bool(cov["outer_boundary_ok"]),
+            "green_in_poly_pct": round(float(cov["green_in_poly_pct"]), 1),
             "auto_refined": auto_refined,
         }
 

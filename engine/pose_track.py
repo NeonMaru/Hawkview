@@ -163,7 +163,7 @@ class PoseTracker:
             fg_diff = float(np.mean(patch_diff))
 
             # Reject static background figures (line judges / Clash of Clans banner art)
-            if ank_v < 480.0 and fg_diff < 8.5:
+            if ank_v < (480.0 * (float(h_img) / 1080.0)) and fg_diff < 8.5:
                 continue
 
             # Depth bounds: allow up to 1.5m behind near baseline (-1.5m) and up to 17.2m on
@@ -203,15 +203,59 @@ class PoseTracker:
             else:
                 far_cands.append(cand)
 
-        best_near = None
-        if near_cands:
-            best_near = max(near_cands, key=lambda c: c["conf"] * min(25.0, c["fg_diff"]))
+        near_players = self._select_distinct_halfcourt_players(near_cands, max_players=2, image_width=w_img)
+        far_players = self._select_distinct_halfcourt_players(far_cands, max_players=2, image_width=w_img)
 
-        best_far = None
-        if far_cands:
-            best_far = max(far_cands, key=lambda c: c["conf"] * min(25.0, c["fg_diff"]))
+        best_near = near_players[0] if near_players else None
+        best_far = far_players[0] if far_players else None
+
+        if best_near is not None:
+            best_near = {**best_near, "partners": near_players}
+        if best_far is not None:
+            best_far = {**best_far, "partners": far_players}
 
         return best_near, best_far
+
+    @staticmethod
+    def _select_distinct_halfcourt_players(
+        cands: List[dict], max_players: int = 2, image_width: int = 1920
+    ) -> List[dict]:
+        """
+        Selects up to `max_players` distinct active players on a single half-court (Near or Far),
+        ranked by pose confidence * foreground motion and deduplicated by ankle separation (>= 42 px
+        scaled by image_width/1920 or >= 0.60 m on court) so Doubles partners are both preserved
+        without duplicate bounding boxes.
+        """
+        if not cands:
+            return []
+        min_px_sep = 42.0 * max(0.35, float(image_width or 1920) / 1920.0)
+        ranked = sorted(
+            cands,
+            key=lambda c: float(c.get("conf", 0.0)) * min(25.0, float(c.get("fg_diff", 0.0))),
+            reverse=True,
+        )
+        selected: List[dict] = []
+        for cand in ranked:
+            is_dup = False
+            for existing in selected:
+                px_dist = float(np.hypot(
+                    cand["ankle_px"][0] - existing["ankle_px"][0],
+                    cand["ankle_px"][1] - existing["ankle_px"][1],
+                ))
+                court_dist = float(np.hypot(
+                    cand["court_x"] - existing["court_x"],
+                    cand["court_y"] - existing["court_y"],
+                ))
+                if px_dist < min_px_sep or court_dist < 0.60:
+                    is_dup = True
+                    break
+            if not is_dup:
+                selected.append(cand)
+                if len(selected) >= max_players:
+                    break
+        # Order partners consistently left-to-right by court_x for stable interpolation
+        selected.sort(key=lambda c: float(c.get("court_x", 3.05)))
+        return selected
 
     @staticmethod
     def compute_torso_luma_At(frame_gray: np.ndarray, player_dict: Optional[dict]) -> float:
@@ -339,10 +383,14 @@ class PoseTracker:
                         kps[:, :, 0] += roi_x0
                         kps[:, :, 1] += roi_y0
                     near_p, far_p = self._extract_candidates(frame, fgray, bg_gray, kps, scores)
+                    near_list = near_p.get("partners", [near_p]) if near_p else []
+                    far_list = far_p.get("partners", [far_p]) if far_p else []
                     r_poses.append({
                         "frame": fn,
                         "near": near_p,
                         "far": far_p,
+                        "near_players": near_list,
+                        "far_players": far_list,
                     })
 
             near_id, far_id = self.assign_player_sides(r_poses)
@@ -425,16 +473,27 @@ class PoseTracker:
                 kps[:, :, 0] += roi_x0
                 kps[:, :, 1] += roi_y0
             near_p, far_p = self._extract_candidates(frame, fgray, bg_gray, kps, scores)
+            near_list = near_p.get("partners", [near_p]) if near_p else []
+            far_list = far_p.get("partners", [far_p]) if far_p else []
             r_poses.append({
                 "frame": fn,
                 "near": near_p,
                 "far": far_p,
+                "near_players": near_list,
+                "far_players": far_list,
             })
 
         if near_player_id and far_player_id:
             near_id, far_id = near_player_id, far_player_id
         else:
             near_id, far_id = self.assign_player_sides(r_poses)
+
+        multi_player_frames = sum(
+            1
+            for p in r_poses
+            if (len(p.get("near_players", [])) + len(p.get("far_players", []))) >= 3
+        )
+        detected_doubles = bool(len(r_poses) > 0 and (multi_player_frames / float(len(r_poses))) >= 0.25)
 
         return {
             "rally_id": rally_id,
@@ -443,6 +502,7 @@ class PoseTracker:
             "stride": self.stride,
             "near_player": near_id,
             "far_player": far_id,
+            "detected_doubles": detected_doubles,
             "frames": r_poses,
         }
 

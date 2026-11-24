@@ -16,7 +16,11 @@
 class AnalyticsCards {
   constructor() {
     this.container = document.getElementById('analytics-cards-container');
-    this.kdeFilterPlayer = 'ALL'; // 'ALL' | 'LZJ' | 'POPOV'
+    let savedKde = 'ALL';
+    try {
+      savedKde = localStorage.getItem('hawkview_last_kde_player') || 'ALL';
+    } catch (e) {}
+    this.kdeFilterPlayer = savedKde; // 'ALL' | 'LZJ' | 'POPOV' | 'ANTONSEN'
 
     this.bindEvents();
     this.render();
@@ -38,6 +42,9 @@ class AnalyticsCards {
     const rallies = telemetry.rallies || [];
     const players = telemetry.players || {};
     const playerIds = Object.keys(players).length > 0 ? Object.keys(players) : ['LZJ', 'POPOV'];
+    if (this.kdeFilterPlayer !== 'ALL' && !playerIds.includes(this.kdeFilterPlayer)) {
+      this.kdeFilterPlayer = 'ALL';
+    }
     const allShots = [];
     rallies.forEach((r) => {
       (r.shots || []).forEach((s) => allShots.push({ shot: s, rally: r }));
@@ -177,8 +184,25 @@ class AnalyticsCards {
       return { pid, count, avgSpeed: avgSpd, topSpeed: topSpd, endedPct, avgClearance };
     });
 
+    const compWarn = telemetry.match_metadata && telemetry.match_metadata.compilation_warning;
+    const swappedRalliesCount = rallies.filter((r) => r.side_swapped).length;
+    const showBottomWarn = Boolean((compWarn && compWarn.detected) || swappedRalliesCount > 0);
+    const bottomWarnHtml = showBottomWarn ? `
+      <div style="margin-bottom:8px; padding:6px 10px; border-radius:6px; border:1px solid rgba(217, 119, 6, 0.42); background:rgba(245, 158, 11, 0.09); font-size:11px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span style="font-weight:700; color:#d97706;">⚠️ ${(compWarn && compWarn.summary) || 'Court-Side Swap / Compilation Detected'}:</span>
+          <span style="color:var(--text); opacity:0.92;">
+            ${(compWarn && compWarn.warning_message) || `Court ends swapped in ${swappedRalliesCount}/${rallies.length} rallies. If rallies come from different games or players in a compilation, aggregate stats below may mix contexts.`}
+          </span>
+        </div>
+        <span class="hv-badge hv-badge-warn" style="flex-shrink:0;">${swappedRalliesCount}/${rallies.length} rallies swapped ends</span>
+      </div>
+    ` : '';
+
     this.container.innerHTML = `
+      ${bottomWarnHtml}
       <div class="hv-analytics-grid">
+        <div class="hv-analytics-slide hv-analytics-slide-a" data-stat-slide="1">
         <!-- CARD 1: COURT COVERAGE -->
         <div class="hv-panel">
           <div class="hv-panel-header">
@@ -285,7 +309,9 @@ class AnalyticsCards {
             </div>
           </div>
         </div>
+        </div>
 
+        <div class="hv-analytics-slide hv-analytics-slide-b" data-stat-slide="2">
         <!-- CARD 3: RALLY ENDINGS -->
         <div class="hv-panel">
           <div class="hv-panel-header">
@@ -369,12 +395,16 @@ class AnalyticsCards {
             </tbody>
           </table>
         </div>
+        </div>
       </div>
     `;
 
     this.container.querySelectorAll('[data-kde-player]').forEach((btn) => {
       btn.addEventListener('click', () => {
         this.kdeFilterPlayer = btn.getAttribute('data-kde-player');
+        try {
+          localStorage.setItem('hawkview_last_kde_player', this.kdeFilterPlayer);
+        } catch (e) {}
         this.render();
       });
     });

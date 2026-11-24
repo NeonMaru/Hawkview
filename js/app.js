@@ -57,6 +57,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const analyticsCards = new AnalyticsCards();
   const antiLagModal = new AntiLagModal();
   const videoLoaderModal = typeof VideoLoaderModal !== 'undefined' ? new VideoLoaderModal(broadcastPlayer) : null;
+  const cacheStore = typeof HawkviewCacheStore !== 'undefined' ? new HawkviewCacheStore() : null;
 
   // Expose globally for inspection and testing
   window.shotExplorerInstance = shotExplorer;
@@ -66,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   window.analyticsCardsInstance = analyticsCards;
   window.antiLagModalInstance = antiLagModal;
   window.videoLoaderModalInstance = videoLoaderModal;
+  window.cacheStoreInstance = cacheStore;
 
   // Select Rally 1 initially so video and 3D court are ready
   broadcastPlayer.selectRally(0);
