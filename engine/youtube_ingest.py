@@ -200,13 +200,10 @@ def download_youtube_video(
             "--progress",
             "--write-info-json",
         ]
-        runtimes = []
         if shutil.which("deno"):
-            runtimes.append("deno")
-        if shutil.which("node"):
-            runtimes.append("node")
-        if runtimes:
-            cmd.extend(["--js-runtimes", ",".join(runtimes), "--remote-components", "ejs:github"])
+            cmd.extend(["--js-runtimes", "deno", "--remote-components", "ejs:github"])
+        elif shutil.which("node"):
+            cmd.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
         cmd.extend(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
         cmd.extend(extra_args)
         cmd.extend([

@@ -75,7 +75,7 @@ export default async (req: Request, _context: Context) => {
       })
     );
     for (const m of metas) {
-      if (m && (m as any).match_id) {
+      if (m && (m as any).match_id && Number((m as any).rallies_count || 0) > 0) {
         byId.set((m as any).match_id, m);
       }
     }
