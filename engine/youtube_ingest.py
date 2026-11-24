@@ -191,77 +191,104 @@ def download_youtube_video(
     out_mp4 = f"assets/uploads/yt_{video_id}.mp4"
     out_template = f"assets/uploads/yt_{video_id}.%(ext)s"
 
-    cmd = [
-        ytdlp_bin,
-        "--no-playlist",
-        "--no-update",
-        "--newline",
-        "--progress",
-        "--write-info-json",
-    ]
-    if shutil.which("node"):
-        cmd.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
-    cmd.extend(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
-    cmd.extend([
-        "-f",
-        "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/best[vcodec^=avc1][height<=1080]/best[ext=mp4][height<=1080]/best[height<=1080]",
-        "--merge-output-format",
-        "mp4",
-        "-o",
-        out_template,
-        canonical_url,
-    ])
+    def _run_ytdlp_attempt(extra_args: list, fmt_str: str) -> Tuple[int, list]:
+        cmd = [
+            ytdlp_bin,
+            "--no-playlist",
+            "--no-update",
+            "--newline",
+            "--progress",
+            "--write-info-json",
+        ]
+        runtimes = []
+        if shutil.which("deno"):
+            runtimes.append("deno")
+        if shutil.which("node"):
+            runtimes.append("node")
+        if runtimes:
+            cmd.extend(["--js-runtimes", ",".join(runtimes), "--remote-components", "ejs:github"])
+        cmd.extend(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
+        cmd.extend(extra_args)
+        cmd.extend([
+            "-f",
+            fmt_str,
+            "--merge-output-format",
+            "mp4",
+            "-o",
+            out_template,
+            canonical_url,
+        ])
+
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
+
+        lines = []
+        phase_idx = 0
+        assert proc.stdout is not None
+        for raw_line in proc.stdout:
+            line = raw_line.strip()
+            if not line:
+                continue
+            lines.append(line)
+            if len(lines) > 50:
+                lines.pop(0)
+            if line.startswith(("WARNING:", "ERROR:")):
+                print(f"[yt-dlp] {line}", flush=True)
+
+            if "[download] Destination:" in line:
+                phase_idx += 1
+                if progress_cb:
+                    stream_label = "audio track" if phase_idx >= 2 else "1080p video"
+                    progress_cb("Downloading from YouTube", 12.0 if phase_idx == 1 else 72.0, f"Streaming {stream_label}...")
+                continue
+
+            m = DOWNLOAD_PCT_RE.search(line)
+            if m and progress_cb:
+                pct_val = float(m.group(1))
+                size_str = m.group(2) or ""
+                speed_str = m.group(3) or ""
+                eta_str = m.group(4) or ""
+                overall_pct = (10.0 + 0.60 * pct_val) if phase_idx <= 1 else (70.0 + 0.10 * pct_val)
+                parts = [f"{pct_val:.1f}% of {size_str}"]
+                if speed_str:
+                    parts.append(speed_str)
+                if eta_str:
+                    parts.append(f"ETA {eta_str}")
+                progress_cb("Downloading 1080p MP4", min(80.0, overall_pct), " · ".join(parts))
+                continue
+
+            if "[Merger]" in line and progress_cb:
+                progress_cb("Merging H.264 + Audio", 82.0, "Muxing MP4 container with ffmpeg...")
+
+        return proc.wait(), lines
 
     if progress_cb:
-        progress_cb("Connecting to YouTube", 6.0, f"Fetching 1080p H.264 stream for {video_id}...")
+        progress_cb("Connecting to YouTube", 6.0, f"Fetching 1080p stream for {video_id}...")
 
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
+    primary_fmt = (
+        "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/"
+        "bestvideo[height<=1080]+bestaudio/"
+        "best[height<=1080]/best"
     )
+    rc, recent_lines = _run_ytdlp_attempt([], primary_fmt)
 
-    recent_lines = []
-    phase_idx = 0
-    assert proc.stdout is not None
-    for raw_line in proc.stdout:
-        line = raw_line.strip()
-        if not line:
-            continue
-        recent_lines.append(line)
-        if len(recent_lines) > 40:
-            recent_lines.pop(0)
-
-        if "[download] Destination:" in line:
-            phase_idx += 1
+    # Fallback: if cookies/IP caused web client format restriction, retry with broader player clients & video-only/best
+    if rc != 0 or not os.path.exists(out_mp4) or os.path.getsize(out_mp4) < 50_000:
+        tail_low = "\n".join(recent_lines[-15:]).lower()
+        if "requested format is not available" in tail_low or "only images are available" in tail_low:
             if progress_cb:
-                stream_label = "audio track" if phase_idx >= 2 else "1080p H.264 video"
-                progress_cb("Downloading from YouTube", 12.0 if phase_idx == 1 else 72.0, f"Streaming {stream_label}...")
-            continue
+                progress_cb("Retrying YouTube Stream", 9.0, "Retrying with fallback YouTube player client...")
+            rc, recent_lines = _run_ytdlp_attempt(
+                ["--extractor-args", "youtube:player_client=tv,web,android_vr"],
+                "bestvideo[height<=1080]/best[height<=1080]/best",
+            )
 
-        m = DOWNLOAD_PCT_RE.search(line)
-        if m and progress_cb:
-            pct_val = float(m.group(1))
-            size_str = m.group(2) or ""
-            speed_str = m.group(3) or ""
-            eta_str = m.group(4) or ""
-            # Map video download to 10..70%, audio to 70..80%
-            overall_pct = (10.0 + 0.60 * pct_val) if phase_idx <= 1 else (70.0 + 0.10 * pct_val)
-            parts = [f"{pct_val:.1f}% of {size_str}"]
-            if speed_str:
-                parts.append(speed_str)
-            if eta_str:
-                parts.append(f"ETA {eta_str}")
-            progress_cb("Downloading 1080p MP4", min(80.0, overall_pct), " · ".join(parts))
-            continue
-
-        if "[Merger]" in line and progress_cb:
-            progress_cb("Merging H.264 + Audio", 82.0, "Muxing MP4 container with ffmpeg...")
-
-    rc = proc.wait()
-    joined_tail = "\n".join(recent_lines[-12:])
+    joined_tail = "\n".join(recent_lines[-15:])
 
     if rc != 0 or not os.path.exists(out_mp4) or os.path.getsize(out_mp4) < 50_000:
         lower_tail = joined_tail.lower()

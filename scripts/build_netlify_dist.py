@@ -130,6 +130,10 @@ def build():
             f_idx,
             separators=(",", ":"),
         )
+    shutil.copy2(
+        os.path.join(matches_dst, "index.json"),
+        os.path.join(DIST_DIR, "data", "matches_index.json"),
+    )
 
     # Also write default fallback telemetry (`data/match_telemetry.json`) from top YouTube match or lzj_popov
     default_mid = next((m["match_id"] for m in index_entries if m["match_id"] == "yt_qdedPFFAJlI"), None) or (

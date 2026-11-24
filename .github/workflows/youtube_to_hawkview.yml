@@ -43,10 +43,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Setup Node.js (for yt-dlp EJS runtime)
+      - name: Setup Node.js & Deno (for yt-dlp EJS runtime)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+
+      - name: Setup Deno (yt-dlp default JS solver)
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
 
       - name: Cache Python & RTMPose Weights
         uses: actions/cache@v4

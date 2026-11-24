@@ -3,6 +3,20 @@ import type { Config, Context } from "@netlify/functions";
 
 export default async (req: Request, _context: Context) => {
   const url = new URL(req.url);
+  if (url.pathname === "/api/colab-quota") {
+    return Response.json(
+      {
+        colab_quota: {
+          available: true,
+          accelerator_tier: "Cloud CV Runner (Mac-Free)",
+          remaining_pct: 100.0,
+          active_assignments: 0,
+        },
+        active_eta: null,
+      },
+      { headers: { "Cache-Control": "no-store" } }
+    );
+  }
   const reqId = (url.searchParams.get("match_id") || "").trim();
   const origin = url.origin;
   const matchesStore = getStore("hawkview-matches");
@@ -87,5 +101,5 @@ export default async (req: Request, _context: Context) => {
 };
 
 export const config: Config = {
-  path: "/api/matches",
+  path: ["/api/matches", "/api/colab-quota"],
 };

@@ -387,6 +387,7 @@ class VideoLoaderModal {
   }
 
   async importYouTubeUrl(autoStart = true, overrideUrl = null) {
+    if (this._ytRequestInFlight) return;
     const urlInput = document.getElementById('calib-youtube-url');
     const topbarYtInput = document.getElementById('topbar-yt-url');
     const autoBtn = document.getElementById('btn-yt-auto-convert');
@@ -419,6 +420,7 @@ class VideoLoaderModal {
     const reqMaxRallies = maxRalliesEl ? Math.max(3, parseInt(maxRalliesEl.value, 10) || 3) : 3;
 
     const setBtnsDisabled = (disabled) => {
+      this._ytRequestInFlight = disabled;
       if (autoBtn) autoBtn.disabled = disabled;
       if (prevBtn) prevBtn.disabled = disabled;
       if (topbarGoBtn) topbarGoBtn.disabled = disabled;
