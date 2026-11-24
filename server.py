@@ -193,7 +193,15 @@ def parse_players_from_filename(raw_path_or_name: str) -> tuple:
       - 'Iwanaga_Nakanishi vs Tan_Muralitharan _ Control...' -> ('IWANAGA / NAKANISHI', 'TAN / MURALITHARAN')
       - 'An Se Young vs Pusarla V. Sindhu _ Hard-fought...' -> ('AN S.Y.', 'P.V. SINDHU')
     """
-    base = os.path.splitext(os.path.basename(raw_path_or_name or ""))[0]
+    raw_s = str(raw_path_or_name or "").strip()
+    if not raw_s:
+        return ("", "")
+    # YouTube titles frequently contain '/' for Doubles pairs (e.g. 'Feng/Huang vs Jiang/Wei');
+    # never call os.path.basename() on a title string or it truncates everything before the last '/'!
+    if re.search(r"\s+vs\.?\s+", raw_s, flags=re.IGNORECASE) and not re.search(r"\.(mp4|mov|webm|m4v)$", raw_s, flags=re.IGNORECASE):
+        base = raw_s
+    else:
+        base = os.path.splitext(os.path.basename(raw_s))[0]
     if not base:
         return ("", "")
 

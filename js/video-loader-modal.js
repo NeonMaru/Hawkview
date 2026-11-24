@@ -493,6 +493,8 @@ class VideoLoaderModal {
         this.hasSwitchedToNewMatch = false;
         this.lastStreamedRallyCount = -1;
         this.pendingVideoSrc = '';
+        const switchReadyBtn = document.getElementById('btn-banner-switch-ready');
+        if (switchReadyBtn) switchReadyBtn.classList.add('hidden');
         this.showBanner(
           '☁️ Cloud CV Runner Starting...',
           `Downloading 1080p YouTube (${startData.video_id}) & running TrackNetV3 + 3D physics in the cloud (~60–90s)...`,

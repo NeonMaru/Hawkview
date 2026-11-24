@@ -579,7 +579,13 @@ class HawkviewPipeline:
                 60.0,
                 "Tracking near/far player ankle & wrist keypoints...",
             )
-            pose_tracker = PoseTracker(calibrator=calibrator, mode="balanced", stride=2)
+            import torch as _torch
+            has_hw_accel = bool(_torch.cuda.is_available() or (hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available()))
+            pose_tracker = PoseTracker(
+                calibrator=calibrator,
+                mode="balanced" if has_hw_accel else "lightweight",
+                stride=2 if has_hw_accel else 5,
+            )
             poses_by_rally = pose_tracker.track_rallies(
                 video_path=video_path,
                 rallies=segmented_rallies,
@@ -1160,7 +1166,13 @@ class HawkviewPipeline:
 
         # Lazy-initialized neural models (loaded only if uncached frames exist)
         tracknet_pipe = None
-        pose_tracker = PoseTracker(calibrator=calibrator, mode="balanced", stride=2)
+        import torch as _torch
+        has_hw_accel = bool(_torch.cuda.is_available() or (hasattr(_torch.backends, "mps") and _torch.backends.mps.is_available()))
+        pose_tracker = PoseTracker(
+            calibrator=calibrator,
+            mode="balanced" if has_hw_accel else "lightweight",
+            stride=2 if has_hw_accel else 5,
+        )
         hit_detector = HitDetector(fps=fps, image_width=width, image_height=height, calibrator=calibrator)
         reconstructor = TrajectoryReconstructor3D(calibrator=calibrator, fps=fps)
         classifier = ShotClassifier(match_type=resolved_match_type)

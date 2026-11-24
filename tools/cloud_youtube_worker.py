@@ -170,7 +170,7 @@ def main():
                 msg,
                 rallies_completed=r_done,
                 rallies_total=r_total,
-                telemetry=tel_contract,
+                telemetry=tel_contract if r_done >= 1 else None,
             )
 
         pipe = HawkviewPipeline()

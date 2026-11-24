@@ -64,9 +64,12 @@ export default async (req: Request, _context: Context) => {
   };
 
   if (body.telemetry && typeof body.telemetry === "object") {
+    const ralliesArr = Array.isArray((body.telemetry as any).rallies) ? (body.telemetry as any).rallies : [];
     await matchesStore.setJSON(`telemetry:${matchId}`, body.telemetry);
-    const meta = summarizeMatch(matchId, body.telemetry);
-    await matchesStore.setJSON(`meta:${matchId}`, meta);
+    if (ralliesArr.length > 0) {
+      const meta = summarizeMatch(matchId, body.telemetry);
+      await matchesStore.setJSON(`meta:${matchId}`, meta);
+    }
   }
 
   const updatedJob = {
