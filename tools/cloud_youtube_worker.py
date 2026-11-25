@@ -24,6 +24,7 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+from engine.colab_worker import get_colab_quota, stop_blackwell_session
 from engine.pipeline import HawkviewPipeline
 from engine.youtube_ingest import YouTubeIngestError, download_youtube_video, extract_youtube_video_id
 from server import infer_player_flag, probe_video_and_keypoints
@@ -149,23 +150,36 @@ def main():
             "dominant_hand": "Right",
         }
 
+        colab_quota_pre = get_colab_quota(force_refresh=True)
+        use_blackwell = bool(colab_quota_pre.get("available"))
+        backend_choice = "blackwell_g4" if use_blackwell else "local"
+        backend_label = (
+            f"Google Blackwell G4 GPU ({colab_quota_pre.get('balance_cu', 0)} CU)"
+            if use_blackwell
+            else "Cloud CPU Runner"
+        )
+
         notify(
             "running",
-            "STAGE 3: TrackNetV3 + 3D Aerodynamic Reconstruction",
-            45.0,
-            f"{near_name} vs {far_name} ({mtype}) · Court RMSE {cal_prev.get('line_sample_rmse_px', '?')}px — tracking shuttle...",
+            f"STAGE 3: {backend_label} — TrackNetV3 + 3D Physics",
+            42.0,
+            f"{near_name} vs {far_name} ({mtype}) · Court RMSE {cal_prev.get('line_sample_rmse_px', '?')}px — launching {backend_label}...",
         )
+
+        def on_pipe_progress(stage: str, pct: float, msg: str):
+            mapped = 42.0 + 0.14 * float(pct)  # 42% -> 56% during Colab GPU offload
+            notify("running", stage, min(56.0, mapped), msg)
 
         def on_rally_ready(tel_contract: dict, r_done: int, r_total: int, msg: str):
             tel_contract.setdefault("source", {})["yt_video_id"] = dl["video_id"]
             tel_contract["source"]["yt_url"] = dl["canonical_url"]
-            tel_contract["source"]["compute_backend"] = "github_cloud_cv"
+            tel_contract["source"]["compute_backend"] = backend_choice
             tel_contract.setdefault("match_metadata", {})["yt_video_id"] = dl["video_id"]
             tel_contract["match_metadata"]["tournament"] = dl["title"]
-            pct = 48.0 + 48.0 * (r_done / max(1, r_total))
+            pct = 56.0 + 40.0 * (r_done / max(1, r_total))
             notify(
                 "running",
-                f"STAGE 3: Reconstructed Rally {r_done}/{r_total}",
+                f"STAGE 3: Reconstructed Rally {r_done}/{r_total} ({backend_choice})",
                 min(96.0, pct),
                 msg,
                 rallies_completed=r_done,
@@ -173,22 +187,28 @@ def main():
                 telemetry=tel_contract if r_done >= 1 else None,
             )
 
-        pipe = HawkviewPipeline()
-        final_tel = pipe.run_progressive_analysis(
-            video_path=dl["video_path"],
-            match_target=match_id,
-            keypoints=keypoints,
-            near_player_info=near_info,
-            far_player_info=far_info,
-            mode="broadcast",
-            match_type=mtype,
-            max_rallies=args.max_rallies,
-            compute_backend="local",
-            on_rally_ready=on_rally_ready,
-        )
+        pipe = HawkviewPipeline(progress_callback=on_pipe_progress)
+        max_r_val = args.max_rallies if args.max_rallies > 0 else None
+        try:
+            final_tel = pipe.run_progressive_analysis(
+                video_path=dl["video_path"],
+                match_target=match_id,
+                keypoints=keypoints,
+                near_player_info=near_info,
+                far_player_info=far_info,
+                mode="broadcast",
+                match_type=mtype,
+                max_rallies=max_r_val,
+                compute_backend=backend_choice,
+                on_rally_ready=on_rally_ready,
+            )
+        finally:
+            stop_blackwell_session()
+
+        colab_quota_post = get_colab_quota(force_refresh=True)
         final_tel.setdefault("source", {})["yt_video_id"] = dl["video_id"]
         final_tel["source"]["yt_url"] = dl["canonical_url"]
-        final_tel["source"]["compute_backend"] = "github_cloud_cv"
+        final_tel["source"]["compute_backend"] = backend_choice
         final_tel.setdefault("match_metadata", {})["yt_video_id"] = dl["video_id"]
         final_tel["match_metadata"]["tournament"] = dl["title"]
 
@@ -198,14 +218,27 @@ def main():
         grade = audit.get("overall_grade", "—")
         med_px = audit.get("median_rmse_px", "—")
 
-        notify(
-            "completed",
-            "COMPLETE: Cloud 3D Match Ready",
-            100.0,
-            f"{near_name} vs {far_name} · {len(rallies)} rallies · {shots_n} shots · Grade {grade} ({med_px}px RMSE)",
-            rallies_completed=len(rallies),
-            rallies_total=len(rallies),
-            telemetry=final_tel,
+        post_callback(
+            args.callback_url,
+            secret,
+            {
+                "job_id": args.job_id,
+                "match_id": match_id,
+                "video_id": vid or "",
+                "status": "completed",
+                "stage": f"COMPLETE: {backend_label} 3D Match Ready",
+                "percent": 100.0,
+                "message": f"{near_name} vs {far_name} · {len(rallies)} rallies · {shots_n} shots · Grade {grade} ({med_px}px RMSE)",
+                "rallies_completed": len(rallies),
+                "rallies_total": len(rallies),
+                "telemetry": final_tel,
+                "colab_quota": colab_quota_post,
+            },
+        )
+        print(
+            f"[cloud-worker] [completed] {near_name} vs {far_name} · {len(rallies)} rallies · {shots_n} shots · "
+            f"Grade {grade} ({med_px}px) · Colab CU={colab_quota_post.get('balance_cu')}",
+            flush=True,
         )
     except YouTubeIngestError as yexc:
         notify(

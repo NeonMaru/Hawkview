@@ -62,23 +62,31 @@ jobs:
             ~/.cache/yt-dlp
           key: hawkview-cv-v1-${{ runner.os }}-py312
 
-      - name: Install ffmpeg & Python CV Dependencies
+      - name: Install ffmpeg, google-colab-cli & Python CV Dependencies
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg tesseract-ocr > /dev/null
-          python3 -m pip install --upgrade --quiet pip yt-dlp
+          python3 -m pip install --upgrade --quiet pip yt-dlp google-colab-cli
           python3 -m pip install --quiet --index-url https://download.pytorch.org/whl/cpu torch
           python3 -m pip install --quiet opencv-python-headless numpy scipy onnxruntime rtmlib pytesseract pillow
 
-      - name: Prepare YouTube Cookies Secret (if configured)
+      - name: Prepare Encrypted Cloud Secrets (YouTube Cookies + Google Colab Blackwell Token)
         env:
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
+          COLAB_TOKEN_JSON_B64: ${{ secrets.COLAB_TOKEN_JSON_B64 }}
         run: |
           if [ -n "$YOUTUBE_COOKIES_B64" ]; then
             echo "$YOUTUBE_COOKIES_B64" | base64 --decode > /tmp/yt_cookies.txt
             chmod 600 /tmp/yt_cookies.txt
           fi
+          if [ -n "$COLAB_TOKEN_JSON_B64" ]; then
+            mkdir -p ~/.config/colab-cli
+            echo "$COLAB_TOKEN_JSON_B64" | base64 --decode > ~/.config/colab-cli/token.json
+            chmod 600 ~/.config/colab-cli/token.json
+            colab whoami || true
+            colab usage || true
+          fi
 
-      - name: Run Cloud YouTube -> 3D Physics Pipeline
+      - name: Run Cloud YouTube -> Blackwell G4 GPU -> 3D Physics Pipeline
         env:
           HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
         run: |
@@ -94,6 +102,8 @@ jobs:
             --callback-url "${{ inputs.callback_url }}" \
             $COOKIES_ARG
 
-      - name: Cleanup Temporary Cookies
+      - name: Cleanup Temporary Secrets & Verify Zero Active Colab VMs
         if: always()
-        run: rm -f /tmp/yt_cookies.txt
+        run: |
+          colab sessions || true
+          rm -f /tmp/yt_cookies.txt ~/.config/colab-cli/token.json

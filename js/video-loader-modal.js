@@ -88,12 +88,18 @@ class VideoLoaderModal {
     const ytPreviewBtn = document.getElementById('btn-yt-preview');
     const topbarYtInput = document.getElementById('topbar-yt-url');
     const topbarYtGoBtn = document.getElementById('btn-topbar-yt-go');
+    const sheetYtInput = document.getElementById('sheet-yt-url');
+    const sheetYtGoBtn = document.getElementById('btn-sheet-yt-go');
 
     if (ytAutoBtn) {
       ytAutoBtn.addEventListener('click', () => this.importYouTubeUrl(true));
     }
     if (ytPreviewBtn) {
-      ytPreviewBtn.addEventListener('click', () => this.importYouTubeUrl(false));
+      ytPreviewBtn.addEventListener('click', () => {
+        const adv = document.getElementById('calib-advanced-local-section');
+        if (adv) adv.open = true;
+        this.importYouTubeUrl(false);
+      });
     }
     if (ytUrlInput) {
       ytUrlInput.addEventListener('keydown', (e) => {
@@ -103,24 +109,37 @@ class VideoLoaderModal {
         }
       });
     }
-    const triggerTopbarYt = () => {
-      const urlVal = topbarYtInput ? String(topbarYtInput.value || '').trim() : '';
+    const triggerQuickYt = (inputEl) => {
+      const urlVal = inputEl ? String(inputEl.value || '').trim() : '';
       if (!urlVal) {
+        if (window.thumbStatsSheetInstance) window.thumbStatsSheetInstance.close();
         this.open();
         if (ytUrlInput) ytUrlInput.focus();
         return;
       }
       if (ytUrlInput) ytUrlInput.value = urlVal;
+      if (window.thumbStatsSheetInstance) window.thumbStatsSheetInstance.close();
       this.importYouTubeUrl(true, urlVal);
     };
     if (topbarYtGoBtn) {
-      topbarYtGoBtn.addEventListener('click', triggerTopbarYt);
+      topbarYtGoBtn.addEventListener('click', () => triggerQuickYt(topbarYtInput));
     }
     if (topbarYtInput) {
       topbarYtInput.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
           e.preventDefault();
-          triggerTopbarYt();
+          triggerQuickYt(topbarYtInput);
+        }
+      });
+    }
+    if (sheetYtGoBtn) {
+      sheetYtGoBtn.addEventListener('click', () => triggerQuickYt(sheetYtInput));
+    }
+    if (sheetYtInput) {
+      sheetYtInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          triggerQuickYt(sheetYtInput);
         }
       });
     }
@@ -417,13 +436,16 @@ class VideoLoaderModal {
     this.isKnownBundledMatch = false;
 
     const maxRalliesEl = document.getElementById('calib-max-rallies');
-    const reqMaxRallies = maxRalliesEl ? Math.max(3, parseInt(maxRalliesEl.value, 10) || 3) : 3;
+    const parsedMax = maxRalliesEl ? parseInt(maxRalliesEl.value, 10) : 6;
+    const reqMaxRallies = Number.isFinite(parsedMax) && parsedMax >= 0 ? parsedMax : 6;
 
+    const sheetYtGoBtn = document.getElementById('btn-sheet-yt-go');
     const setBtnsDisabled = (disabled) => {
       this._ytRequestInFlight = disabled;
       if (autoBtn) autoBtn.disabled = disabled;
       if (prevBtn) prevBtn.disabled = disabled;
       if (topbarGoBtn) topbarGoBtn.disabled = disabled;
+      if (sheetYtGoBtn) sheetYtGoBtn.disabled = disabled;
     };
     setBtnsDisabled(true);
     this.setYouTubeProgressUI(true, 5, 'Connecting to Hawkview Cloud...', 'Validating YouTube URL & checking 3D match cache...');

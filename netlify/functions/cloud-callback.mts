@@ -71,6 +71,9 @@ export default async (req: Request, _context: Context) => {
       await matchesStore.setJSON(`meta:${matchId}`, meta);
     }
   }
+  if (body.colab_quota && typeof body.colab_quota === "object") {
+    await matchesStore.setJSON("system:colab_quota", body.colab_quota);
+  }
 
   const updatedJob = {
     ...prev,

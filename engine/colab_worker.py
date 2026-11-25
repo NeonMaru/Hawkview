@@ -24,20 +24,37 @@ import time
 import zipfile
 from typing import Callable, Dict, List, Optional, Tuple
 
-COLAB_BIN = "/Users/anyasmac/.local/bin/colab"
+def _resolve_colab_bin() -> str:
+    env_bin = os.environ.get("COLAB_BIN", "").strip()
+    if env_bin and os.path.exists(env_bin):
+        return env_bin
+    found = shutil.which("colab")
+    if found:
+        return found
+    for cand in (
+        os.path.expanduser("~/.local/bin/colab"),
+        "/Users/anyasmac/.local/bin/colab",
+        "/usr/local/bin/colab",
+    ):
+        if os.path.exists(cand):
+            return cand
+    return ""
+
+
+COLAB_BIN = _resolve_colab_bin()
 MONTHLY_TOTAL_CU = 2000.0
 
 _QUOTA_LOCK = threading.Lock()
 _QUOTA_CACHE: Dict = {
     "timestamp": 0.0,
     "data": {
-        "available": os.path.exists(COLAB_BIN),
+        "available": bool(COLAB_BIN),
         "account": "deuschanz@gmail.com",
         "accelerator_tier": "Blackwell G4 (96GB)",
-        "balance_cu": 1993.92,
-        "total_cu": MONTHLY_TOTAL_CU,
-        "used_cu": 6.08,
-        "remaining_pct": 99.7,
+        "balance_cu": 2965.0,
+        "total_cu": 2965.0,
+        "used_cu": 0.0,
+        "remaining_pct": 100.0,
         "burn_rate_cu_hr": 0.0,
         "active_assignments": 0,
     },
@@ -54,12 +71,13 @@ def get_colab_quota(force_refresh: bool = False) -> Dict:
         if not force_refresh and (now - _QUOTA_CACHE["timestamp"] < 15.0):
             return dict(_QUOTA_CACHE["data"])
 
-    if not os.path.exists(COLAB_BIN):
+    colab_bin = _resolve_colab_bin()
+    if not colab_bin:
         return dict(_QUOTA_CACHE["data"], available=False)
 
     try:
         proc = subprocess.run(
-            [COLAB_BIN, "usage"],
+            [colab_bin, "usage"],
             capture_output=True,
             text=True,
             timeout=6.0,
@@ -183,7 +201,8 @@ def try_provision_blackwell_session(
     Blackwell G4 (96GB) -> A100 (80GB) -> L4 -> T4.
     Returns the allocated GPU tier name (e.g. 'G4') or None if unavailable.
     """
-    if not os.path.exists(COLAB_BIN):
+    colab_bin = _resolve_colab_bin()
+    if not colab_bin:
         return None
 
     for gpu in preferred_gpus:
@@ -195,16 +214,20 @@ def try_provision_blackwell_session(
             )
         try:
             proc = subprocess.run(
-                [COLAB_BIN, "new", "-s", session_name, "--gpu", gpu],
+                [colab_bin, "new", "-s", session_name, "--gpu", gpu],
                 capture_output=True,
                 text=True,
-                timeout=35.0,
+                timeout=45.0,
             )
             if proc.returncode == 0:
+                print(f"[Blackwell Worker] Allocated Google Colab --gpu {gpu} session={session_name}", flush=True)
                 get_colab_quota(force_refresh=True)
                 return gpu
-        except Exception:
-            pass
+            else:
+                err_s = ((proc.stderr or "") + " " + (proc.stdout or "")).strip()[:200]
+                print(f"[Blackwell Worker] --gpu {gpu} unavailable (rc={proc.returncode}): {err_s}", flush=True)
+        except Exception as exc:
+            print(f"[Blackwell Worker] --gpu {gpu} error: {exc}", flush=True)
     return None
 
 
@@ -213,7 +236,8 @@ ACTIVE_COLAB_SESSIONS: Dict[str, str] = {}
 
 def stop_blackwell_session(session_name: Optional[str] = None) -> None:
     """Guaranteed session teardown so no zombie GPU VM ever burns Compute Units."""
-    if not os.path.exists(COLAB_BIN):
+    colab_bin = _resolve_colab_bin()
+    if not colab_bin:
         return
     targets: List[str] = []
     if session_name:
@@ -226,7 +250,7 @@ def stop_blackwell_session(session_name: Optional[str] = None) -> None:
     try:
         for s_name in targets:
             subprocess.run(
-                [COLAB_BIN, "stop", "-s", s_name],
+                [colab_bin, "stop", "-s", s_name],
                 capture_output=True,
                 text=True,
                 timeout=20.0,
@@ -249,7 +273,7 @@ def run_blackwell_tracknet_offload(
 ) -> Tuple[Optional[str], str]:
     """
     Offloads heavy TrackNetV3 shuttlecock detection across all segmented rallies to a
-    Google Colab Blackwell G4 / A100 GPU session when the video has uncached rallies.
+    Google Colab Blackwell G4 / L4 / A100 GPU session when the video has uncached rallies.
     Returns (shuttle_csv_path_or_None, active_accelerator_label).
     Always stops the Colab session in a `finally` block.
     """
@@ -257,13 +281,22 @@ def run_blackwell_tracknet_offload(
     if os.path.exists(shuttle_csv) and os.path.getsize(shuttle_csv) > 512:
         return shuttle_csv, "Blackwell G4 (Cached)"
 
-    weights_local = (
-        "engine/weights/TrackNet_best.pt"
-        if os.path.exists("engine/weights/TrackNet_best.pt")
-        else ("models/TrackNet_best.pt" if os.path.exists("models/TrackNet_best.pt") else None)
+    colab_bin = _resolve_colab_bin()
+    weights_local = next(
+        (
+            p
+            for p in (
+                "engine/weights/TrackNet_infer_slim.pt",
+                "engine/weights/TrackNet_best.pt",
+                "models/TrackNet_best.pt",
+            )
+            if os.path.exists(p)
+        ),
+        None,
     )
-    if not os.path.exists(COLAB_BIN) or not weights_local:
-        return None, "Local Mac"
+    if not colab_bin or not weights_local:
+        print(f"[Blackwell Worker] Skipping Colab offload (colab_bin={bool(colab_bin)}, weights={weights_local})", flush=True)
+        return None, "Local CPU/MPS"
 
     session_name = f"hv-{int(time.time()) % 100000}"
     allocated_gpu = None
@@ -272,11 +305,11 @@ def run_blackwell_tracknet_offload(
     try:
         allocated_gpu = try_provision_blackwell_session(
             session_name=session_name,
-            preferred_gpus=("G4", "A100", "L4", "T4"),
+            preferred_gpus=("G4", "L4", "A100", "T4"),
             on_progress=on_progress,
         )
         if not allocated_gpu:
-            return None, "Local Mac (Fallback)"
+            return None, "Local Fallback"
         ACTIVE_COLAB_SESSIONS[os.path.basename(match_dir)] = session_name
 
         if should_stop and should_stop():
@@ -377,16 +410,43 @@ print('[Blackwell Worker] Saved /content/shuttle_2d.csv', flush=True)
 """
             )
 
+        # Fast lossless prefix trim when rallies only span the first portion of a long MP4 (saves 5-10x upload time)
+        video_to_bundle = video_path
+        try:
+            import cv2 as _cv2
+            _cap = _cv2.VideoCapture(video_path)
+            _fps = float(_cap.get(_cv2.CAP_PROP_FPS) or 25.0)
+            _total_f = int(_cap.get(_cv2.CAP_PROP_FRAME_COUNT) or 0)
+            _cap.release()
+            max_end_f = max(int(r.get("cam_end_frame", r.get("end_frame", 0))) for r in segmented_rallies) if segmented_rallies else 0
+            if _total_f > 0 and max_end_f > 0 and max_end_f < int(_total_f * 0.70):
+                trim_sec = (max_end_f + int(_fps * 3.0)) / max(10.0, _fps)
+                trimmed_mp4 = os.path.join(tmpdir, "trimmed_prefix.mp4")
+                tr_proc = subprocess.run(
+                    ["ffmpeg", "-y", "-i", video_path, "-t", f"{trim_sec:.2f}", "-c", "copy", "-an", trimmed_mp4],
+                    capture_output=True,
+                    timeout=30.0,
+                )
+                if tr_proc.returncode == 0 and os.path.exists(trimmed_mp4) and os.path.getsize(trimmed_mp4) > 50_000:
+                    video_to_bundle = trimmed_mp4
+                    print(
+                        f"[Blackwell Worker] Trimmed upload video {os.path.getsize(video_path)/(1024*1024):.1f}MB -> "
+                        f"{os.path.getsize(trimmed_mp4)/(1024*1024):.1f}MB (0..{trim_sec:.1f}s)",
+                        flush=True,
+                    )
+        except Exception:
+            pass
+
         with zipfile.ZipFile(bundle_zip, "w", compression=zipfile.ZIP_STORED) as zf:
             zf.write(weights_local, "models/TrackNet_best.pt")
             if os.path.exists("engine/weights/InpaintNet_best.pt"):
                 zf.write("engine/weights/InpaintNet_best.pt", "engine/weights/InpaintNet_best.pt")
             zf.write("engine/tracknet.py", "engine/tracknet.py")
             zf.write(rallies_meta_path, "rallies_windows.json")
-            zf.write(video_path, "input_video.mp4")
+            zf.write(video_to_bundle, "input_video.mp4")
 
-        # Upload bundle in 8 MB parts so Tornado / Colab /api/contents never rejects a 300MB single-PUT payload
-        part_size = 8 * 1024 * 1024
+        # Upload bundle in 16 MB parts so Tornado / Colab /api/contents never rejects large single-PUT payloads
+        part_size = 16 * 1024 * 1024
         bundle_size = os.path.getsize(bundle_zip)
         total_parts = max(1, (bundle_size + part_size - 1) // part_size)
         with open(bundle_zip, "rb") as f_bz:
@@ -404,42 +464,45 @@ print('[Blackwell Worker] Saved /content/shuttle_2d.csv', flush=True)
                         f"Streaming chunk {p_idx + 1}/{total_parts} to Google Colab {allocated_gpu}...",
                     )
                 up_proc = subprocess.run(
-                    [COLAB_BIN, "upload", "-s", session_name, part_local, f"/content/job_bundle.part{p_idx:03d}"],
+                    [colab_bin, "upload", "-s", session_name, part_local, f"/content/job_bundle.part{p_idx:03d}"],
                     capture_output=True,
                     text=True,
                     timeout=120.0,
                 )
                 if up_proc.returncode != 0:
-                    return None, "Local Mac (Upload Fallback)"
+                    print(f"[Blackwell Worker] upload chunk {p_idx+1} failed: {(up_proc.stderr or up_proc.stdout)[:300]}", flush=True)
+                    return None, "Local Fallback (Upload)"
 
         if on_progress:
             on_progress(
                 f"STAGE 3: Blackwell {allocated_gpu} CUDA Inference",
                 32.0,
-                f"Running batch=32 TrackNetV3 across {len(segmented_rallies)} rallies on {allocated_gpu} GPU...",
+                f"Running batch=32 TrackNetV3 + InpaintNet across {len(segmented_rallies)} rallies on {allocated_gpu} GPU...",
             )
 
         exec_proc = subprocess.run(
-            [COLAB_BIN, "exec", "-s", session_name, "--timeout", "900", "-f", remote_runner_py],
+            [colab_bin, "exec", "-s", session_name, "--timeout", "900", "-f", remote_runner_py],
             capture_output=True,
             text=True,
             timeout=920.0,
         )
+        if exec_proc.stdout:
+            print(exec_proc.stdout.strip()[-1000:], flush=True)
         if exec_proc.returncode != 0:
             err_tail = (exec_proc.stderr or exec_proc.stdout or "")[-600:]
             print(f"[Blackwell Worker] colab exec failed (rc={exec_proc.returncode}): {err_tail}", flush=True)
-            return None, "Local Mac (Exec Fallback)"
+            return None, "Local Fallback (Exec)"
 
         os.makedirs(match_dir, exist_ok=True)
         dl_proc = subprocess.run(
-            [COLAB_BIN, "download", "-s", session_name, "/content/shuttle_2d.csv", shuttle_csv],
+            [colab_bin, "download", "-s", session_name, "/content/shuttle_2d.csv", shuttle_csv],
             capture_output=True,
             text=True,
             timeout=120.0,
         )
         if dl_proc.returncode == 0 and os.path.exists(shuttle_csv):
             return shuttle_csv, f"Blackwell {allocated_gpu}"
-        return None, "Local Mac"
+        return None, "Local Fallback"
     except Exception:
         return None, "Local Mac"
     finally:

@@ -64,8 +64,10 @@ export default async (req: Request, context: Context) => {
   }
 
   const forceReprocess = Boolean(body.force_reprocess || body.force_redownload);
-  const maxRalliesNum = Number(body.max_rallies || 3);
-  const maxRallies = Number.isFinite(maxRalliesNum) && maxRalliesNum >= 1 && maxRalliesNum <= 30 ? Math.round(maxRalliesNum) : 3;
+  const rawMax = body.max_rallies;
+  const maxRalliesNum = rawMax === undefined || rawMax === null ? 6 : Number(rawMax);
+  // Allow 0 (Full Match on Blackwell G4 GPU) or 1..30 rallies
+  const maxRallies = Number.isFinite(maxRalliesNum) && maxRalliesNum >= 0 && maxRalliesNum <= 30 ? Math.round(maxRalliesNum) : 6;
   const matchId = `yt_${videoId}`;
   const origin = new URL(req.url).origin;
 

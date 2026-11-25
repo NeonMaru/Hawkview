@@ -722,8 +722,9 @@ class ThumbStatsQuickSheet {
   updateActiveSlideUI(idx, save = true) {
     const clamped = Math.max(0, Math.min(3, idx));
     this.activeSlide = clamped;
+    // Keep the mobile floating thumb orb consistently labeled "Menu" (never misleadingly "Attack")
     if (this.orbLabelEl) {
-      this.orbLabelEl.textContent = this.slideShortNames[clamped] || 'Stats';
+      this.orbLabelEl.textContent = 'Menu';
     }
     if (this.sheetBackdrop) {
       const pills = this.sheetBackdrop.querySelectorAll('.hv-stat-dot-pill');

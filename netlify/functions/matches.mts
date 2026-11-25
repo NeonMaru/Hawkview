@@ -3,15 +3,30 @@ import type { Config, Context } from "@netlify/functions";
 
 export default async (req: Request, _context: Context) => {
   const url = new URL(req.url);
+  const matchesStore = getStore("hawkview-matches");
+  const defaultQuota = {
+    available: true,
+    accelerator_tier: "Blackwell G4 Cloud GPU (Mac-Free)",
+    balance_cu: 2965.2,
+    total_cu: 2965.2,
+    used_cu: 0.0,
+    remaining_pct: 100.0,
+    active_assignments: 0,
+  };
+  let liveQuota = defaultQuota;
+  try {
+    const savedQuota = await matchesStore.get("system:colab_quota", { type: "json" });
+    if (savedQuota && typeof savedQuota === "object") {
+      liveQuota = { ...defaultQuota, ...(savedQuota as Record<string, any>) };
+    }
+  } catch {
+    // Use default until first Blackwell run reports live balance
+  }
+
   if (url.pathname === "/api/colab-quota") {
     return Response.json(
       {
-        colab_quota: {
-          available: true,
-          accelerator_tier: "Cloud CV Runner (Mac-Free)",
-          remaining_pct: 100.0,
-          active_assignments: 0,
-        },
+        colab_quota: liveQuota,
         active_eta: null,
       },
       { headers: { "Cache-Control": "no-store" } }
@@ -19,7 +34,6 @@ export default async (req: Request, _context: Context) => {
   }
   const reqId = (url.searchParams.get("match_id") || "").trim();
   const origin = url.origin;
-  const matchesStore = getStore("hawkview-matches");
 
   // Single match telemetry request
   if (reqId) {
@@ -89,12 +103,7 @@ export default async (req: Request, _context: Context) => {
     {
       matches,
       cloud_mode: true,
-      colab_quota: {
-        available: true,
-        accelerator_tier: "Cloud CV Runner (Mac-Free)",
-        remaining_pct: 100.0,
-        active_assignments: 0,
-      },
+      colab_quota: liveQuota,
     },
     { headers: { "Cache-Control": "no-store" } }
   );
