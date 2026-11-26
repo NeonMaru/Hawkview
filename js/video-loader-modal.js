@@ -171,6 +171,57 @@ class VideoLoaderModal {
       });
     }
 
+    // Wire 2-Mode Loader Tabs (Upload MP4 vs YouTube Link) + Direct Phone MP4 -> Cloud GPU Upload
+    const tabMp4 = document.getElementById('tab-loader-mp4');
+    const tabYt = document.getElementById('tab-loader-yt');
+    const panelMp4 = document.getElementById('loader-panel-mp4');
+    const panelYt = document.getElementById('loader-panel-yt');
+    const setLoaderTab = (which) => {
+      const isMp4 = which === 'mp4';
+      if (tabMp4) {
+        tabMp4.classList.toggle('active', isMp4);
+        tabMp4.setAttribute('aria-selected', isMp4 ? 'true' : 'false');
+      }
+      if (tabYt) {
+        tabYt.classList.toggle('active', !isMp4);
+        tabYt.setAttribute('aria-selected', !isMp4 ? 'true' : 'false');
+      }
+      if (panelMp4) panelMp4.classList.toggle('hidden', !isMp4);
+      if (panelYt) panelYt.classList.toggle('hidden', isMp4);
+    };
+    this._setLoaderTab = setLoaderTab;
+    if (tabMp4) tabMp4.addEventListener('click', () => setLoaderTab('mp4'));
+    if (tabYt) tabYt.addEventListener('click', () => setLoaderTab('yt'));
+
+    const cloudMp4Input = document.getElementById('cloud-mp4-input');
+    const cloudPickBtn = document.getElementById('btn-cloud-pick-mp4');
+    const cloudConvertBtn = document.getElementById('btn-cloud-mp4-convert');
+    const pickedNameEl = document.getElementById('cloud-mp4-picked-name');
+    const pickedMetaEl = document.getElementById('cloud-mp4-picked-meta');
+
+    if (cloudPickBtn && cloudMp4Input) {
+      cloudPickBtn.addEventListener('click', () => cloudMp4Input.click());
+      cloudMp4Input.addEventListener('change', () => {
+        const f = cloudMp4Input.files && cloudMp4Input.files[0];
+        if (!f) return;
+        this._selectedCloudMp4File = f;
+        const mb = (f.size / (1024 * 1024)).toFixed(1);
+        if (pickedNameEl) pickedNameEl.textContent = f.name;
+        if (pickedMetaEl) pickedMetaEl.textContent = `${mb} MB selected · Tap Convert MP4 to 3D`;
+        cloudPickBtn.classList.add('has-file');
+        this.setStatusPill(`Ready to upload ${f.name} (${mb} MB) to Cloud GPU`, true);
+      });
+    }
+    if (cloudConvertBtn) {
+      cloudConvertBtn.addEventListener('click', () => {
+        if (!this._selectedCloudMp4File) {
+          if (cloudMp4Input) cloudMp4Input.click();
+          return;
+        }
+        this.startCloudMp4Upload(this._selectedCloudMp4File);
+      });
+    }
+
     if (nearInputEl) {
       nearInputEl.addEventListener('input', () => { this._userEditedPlayers = true; });
     }
@@ -431,6 +482,7 @@ class VideoLoaderModal {
 
   _fabPhaseShortLabel(stageText = '') {
     const s = String(stageText || '').toLowerCase();
+    if (s.includes('upload')) return 'UP';
     if (s.includes('download') || s.includes('stream') || s.includes('youtube')) return 'DL';
     if (s.includes('gpu') || s.includes('blackwell') || s.includes('colab') || s.includes('tracknet')) return 'GPU';
     if (s.includes('rally') || s.includes('physics') || s.includes('3d') || s.includes('calib')) return '3D';
@@ -475,7 +527,7 @@ class VideoLoaderModal {
       this._fabTargetPct = 0;
       if (this.fabIconEl) this.fabIconEl.classList.remove('hidden');
       if (this.fabPctEl) this.fabPctEl.classList.add('hidden');
-      if (this.fabSubEl) this.fabSubEl.textContent = 'YouTube';
+      if (this.fabSubEl) this.fabSubEl.textContent = '+ 3D';
       this._renderFabProgressRing(0);
       if (this._armFabIdleFade) this._armFabIdleFade();
       return;
@@ -549,6 +601,117 @@ class VideoLoaderModal {
         this.fabPctEl.textContent = 'Error';
       }
       if (this.fabSubEl) this.fabSubEl.textContent = 'Tap';
+    }
+  }
+
+  async startCloudMp4Upload(file) {
+    if (!file) return;
+    if (this._cloudMp4Uploading) return;
+
+    const maxBytes = 320 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      const mb = (file.size / (1024 * 1024)).toFixed(0);
+      this.setStatusPill(`File is ${mb} MB (max 320 MB for cloud upload). Trim to a shorter clip or 720p/1080p.`, false);
+      this.setFabState('error', 100, 'File Too Large', `Max 320 MB (got ${mb} MB)`);
+      return;
+    }
+
+    const convertBtn = document.getElementById('btn-cloud-mp4-convert');
+    const maxRalliesEl = document.getElementById('cloud-mp4-max-rallies');
+    const parsedMax = maxRalliesEl ? parseInt(maxRalliesEl.value, 10) : 6;
+    const reqMaxRallies = Number.isFinite(parsedMax) && parsedMax >= 0 ? parsedMax : 6;
+
+    this._cloudMp4Uploading = true;
+    if (convertBtn) convertBtn.disabled = true;
+
+    // Keep local Blob URL so the uploaded phone/Mac MP4 plays 1:1 synced right when Cloud GPU finishes!
+    try {
+      if (this._localBlobUrl) URL.revokeObjectURL(this._localBlobUrl);
+    } catch (e) {}
+    this._localBlobUrl = URL.createObjectURL(file);
+    this.pendingVideoSrc = this._localBlobUrl;
+
+    const CHUNK_SIZE = 3 * 1024 * 1024; // 3 MB binary chunks (safely below 6 MB Lambda limit)
+    const totalChunks = Math.max(1, Math.ceil(file.size / CHUNK_SIZE));
+    const randPart = Math.random().toString(36).slice(2, 8);
+    const uploadId = `mp4_${Date.now().toString(36)}_${randPart}`;
+
+    this.close();
+    this.setFabState('converting', 1.5, 'Uploading MP4', `Uploading ${file.name} (0/${totalChunks})...`);
+    this.setYouTubeProgressUI(true, 1.5, `Uploading ${file.name}...`, '1.50%');
+
+    try {
+      for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const slice = file.slice(start, end);
+        const chunkUrl = this.getApiUrl(
+          `/api/cloud-upload-chunk?upload_id=${encodeURIComponent(uploadId)}&chunk_index=${i}&total_chunks=${totalChunks}`
+        );
+
+        let uploaded = false;
+        let lastErr = '';
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            const resp = await fetch(chunkUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/octet-stream' },
+              body: slice
+            });
+            if (resp.ok) {
+              uploaded = true;
+              break;
+            }
+            const errBody = await resp.json().catch(() => ({}));
+            lastErr = errBody.error || `HTTP ${resp.status}`;
+          } catch (netErr) {
+            lastErr = (netErr && netErr.message) || 'Network error';
+          }
+          await new Promise((r) => setTimeout(r, 900 * (attempt + 1)));
+        }
+
+        if (!uploaded) {
+          throw new Error(`Upload failed on chunk ${i + 1}/${totalChunks}: ${lastErr}`);
+        }
+
+        const upPct = 1.5 + 17.5 * ((i + 1) / totalChunks); // 1.50% -> 19.00%
+        this.setFabState('converting', upPct, 'Uploading MP4', `Uploaded ${i + 1}/${totalChunks} chunks (${file.name})`);
+        this.setYouTubeProgressUI(true, upPct, `Uploading MP4 (${i + 1}/${totalChunks})...`, `${upPct.toFixed(2)}%`);
+      }
+
+      // Dispatch Cloud GPU runner
+      this.setFabState('converting', 19.5, 'Dispatching Cloud GPU', `Starting 3D reconstruction for ${file.name}...`);
+      const startResp = await fetch(this.getApiUrl('/api/cloud-upload-start'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          upload_id: uploadId,
+          total_chunks: totalChunks,
+          filename: file.name,
+          max_rallies: reqMaxRallies
+        })
+      });
+      const startData = await startResp.json().catch(() => ({}));
+      if (!startResp.ok || !startData.job_id) {
+        throw new Error(startData.error || `Cloud GPU dispatch failed (HTTP ${startResp.status})`);
+      }
+
+      this.saveActiveCloudJob({
+        job_id: startData.job_id,
+        video_id: '',
+        match_id: startData.match_id || '',
+        filename: file.name,
+        started_at: Date.now()
+      });
+      this.startCloudJobPolling(startData.job_id, '', startData.match_id || '');
+    } catch (err) {
+      const msg = (err && err.message) ? err.message : 'MP4 cloud upload failed.';
+      this.setFabState('error', 100, 'Upload Failed', msg);
+      this.setYouTubeProgressUI(true, 100, 'Upload Failed', 'Error', true);
+      this.setStatusPill(msg, false);
+    } finally {
+      this._cloudMp4Uploading = false;
+      if (convertBtn) convertBtn.disabled = false;
     }
   }
 

@@ -4,11 +4,32 @@ on:
   workflow_dispatch:
     inputs:
       youtube_url:
-        description: "YouTube video URL"
-        required: true
+        description: "YouTube video URL (leave blank for direct MP4 upload)"
+        required: false
+        default: ""
         type: string
       video_id:
         description: "11-char YouTube video ID"
+        required: false
+        default: ""
+        type: string
+      upload_id:
+        description: "Netlify Blobs chunked upload_id (direct phone MP4 upload)"
+        required: false
+        default: ""
+        type: string
+      upload_chunks:
+        description: "Total uploaded binary chunks"
+        required: false
+        default: "0"
+        type: string
+      upload_filename:
+        description: "Original uploaded MP4 filename"
+        required: false
+        default: "phone_match.mp4"
+        type: string
+      upload_endpoint:
+        description: "Authenticated Netlify Blobs chunk download URL"
         required: false
         default: ""
         type: string
@@ -116,21 +137,33 @@ jobs:
             colab usage || true
           fi
 
-      - name: Run Cloud YouTube -> Blackwell G4 GPU -> 3D Physics Pipeline
+      - name: Run Cloud YouTube / MP4 -> Blackwell G4 GPU -> 3D Physics Pipeline
         env:
           HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
         run: |
-          COOKIES_ARG=""
+          EXTRA_ARGS=""
           if [ -f /tmp/yt_cookies.txt ]; then
-            COOKIES_ARG="--cookies-file /tmp/yt_cookies.txt"
+            EXTRA_ARGS="$EXTRA_ARGS --cookies-file /tmp/yt_cookies.txt"
           fi
-          python3 tools/cloud_youtube_worker.py \
-            --url "${{ inputs.youtube_url }}" \
-            --job-id "${{ inputs.job_id }}" \
-            --match-id "${{ inputs.match_id }}" \
-            --max-rallies "${{ inputs.max_rallies }}" \
-            --callback-url "${{ inputs.callback_url }}" \
-            $COOKIES_ARG
+          if [ -n "${{ inputs.upload_id }}" ]; then
+            python3 tools/cloud_youtube_worker.py \
+              --upload-id "${{ inputs.upload_id }}" \
+              --upload-chunks "${{ inputs.upload_chunks }}" \
+              --upload-filename "${{ inputs.upload_filename }}" \
+              --upload-endpoint "${{ inputs.upload_endpoint }}" \
+              --job-id "${{ inputs.job_id }}" \
+              --match-id "${{ inputs.match_id }}" \
+              --max-rallies "${{ inputs.max_rallies }}" \
+              --callback-url "${{ inputs.callback_url }}"
+          else
+            python3 tools/cloud_youtube_worker.py \
+              --url "${{ inputs.youtube_url }}" \
+              --job-id "${{ inputs.job_id }}" \
+              --match-id "${{ inputs.match_id }}" \
+              --max-rallies "${{ inputs.max_rallies }}" \
+              --callback-url "${{ inputs.callback_url }}" \
+              $EXTRA_ARGS
+          fi
 
       - name: Report Unexpected Workflow Crash
         if: failure()

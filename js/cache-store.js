@@ -522,7 +522,7 @@ class HawkviewCacheStore {
     const demoMatches = [];
     matches.forEach((m) => {
       if (!m || !m.match_id) return;
-      if (m.cloud_blob || String(m.match_id).startsWith('yt_')) {
+      if (m.cloud_blob || String(m.match_id).startsWith('yt_') || String(m.match_id).startsWith('up_')) {
         userMatches.push(m);
       } else {
         demoMatches.push(m);

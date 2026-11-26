@@ -55,9 +55,59 @@ def post_callback(
         print(f"[cloud-worker] Warning: callback POST failed: {exc}", flush=True)
 
 
+def download_uploaded_mp4_chunks(
+    upload_endpoint: str,
+    upload_id: str,
+    total_chunks: int,
+    out_mp4: str,
+    secret: str,
+    progress_cb=None,
+) -> str:
+    os.makedirs(os.path.dirname(out_mp4), exist_ok=True)
+    with open(out_mp4, "wb") as fout:
+        for idx in range(total_chunks):
+            chunk_url = f"{upload_endpoint}?upload_id={upload_id}&chunk_index={idx}"
+            req = urllib.request.Request(
+                chunk_url,
+                method="GET",
+                headers={
+                    "X-Hawkview-Secret": secret,
+                    "User-Agent": "Hawkview-Cloud-CV-Worker/1.0",
+                },
+            )
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                chunk_bytes = resp.read()
+                fout.write(chunk_bytes)
+            if progress_cb:
+                pct = 24.0 + 12.0 * ((idx + 1) / max(1, total_chunks))
+                progress_cb(pct, f"Fetched uploaded chunk {idx + 1}/{total_chunks} from cloud storage...")
+
+    # Clean up temporary chunks from Netlify Blobs right after reassembly
+    try:
+        del_url = f"{upload_endpoint}?upload_id={upload_id}&total_chunks={total_chunks}"
+        dreq = urllib.request.Request(
+            del_url,
+            method="DELETE",
+            headers={
+                "X-Hawkview-Secret": secret,
+                "User-Agent": "Hawkview-Cloud-CV-Worker/1.0",
+            },
+        )
+        with urllib.request.urlopen(dreq, timeout=30) as dresp:
+            dresp.read()
+    except Exception as exc:
+        print(f"[cloud-worker] Warning: chunk cleanup failed: {exc}", flush=True)
+
+    return out_mp4
+
+
 def main():
-    ap = argparse.ArgumentParser(description="Hawkview Cloud YouTube -> 3D Telemetry Worker")
-    ap.add_argument("--url", required=True)
+    ap = argparse.ArgumentParser(description="Hawkview Cloud YouTube / MP4 -> 3D Telemetry Worker")
+    ap.add_argument("--url", default="")
+    ap.add_argument("--upload-id", default="")
+    ap.add_argument("--upload-chunks", type=int, default=0)
+    ap.add_argument("--upload-filename", default="phone_match.mp4")
+    ap.add_argument("--upload-endpoint", default="")
     ap.add_argument("--job-id", required=True)
     ap.add_argument("--match-id", default="")
     ap.add_argument("--max-rallies", type=int, default=3)
@@ -66,8 +116,9 @@ def main():
     args = ap.parse_args()
 
     secret = os.environ.get("HAWKVIEW_CALLBACK_SECRET", "").strip()
-    vid = extract_youtube_video_id(args.url)
-    match_id = args.match_id.strip() or (f"yt_{vid}" if vid else "yt_custom")
+    is_direct_upload = bool(args.upload_id.strip())
+    vid = "" if is_direct_upload else extract_youtube_video_id(args.url)
+    match_id = args.match_id.strip() or (f"yt_{vid}" if vid else f"up_{args.upload_id[:10]}")
 
     def notify(
         status: str,
@@ -99,23 +150,46 @@ def main():
         post_callback(args.callback_url, secret, body)
 
     try:
-        notify(
-            "running",
-            "STAGE 1: Downloading 1080p YouTube Stream",
-            10.0,
-            f"Fetching H.264 video {vid} on Cloud CV Runner...",
-        )
+        if is_direct_upload:
+            notify(
+                "running",
+                "STAGE 1: Loading Uploaded MP4",
+                24.0,
+                f"Reassembling {args.upload_filename} ({args.upload_chunks} chunks) on Cloud Worker...",
+            )
+            out_mp4 = f"assets/uploads/{match_id}.mp4"
+            download_uploaded_mp4_chunks(
+                args.upload_endpoint.strip(),
+                args.upload_id.strip(),
+                max(1, int(args.upload_chunks)),
+                out_mp4,
+                secret,
+                progress_cb=lambda p, m: notify("running", "STAGE 1: Loading Uploaded MP4", p, m),
+            )
+            dl = {
+                "video_path": out_mp4,
+                "title": args.upload_filename or match_id,
+                "canonical_url": "",
+                "video_id": "",
+            }
+        else:
+            notify(
+                "running",
+                "STAGE 1: Downloading 1080p YouTube Stream",
+                10.0,
+                f"Fetching H.264 video {vid} on Cloud CV Runner...",
+            )
 
-        last_pct_sent = [10.0]
+            last_pct_sent = [10.0]
 
-        def on_dl_prog(stage: str, pct: float, msg: str):
-            mapped = 10.0 + 0.25 * float(pct)  # 10% -> 35%
-            if mapped - last_pct_sent[0] >= 6.0:
-                last_pct_sent[0] = mapped
-                notify("running", f"STAGE 1: {stage}", mapped, msg)
+            def on_dl_prog(stage: str, pct: float, msg: str):
+                mapped = 10.0 + 0.25 * float(pct)  # 10% -> 35%
+                if mapped - last_pct_sent[0] >= 6.0:
+                    last_pct_sent[0] = mapped
+                    notify("running", f"STAGE 1: {stage}", mapped, msg)
 
-        cookies_path = args.cookies_file if (args.cookies_file and os.path.exists(args.cookies_file)) else None
-        dl = download_youtube_video(args.url, progress_cb=on_dl_prog, cookies_file=cookies_path)
+            cookies_path = args.cookies_file if (args.cookies_file and os.path.exists(args.cookies_file)) else None
+            dl = download_youtube_video(args.url, progress_cb=on_dl_prog, cookies_file=cookies_path)
 
         notify(
             "running",
