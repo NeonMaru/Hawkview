@@ -193,6 +193,27 @@ class VideoLoaderModal {
     if (tabMp4) tabMp4.addEventListener('click', () => setLoaderTab('mp4'));
     if (tabYt) tabYt.addEventListener('click', () => setLoaderTab('yt'));
 
+    const ytPausedMp4Btn = document.getElementById('btn-yt-paused-goto-mp4');
+    if (ytPausedMp4Btn) ytPausedMp4Btn.addEventListener('click', () => setLoaderTab('mp4'));
+
+    const openMatchLibraryWindow = () => {
+      this.close();
+      if (window.thumbStatsSheetInstance && typeof window.thumbStatsSheetInstance.closeSheet === 'function') {
+        window.thumbStatsSheetInstance.closeSheet();
+      }
+      const libModal = document.getElementById('match-library-modal');
+      if (libModal) {
+        if (window.cacheStoreInstance && Array.isArray(window.cacheStoreInstance.serverMatches)) {
+          window.cacheStoreInstance.renderMatchLibraryModal(window.cacheStoreInstance.serverMatches);
+        }
+        libModal.classList.remove('hidden');
+      }
+    };
+    const ytPausedLibBtn = document.getElementById('btn-yt-paused-goto-library');
+    if (ytPausedLibBtn) ytPausedLibBtn.addEventListener('click', openMatchLibraryWindow);
+    const topbarLibBtn = document.getElementById('btn-topbar-match-library');
+    if (topbarLibBtn) topbarLibBtn.addEventListener('click', openMatchLibraryWindow);
+
     const cloudMp4Input = document.getElementById('cloud-mp4-input');
     const cloudPickBtn = document.getElementById('btn-cloud-pick-mp4');
     const cloudConvertBtn = document.getElementById('btn-cloud-mp4-convert');

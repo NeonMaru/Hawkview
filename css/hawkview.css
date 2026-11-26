@@ -2954,6 +2954,51 @@ canvas {
   box-shadow: 0 1px 3px rgba(37, 99, 235, 0.28);
 }
 
+.hv-loader-tab.is-paused:not(.active) {
+  opacity: 0.62;
+}
+
+.hv-tab-soon-tag {
+  font-size: 9.5px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.22);
+  color: inherit;
+  margin-left: 3px;
+  vertical-align: middle;
+}
+
+.hv-yt-paused-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.hv-yt-paused-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.hv-yt-paused-desc {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.hv-yt-disabled-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  opacity: 0.72;
+  pointer-events: none;
+}
+
 .hv-mp4-picker-box {
   width: 100%;
   min-height: 76px;

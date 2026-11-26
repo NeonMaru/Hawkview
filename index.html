@@ -76,16 +76,12 @@
         </div>
       </div>
 
-      <!-- 1-Click Topbar YouTube Paste Bar (Primary #1 Action on Desktop & Cloud) -->
-      <div class="hv-topbar-yt-bar" style="display:inline-flex; align-items:center; gap:4px; background:var(--surface-subtle); border:1px solid var(--border); border-radius:8px; padding:2px 4px;">
-        <input id="topbar-yt-url" type="url" class="hv-input" style="width:210px; height:26px; font-size:12px; padding:2px 8px; border:none; background:transparent;" placeholder="Paste BWF YouTube URL...">
-        <button id="btn-topbar-yt-go" type="button" class="hv-btn hv-btn-primary" style="height:26px; padding:0 10px; font-size:11.5px; white-space:nowrap;" title="Convert any BWF YouTube link directly into 3D Hawkview trajectories on Blackwell G4">
-          Convert 3D
-        </button>
-      </div>
-
-      <button id="btn-topbar-load-mp4" class="hv-btn" title="Open YouTube converter, scope options, or local MP4 calibration">
-        More / MP4
+      <!-- Primary Desktop Action: Direct MP4 Cloud Upload + Match Library -->
+      <button id="btn-topbar-load-mp4" class="hv-btn hv-btn-primary" title="Upload any badminton MP4 for Cloud GPU 3D tracking">
+        + Upload MP4
+      </button>
+      <button id="btn-topbar-match-library" class="hv-btn" title="Browse converted YouTube matches & pre-rendered demos">
+        Matches
       </button>
       <button id="btn-analyze-clip" class="hv-btn" title="View live server diagnostics, upload throughput, error logs & pipeline telemetry">
         Logs
@@ -527,30 +523,30 @@
             Convert Match to 3D
           </h2>
           <div style="font-size:12px; color:var(--muted); margin-top:2px;">
-            Upload any badminton MP4 from your phone or paste a cached YouTube link.
+            Upload any badminton MP4 from your phone or computer — runs automatically on Cloud GPU.
           </div>
         </div>
         <button id="btn-close-video-loader" type="button" class="hv-btn" aria-label="Close" style="min-height:36px; min-width:36px; padding:4px 10px; border-radius:10px;">✕</button>
       </div>
 
-      <!-- 2-Mode Switcher: Phone MP4 Upload (Zero-Cookie Cloud GPU) vs YouTube Link -->
+      <!-- 2-Mode Switcher: Active Phone/Mac MP4 Upload vs Greyed-Out Direct YouTube Import -->
       <div class="hv-loader-mode-tabs" role="tablist" aria-label="Conversion source">
         <button id="tab-loader-mp4" type="button" class="hv-loader-tab active" role="tab" aria-selected="true">
           Upload MP4
         </button>
-        <button id="tab-loader-yt" type="button" class="hv-loader-tab" role="tab" aria-selected="false">
-          YouTube Link
+        <button id="tab-loader-yt" type="button" class="hv-loader-tab is-paused" role="tab" aria-selected="false" title="Direct cloud YouTube import is temporarily paused">
+          YouTube <span class="hv-tab-soon-tag">Paused</span>
         </button>
       </div>
 
-      <!-- PRIMARY CARD: PHONE MP4 -> CLOUD GPU OR YOUTUBE LINK -->
+      <!-- PRIMARY CARD: PHONE MP4 -> CLOUD GPU OR PAUSED YOUTUBE NOTICE -->
       <div id="calib-drop-zone" class="hv-calib-dropzone" style="flex-direction:column; align-items:stretch; gap:10px; padding:14px; border-radius:12px;">
         <!-- PANEL A: DIRECT PHONE / MAC MP4 UPLOAD (ZERO COOKIES, WORKS 100%) -->
         <div id="loader-panel-mp4" style="display:flex; flex-direction:column; gap:10px; width:100%;">
           <input id="cloud-mp4-input" type="file" accept="video/mp4,video/quicktime,video/webm,video/*" style="display:none;">
           <button id="btn-cloud-pick-mp4" type="button" class="hv-mp4-picker-box">
             <span class="hv-mp4-picker-title" id="cloud-mp4-picked-name">Tap to choose MP4 / Video</span>
-            <span class="hv-mp4-picker-sub" id="cloud-mp4-picked-meta">Downloaded YouTube clip or phone recording · Runs on Cloud GPU</span>
+            <span class="hv-mp4-picker-sub" id="cloud-mp4-picked-meta">Phone recording or saved MP4 clip · Runs on Cloud GPU</span>
           </button>
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
             <select id="cloud-mp4-max-rallies" class="hv-select" style="flex:1; min-width:170px; min-height:44px; font-size:13px; border-radius:10px;" title="How many rallies to reconstruct in 3D">
@@ -565,23 +561,29 @@
           </div>
         </div>
 
-        <!-- PANEL B: YOUTUBE LINK (INSTANT FOR CACHED BWF MATCHES) -->
+        <!-- PANEL B: YOUTUBE DIRECT IMPORT (HONESTLY GREYED OUT / PAUSED) -->
         <div id="loader-panel-yt" class="hidden" style="display:flex; flex-direction:column; gap:10px; width:100%;">
-          <label for="calib-youtube-url" style="font-size:12px; font-weight:600; color:var(--muted);">
-            YouTube Link
-          </label>
-          <input id="calib-youtube-url" type="url" class="hv-input" style="width:100%; min-height:44px; font-size:14px; padding:10px 12px; border-radius:10px;" placeholder="https://youtu.be/... or youtube.com/watch?v=...">
-          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <select id="calib-max-rallies" class="hv-select" style="flex:1; min-width:170px; min-height:44px; font-size:13px; border-radius:10px;" title="How many rallies to reconstruct in 3D">
-              <option value="3">First 3 Rallies (Quick)</option>
-              <option value="6" selected>First 6 Rallies (Recommended)</option>
-              <option value="10">First 10 Rallies</option>
-              <option value="0">Full Match</option>
-            </select>
-            <button id="btn-yt-auto-convert" type="button" class="hv-btn hv-btn-primary" style="flex:1; min-width:170px; min-height:44px; font-size:14px; font-weight:600; border-radius:10px; white-space:nowrap;">
-              Convert to 3D
+          <div class="hv-yt-paused-card">
+            <div class="hv-yt-paused-title">Direct YouTube Link Import Is Paused</div>
+            <div class="hv-yt-paused-desc">
+              YouTube blocks direct downloads from cloud servers. To analyze a match right now, upload an MP4 file from your phone/device (e.g. a phone recording or saved clip), or explore our pre-analyzed BWF matches in the Match Library.
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+              <button id="btn-yt-paused-goto-mp4" type="button" class="hv-btn hv-btn-primary" style="flex:1; min-height:40px; border-radius:10px; font-size:13px; font-weight:600;">
+                Use Upload MP4
+              </button>
+              <button id="btn-yt-paused-goto-library" type="button" class="hv-btn" style="flex:1; min-height:40px; border-radius:10px; font-size:13px; font-weight:600;">
+                Browse BWF Library
+              </button>
+            </div>
+          </div>
+          <div class="hv-yt-disabled-preview" aria-disabled="true">
+            <input id="calib-youtube-url" type="url" class="hv-input" disabled style="width:100%; min-height:42px; font-size:13px; padding:8px 12px; border-radius:10px; opacity:0.5; cursor:not-allowed;" placeholder="Direct YouTube paste temporarily disabled">
+            <button id="btn-yt-auto-convert" type="button" class="hv-btn" disabled style="width:100%; min-height:40px; font-size:13px; border-radius:10px; opacity:0.45; cursor:not-allowed;">
+              Direct YouTube Import (Paused)
             </button>
           </div>
+          <select id="calib-max-rallies" class="hidden" aria-hidden="true"><option value="6" selected>6</option></select>
         </div>
 
         <div id="calib-upload-progress-wrap" class="hidden" style="width:100%; margin-top:2px;">
@@ -760,17 +762,17 @@
   </button>
 
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=4.16"></script>
-  <script src="js/cache-store.js?v=4.16"></script>
-  <script src="js/three-viewport.js?v=4.16"></script>
-  <script src="js/shot-explorer.js?v=4.16"></script>
-  <script src="js/filter-bar.js?v=4.16"></script>
-  <script src="js/player-card.js?v=4.16"></script>
-  <script src="js/rally-deck.js?v=4.16"></script>
-  <script src="js/analytics-cards.js?v=4.16"></script>
-  <script src="js/broadcast-player.js?v=4.16"></script>
-  <script src="js/anti-lag-modal.js?v=4.16"></script>
-  <script src="js/video-loader-modal.js?v=4.16"></script>
-  <script src="js/app.js?v=4.16"></script>
+  <script src="js/telemetry-data.js?v=4.17"></script>
+  <script src="js/cache-store.js?v=4.17"></script>
+  <script src="js/three-viewport.js?v=4.17"></script>
+  <script src="js/shot-explorer.js?v=4.17"></script>
+  <script src="js/filter-bar.js?v=4.17"></script>
+  <script src="js/player-card.js?v=4.17"></script>
+  <script src="js/rally-deck.js?v=4.17"></script>
+  <script src="js/analytics-cards.js?v=4.17"></script>
+  <script src="js/broadcast-player.js?v=4.17"></script>
+  <script src="js/anti-lag-modal.js?v=4.17"></script>
+  <script src="js/video-loader-modal.js?v=4.17"></script>
+  <script src="js/app.js?v=4.17"></script>
 </body>
 </html>
