@@ -62,21 +62,33 @@ jobs:
         with:
           deno-version: v2.x
 
-      - name: Cache Python & RTMPose Weights
+      - name: Cache Pre-Built Python CV Venv & RTMPose Weights
+        id: cache-venv
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/pip
+            ~/.cache/hawkview-venv
             ~/.cache/rtmlib
             ~/.cache/yt-dlp
-          key: hawkview-cv-v1-${{ runner.os }}-py312
+          key: hawkview-venv-v2-${{ runner.os }}-py312
 
-      - name: Install ffmpeg, google-colab-cli & Python CV Dependencies
+      - name: Activate / Build Fast Python CV Venv
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg tesseract-ocr > /dev/null
-          python3 -m pip install --upgrade --quiet pip yt-dlp google-colab-cli
-          python3 -m pip install --quiet --index-url https://download.pytorch.org/whl/cpu torch
-          python3 -m pip install --quiet opencv-python-headless numpy scipy onnxruntime rtmlib pytesseract pillow
+          if ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::Retries=2 update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg > /dev/null || true
+          fi
+          if ! command -v tesseract >/dev/null 2>&1; then
+            sudo apt-get -o Acquire::http::Timeout=15 -o Acquire::Retries=2 update -qq && sudo apt-get install -y -qq --no-install-recommends tesseract-ocr > /dev/null || true
+          fi
+          if [ ! -x "$HOME/.cache/hawkview-venv/bin/python" ]; then
+            python3 -m venv "$HOME/.cache/hawkview-venv"
+            "$HOME/.cache/hawkview-venv/bin/pip" install --upgrade --quiet pip yt-dlp google-colab-cli
+            "$HOME/.cache/hawkview-venv/bin/pip" install --quiet --index-url https://download.pytorch.org/whl/cpu torch
+            "$HOME/.cache/hawkview-venv/bin/pip" install --quiet opencv-python-headless numpy scipy onnxruntime rtmlib pytesseract pillow
+          else
+            "$HOME/.cache/hawkview-venv/bin/pip" install --upgrade --quiet yt-dlp || true
+          fi
+          echo "$HOME/.cache/hawkview-venv/bin" >> "$GITHUB_PATH"
 
       - name: Notify Dependencies Loaded (13.5%)
         env:
