@@ -467,8 +467,14 @@ class HawkviewCacheStore {
       try {
         savedMatchId = localStorage.getItem('hawkview_active_match_id');
       } catch (e) {}
+      const cloudDefaultYt = (data && data.cloud_mode && Array.isArray(this.serverMatches))
+        ? this.serverMatches.find((m) => m && m.match_id && (m.match_id.startsWith('yt_') || m.youtube_url))
+        : null;
       if (savedMatchId && savedMatchId !== 'lzj_popov') {
         await this.switchActiveMatch(savedMatchId, false);
+      } else if (!savedMatchId && cloudDefaultYt) {
+        // On Netlify Cloud (no local MP4s), default first-time visitors to the newest synced YouTube match
+        await this.switchActiveMatch(cloudDefaultYt.match_id, false);
       } else if (window.HAWKVIEW_TELEMETRY) {
         this.updateTopbarHeader('lzj_popov', window.HAWKVIEW_TELEMETRY);
       }
@@ -808,6 +814,10 @@ class ThumbStatsQuickSheet {
         setTimeout(() => window.analyticsCardsInstance.drawKDEHeatmap(), 30);
       }
     }
+  }
+
+  close() {
+    this.closeSheet();
   }
 
   toggleSheet() {

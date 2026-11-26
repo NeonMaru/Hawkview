@@ -111,14 +111,23 @@ class VideoLoaderModal {
     }
     const triggerQuickYt = (inputEl) => {
       const urlVal = inputEl ? String(inputEl.value || '').trim() : '';
+      const closeQuickSheet = () => {
+        if (window.thumbStatsSheetInstance) {
+          if (typeof window.thumbStatsSheetInstance.closeSheet === 'function') {
+            window.thumbStatsSheetInstance.closeSheet();
+          } else if (typeof window.thumbStatsSheetInstance.close === 'function') {
+            window.thumbStatsSheetInstance.close();
+          }
+        }
+      };
       if (!urlVal) {
-        if (window.thumbStatsSheetInstance) window.thumbStatsSheetInstance.close();
+        closeQuickSheet();
         this.open();
         if (ytUrlInput) ytUrlInput.focus();
         return;
       }
       if (ytUrlInput) ytUrlInput.value = urlVal;
-      if (window.thumbStatsSheetInstance) window.thumbStatsSheetInstance.close();
+      closeQuickSheet();
       this.importYouTubeUrl(true, urlVal);
     };
     if (topbarYtGoBtn) {

@@ -844,6 +844,24 @@ canvas {
     left: 6px;
     right: 6px;
   }
+  .hv-court-mode-bar {
+    gap: 2px;
+    padding: 2px 4px;
+    font-size: 10px;
+  }
+  .hv-court-mode-bar .hv-btn {
+    height: 22px;
+    padding: 0 6px;
+    font-size: 10px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #court-mode-counter {
+    font-size: 9.5px;
+    padding: 1px 6px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
   .hv-court-legend {
     display: none !important;
   }
