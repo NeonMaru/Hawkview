@@ -63,7 +63,25 @@ class VideoLoaderModal {
     this.activeJobMatchId = null;
     this.lastStreamedRallyCount = -1;
 
+    // Floating YouTube -> 3D Converter Bubble state (2-decimal live progress + idle fade)
+    this.fabEl = document.getElementById('hv-yt-fab');
+    this.fabFillEl = document.getElementById('hv-yt-fab-fill');
+    this.fabIconEl = document.getElementById('hv-yt-fab-icon');
+    this.fabPctEl = document.getElementById('hv-yt-fab-pct');
+    this.fabSubEl = document.getElementById('hv-yt-fab-sub');
+    this._fabMode = 'idle';
+    this._fabDisplayPct = 0;
+    this._fabTargetPct = 0;
+    this._fabLastUpdateMs = 0;
+    this._fabTicker = null;
+    this._fabIdleTimer = null;
+    this._fabDoneTimer = null;
+    this._fabLastStage = '';
+    this._fabLastDetail = '';
+
     this.bindEvents();
+    this.initFloatingConverterBubble();
+    this.resumeSavedCloudJob();
     if (window.location && window.location.search.includes('openCalib=1')) {
       setTimeout(() => this.open(), 250);
     }
@@ -292,12 +310,381 @@ class VideoLoaderModal {
     this.bindCanvasPointerEvents();
   }
 
+  initFloatingConverterBubble() {
+    const fab = this.fabEl;
+    if (!fab) return;
+
+    const EDGE_MARGIN = 12;
+    const clampTop = (y) => {
+      const maxTop = Math.max(70, window.innerHeight - 96);
+      return Math.max(64, Math.min(maxTop, y));
+    };
+
+    const applySavedPos = () => {
+      try {
+        const raw = localStorage.getItem('hawkview_yt_fab_pos');
+        if (raw) {
+          const saved = JSON.parse(raw);
+          const side = saved.side === 'left' ? 'left' : 'right';
+          const topPx = clampTop(Number(saved.top) || 120);
+          fab.style.top = `${topPx}px`;
+          if (side === 'left') {
+            fab.style.left = `${EDGE_MARGIN}px`;
+            fab.style.right = 'auto';
+          } else {
+            fab.style.left = `${Math.max(EDGE_MARGIN, window.innerWidth - fab.offsetWidth - EDGE_MARGIN)}px`;
+            fab.style.right = 'auto';
+          }
+          return;
+        }
+      } catch (e) {}
+      fab.style.top = `${clampTop(116)}px`;
+      fab.style.left = `${Math.max(EDGE_MARGIN, window.innerWidth - 62 - EDGE_MARGIN)}px`;
+      fab.style.right = 'auto';
+    };
+
+    applySavedPos();
+    window.addEventListener('resize', () => {
+      if (!fab.classList.contains('is-dragging')) applySavedPos();
+    });
+
+    const armIdleFade = () => {
+      if (this._fabIdleTimer) clearTimeout(this._fabIdleTimer);
+      fab.classList.remove('is-idle');
+      if (this._fabMode === 'idle') {
+        this._fabIdleTimer = setTimeout(() => {
+          if (this._fabMode === 'idle' && (!this.modal || this.modal.classList.contains('hidden'))) {
+            fab.classList.add('is-idle');
+          }
+        }, 3500);
+      }
+    };
+    this._armFabIdleFade = armIdleFade;
+    armIdleFade();
+
+    let dragging = false;
+    let moved = false;
+    let startX = 0;
+    let startY = 0;
+    let origLeft = 0;
+    let origTop = 0;
+
+    fab.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      armIdleFade();
+      dragging = true;
+      moved = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = fab.getBoundingClientRect();
+      origLeft = rect.left;
+      origTop = rect.top;
+      try { fab.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+
+    fab.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      if (!moved && Math.hypot(dx, dy) > 6) {
+        moved = true;
+        fab.classList.add('is-dragging');
+      }
+      if (!moved) return;
+      const nextLeft = Math.max(6, Math.min(window.innerWidth - fab.offsetWidth - 6, origLeft + dx));
+      const nextTop = Math.max(52, Math.min(window.innerHeight - fab.offsetHeight - 16, origTop + dy));
+      fab.style.left = `${Math.round(nextLeft)}px`;
+      fab.style.top = `${Math.round(nextTop)}px`;
+    });
+
+    const finishDrag = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      fab.classList.remove('is-dragging');
+      try { if (e && e.pointerId !== undefined) fab.releasePointerCapture(e.pointerId); } catch (err) {}
+
+      if (moved) {
+        const rect = fab.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const side = centerX < window.innerWidth / 2 ? 'left' : 'right';
+        const snappedLeft = side === 'left' ? EDGE_MARGIN : Math.max(EDGE_MARGIN, window.innerWidth - fab.offsetWidth - EDGE_MARGIN);
+        const snappedTop = clampTop(rect.top);
+        fab.style.left = `${Math.round(snappedLeft)}px`;
+        fab.style.top = `${Math.round(snappedTop)}px`;
+        try {
+          localStorage.setItem('hawkview_yt_fab_pos', JSON.stringify({ side, top: Math.round(snappedTop) }));
+        } catch (err) {}
+        armIdleFade();
+      } else {
+        // Pure tap -> open clean YouTube -> 3D converter modal
+        if (window.thumbStatsSheetInstance && typeof window.thumbStatsSheetInstance.closeSheet === 'function') {
+          window.thumbStatsSheetInstance.closeSheet();
+        }
+        this.open();
+      }
+    };
+
+    fab.addEventListener('pointerup', finishDrag);
+    fab.addEventListener('pointercancel', finishDrag);
+    fab.addEventListener('mouseenter', () => armIdleFade());
+  }
+
+  _fabPhaseShortLabel(stageText = '') {
+    const s = String(stageText || '').toLowerCase();
+    if (s.includes('download') || s.includes('stream') || s.includes('youtube')) return 'DL';
+    if (s.includes('gpu') || s.includes('blackwell') || s.includes('colab') || s.includes('tracknet')) return 'GPU';
+    if (s.includes('rally') || s.includes('physics') || s.includes('3d') || s.includes('calib')) return '3D';
+    if (s.includes('runner') || s.includes('boot') || s.includes('dispatch') || s.includes('connect')) return 'Cloud';
+    return 'Live';
+  }
+
+  _renderFabProgressRing(pctVal) {
+    const clamped = Math.max(0, Math.min(100, Number(pctVal) || 0));
+    const CIRC = 175.93;
+    if (this.fabFillEl) {
+      this.fabFillEl.style.strokeDashoffset = (CIRC * (1 - clamped / 100)).toFixed(2);
+    }
+    if (this.fabPctEl) {
+      this.fabPctEl.textContent = `${clamped.toFixed(2)}%`;
+    }
+    const modalPctEl = document.getElementById('calib-upload-progress-text');
+    const modalFillEl = document.getElementById('calib-upload-progress-fill');
+    if (this._fabMode === 'converting' && modalPctEl && this.modal && !this.modal.classList.contains('hidden')) {
+      modalPctEl.textContent = `${clamped.toFixed(2)}%`;
+      if (modalFillEl) modalFillEl.style.width = `${clamped.toFixed(2)}%`;
+    }
+  }
+
+  setFabState(mode, pct = 0, stageText = '', detailText = '') {
+    const fab = this.fabEl;
+    this._fabMode = mode;
+    if (stageText) this._fabLastStage = stageText;
+    if (detailText) this._fabLastDetail = detailText;
+
+    if (this._fabDoneTimer) {
+      clearTimeout(this._fabDoneTimer);
+      this._fabDoneTimer = null;
+    }
+
+    if (!fab) return;
+    fab.classList.remove('is-converting', 'is-done', 'is-error');
+
+    if (mode === 'idle') {
+      if (this._fabTicker) { clearInterval(this._fabTicker); this._fabTicker = null; }
+      this._fabDisplayPct = 0;
+      this._fabTargetPct = 0;
+      if (this.fabIconEl) this.fabIconEl.classList.remove('hidden');
+      if (this.fabPctEl) this.fabPctEl.classList.add('hidden');
+      if (this.fabSubEl) this.fabSubEl.textContent = 'YouTube';
+      this._renderFabProgressRing(0);
+      if (this._armFabIdleFade) this._armFabIdleFade();
+      return;
+    }
+
+    fab.classList.remove('is-idle');
+
+    if (mode === 'converting') {
+      fab.classList.add('is-converting');
+      const incoming = Math.max(0.5, Math.min(99.5, Number(pct) || 1));
+      if (incoming > this._fabTargetPct + 0.05 || this._fabTargetPct === 0) {
+        this._fabTargetPct = incoming;
+        this._fabLastUpdateMs = Date.now();
+      }
+      if (this._fabDisplayPct < 0.25) {
+        this._fabDisplayPct = Math.max(0.5, incoming - 0.8);
+      }
+      if (this.fabIconEl) this.fabIconEl.classList.add('hidden');
+      if (this.fabPctEl) this.fabPctEl.classList.remove('hidden');
+      if (this.fabSubEl) this.fabSubEl.textContent = this._fabPhaseShortLabel(stageText);
+      this._renderFabProgressRing(this._fabDisplayPct);
+
+      if (!this._fabTicker) {
+        this._fabTicker = setInterval(() => {
+          if (this._fabMode !== 'converting') {
+            clearInterval(this._fabTicker);
+            this._fabTicker = null;
+            return;
+          }
+          const silentMs = Date.now() - this._fabLastUpdateMs;
+          // Smoothly catch up to real backend target, then gently creep up to +4.5% cap while backend is alive
+          const creepCap = Math.min(99.4, this._fabTargetPct + 4.5);
+          if (this._fabDisplayPct < this._fabTargetPct) {
+            const step = Math.max(0.08, (this._fabTargetPct - this._fabDisplayPct) * 0.14);
+            this._fabDisplayPct = Math.min(this._fabTargetPct, this._fabDisplayPct + step);
+          } else if (silentMs < 90000 && this._fabDisplayPct < creepCap) {
+            this._fabDisplayPct = Math.min(creepCap, this._fabDisplayPct + 0.03);
+          } else if (silentMs >= 90000 && this.fabSubEl) {
+            this.fabSubEl.textContent = 'Wait';
+          }
+          this._renderFabProgressRing(this._fabDisplayPct);
+        }, 120);
+      }
+      return;
+    }
+
+    if (this._fabTicker) { clearInterval(this._fabTicker); this._fabTicker = null; }
+
+    if (mode === 'done') {
+      fab.classList.add('is-done');
+      this._fabDisplayPct = 100;
+      this._fabTargetPct = 100;
+      if (this.fabIconEl) this.fabIconEl.classList.add('hidden');
+      if (this.fabPctEl) this.fabPctEl.classList.remove('hidden');
+      if (this.fabSubEl) this.fabSubEl.textContent = 'Done';
+      this._renderFabProgressRing(100);
+      this._fabDoneTimer = setTimeout(() => {
+        if (this._fabMode === 'done') this.setFabState('idle');
+      }, 4500);
+      return;
+    }
+
+    if (mode === 'error') {
+      fab.classList.add('is-error');
+      if (this.fabIconEl) this.fabIconEl.classList.add('hidden');
+      if (this.fabPctEl) {
+        this.fabPctEl.classList.remove('hidden');
+        this.fabPctEl.textContent = 'Error';
+      }
+      if (this.fabSubEl) this.fabSubEl.textContent = 'Tap';
+    }
+  }
+
+  saveActiveCloudJob(info) {
+    try {
+      if (info) localStorage.setItem('hawkview_active_cloud_job', JSON.stringify(info));
+      else localStorage.removeItem('hawkview_active_cloud_job');
+    } catch (e) {}
+  }
+
+  resumeSavedCloudJob() {
+    let saved = null;
+    try {
+      const raw = localStorage.getItem('hawkview_active_cloud_job');
+      if (raw) saved = JSON.parse(raw);
+    } catch (e) {}
+    if (!saved || !saved.job_id) return;
+    // Ignore stale jobs older than 18 minutes
+    if (Date.now() - Number(saved.started_at || 0) > 18 * 60 * 1000) {
+      this.saveActiveCloudJob(null);
+      return;
+    }
+    this.startCloudJobPolling(saved.job_id, saved.video_id || '', saved.match_id || '');
+  }
+
+  startCloudJobPolling(jobId, videoId, matchIdHint = '') {
+    if (!jobId) return;
+    const token = ++this._loadToken;
+    if (this._ytPollTimer) {
+      clearInterval(this._ytPollTimer);
+      this._ytPollTimer = null;
+    }
+    this.hasSwitchedToNewMatch = false;
+    this.lastStreamedRallyCount = -1;
+    this.setFabState('converting', 5.0, 'Dispatching Cloud Runner', `Converting ${videoId}...`);
+
+    const poll = async () => {
+      if (token !== this._loadToken) {
+        clearInterval(this._ytPollTimer);
+        this._ytPollTimer = null;
+        return;
+      }
+      try {
+        const rSt = await fetch(this.getApiUrl(`/api/import-youtube-status?job_id=${encodeURIComponent(jobId)}`), { cache: 'no-store' });
+        if (rSt.status === 404) {
+          this.saveActiveCloudJob(null);
+          clearInterval(this._ytPollTimer);
+          this._ytPollTimer = null;
+          this.setFabState('idle');
+          return;
+        }
+        const st = await rSt.json().catch(() => null);
+        if (!st) return;
+
+        if (st.status === 'error') {
+          this.saveActiveCloudJob(null);
+          clearInterval(this._ytPollTimer);
+          this._ytPollTimer = null;
+          const msg = st.error || st.message || 'Cloud conversion failed.';
+          this.setFabState('error', 100, st.stage || 'Conversion Error', msg);
+          this.setYouTubeProgressUI(true, 100, st.stage || 'Conversion Error', 'Failed', true);
+          this.setStatusPill(msg, false);
+          this.showBanner(st.stage || 'Conversion Error', msg, 100, false);
+          return;
+        }
+
+        const pctNow = Number(st.percent) || 8;
+        this.setFabState('converting', pctNow, st.stage || 'Converting in Cloud', st.message || '');
+        this.setYouTubeProgressUI(true, pctNow, st.stage || 'Converting in Cloud', `${pctNow.toFixed(2)}%`);
+        this.showBanner(
+          st.stage || 'Converting in Cloud',
+          st.message || `Processing ${videoId}...`,
+          pctNow,
+          st.status !== 'completed' && st.status !== 'ready'
+        );
+
+        if (st.telemetry) {
+          const matchId = st.match_id || matchIdHint || `yt_${videoId}`;
+          const tel = st.telemetry;
+          if (tel.source && videoId && !tel.source.yt_video_id) {
+            tel.source.yt_video_id = videoId;
+          }
+          const rDone = Number(st.rallies_completed || (tel.rallies || []).length);
+          if (rDone >= 1 && rDone !== this.lastStreamedRallyCount) {
+            this.lastStreamedRallyCount = rDone;
+            if (!window.HAWKVIEW_MATCHES) window.HAWKVIEW_MATCHES = {};
+            window.HAWKVIEW_MATCHES[matchId] = tel;
+            if (window.cacheStoreInstance) {
+              window.cacheStoreInstance.saveMatchTelemetry(matchId, tel);
+              window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
+            }
+            if (!this.hasSwitchedToNewMatch) {
+              this.activateNewMatchInWorkspace(matchId, tel);
+            } else {
+              window.HAWKVIEW_TELEMETRY = tel;
+              window.HAWKVIEW_ACTIVE_MATCH_KEY = matchId;
+              window.dispatchEvent(new CustomEvent('hawkview:ralliesStreamUpdated', {
+                detail: { matchKey: matchId, telemetry: tel, ralliesCompleted: rDone, ralliesTotal: st.rallies_total || rDone }
+              }));
+            }
+          }
+        }
+
+        if (st.status === 'completed' || st.status === 'ready') {
+          this.saveActiveCloudJob(null);
+          clearInterval(this._ytPollTimer);
+          this._ytPollTimer = null;
+          this.setFabState('done', 100, '3D Match Ready', st.message || '');
+          this.setYouTubeProgressUI(false);
+          if (window.cacheStoreInstance) {
+            window.cacheStoreInstance.refreshMatchesAndQuota(false);
+          }
+          this.showBanner(
+            'Cloud 3D Conversion Complete',
+            st.message || 'Synced with YouTube player',
+            100,
+            false
+          );
+        }
+      } catch (e) {}
+    };
+
+    poll();
+    this._ytPollTimer = setInterval(poll, 2200);
+  }
+
   open() {
     if (!this.modal) return;
     this.modal.classList.remove('hidden');
 
-    // Reset stale progress bar / completed toast so the modal opens calm & clean
-    if (!this._ytPollTimer && !this.isUploading) {
+    // Keep live conversion / error details visible if a cloud job is running or just errored;
+    // otherwise reset stale progress bar so the modal opens calm & clean
+    if (this._fabMode === 'error') {
+      this.setYouTubeProgressUI(true, 100, this._fabLastStage || 'Conversion Error', 'Failed', true);
+      if (this._fabLastDetail) this.setStatusPill(this._fabLastDetail, false);
+    } else if (this._fabMode === 'converting') {
+      this.setYouTubeProgressUI(true, this._fabDisplayPct, this._fabLastStage || 'Converting in Cloud...', `${this._fabDisplayPct.toFixed(2)}%`);
+      if (this._fabLastDetail) this.setStatusPill(this._fabLastDetail, true);
+    } else if (!this._ytPollTimer && !this.isUploading) {
       this.setYouTubeProgressUI(false);
       this.setStatusPill('Cached links open in ~1s · New links run automatically on Cloud GPU', true);
     }
@@ -327,6 +714,7 @@ class VideoLoaderModal {
   close() {
     if (!this.modal) return;
     this.modal.classList.add('hidden');
+    if (this._armFabIdleFade) this._armFabIdleFade();
   }
 
   setStatusPill(text, isGood = true) {
@@ -407,9 +795,9 @@ class VideoLoaderModal {
       return;
     }
     wrapEl.classList.remove('hidden');
-    const clampedPct = Math.max(2, Math.min(100, Math.round(pct)));
+    const clampedPct = Math.max(0.5, Math.min(100, Number(pct) || 0));
     if (fillEl) {
-      fillEl.style.width = `${clampedPct}%`;
+      fillEl.style.width = `${clampedPct.toFixed(2)}%`;
       fillEl.style.background = isError
         ? 'var(--shot-error)'
         : 'linear-gradient(90deg, #2563eb, #10b981)';
@@ -418,7 +806,7 @@ class VideoLoaderModal {
       labelEl.textContent = stageText || 'Importing YouTube Video...';
     }
     if (textEl) {
-      textEl.textContent = detailText || `${clampedPct}%`;
+      textEl.textContent = detailText || `${clampedPct.toFixed(2)}%`;
       textEl.style.color = isError ? 'var(--shot-error)' : 'var(--shot-continue)';
     }
   }
@@ -466,9 +854,10 @@ class VideoLoaderModal {
       if (sheetYtGoBtn) sheetYtGoBtn.disabled = disabled;
     };
     setBtnsDisabled(true);
-    this.setYouTubeProgressUI(true, 5, 'Connecting to Hawkview Cloud...', 'Validating YouTube URL & checking 3D match cache...');
-    this.setStatusPill('⏳ Checking cache & importing YouTube video...', false);
-    this.showBanner('⏳ Importing YouTube URL...', 'Checking Hawkview Cloud Cache & preparing 3D pipeline...', 8, true);
+    this.setFabState('converting', 2.5, 'Checking Cloud Cache', 'Validating YouTube URL...');
+    this.setYouTubeProgressUI(true, 2.5, 'Checking Cloud Cache...', '2.50%');
+    this.setStatusPill('Checking cloud cache & connecting...', true);
+    this.showBanner('Checking Cloud Cache...', 'Validating YouTube URL...', 2.5, true);
 
     try {
       const resp = await fetch(this.getApiUrl('/api/import-youtube'), {
@@ -481,15 +870,17 @@ class VideoLoaderModal {
       if (!resp.ok) {
         const errMsg = startData.error || `Server rejected YouTube URL (HTTP ${resp.status})`;
         setBtnsDisabled(false);
-        this.setYouTubeProgressUI(true, 100, '❌ YouTube Import Error', startData.error_code || 'Invalid URL', true);
-        this.setStatusPill(`❌ ${errMsg}`, false);
-        this.showBanner('❌ YouTube URL Error', errMsg, 100, false);
+        this.setFabState('error', 100, 'Invalid YouTube URL', errMsg);
+        this.setYouTubeProgressUI(true, 100, 'Invalid YouTube URL', startData.error_code || 'Error', true);
+        this.setStatusPill(errMsg, false);
+        this.showBanner('YouTube URL Error', errMsg, 100, false);
         return;
       }
 
       // MODE 1: Instant Cloud Cache Hit (Netlify Blobs / Static CDN -> <0.5s 3D + YouTube IFrame!)
       if (startData.instant && startData.telemetry) {
         setBtnsDisabled(false);
+        this.saveActiveCloudJob(null);
         const matchId = startData.match_id || `yt_${startData.video_id}`;
         const tel = startData.telemetry;
         if (tel.source && startData.video_id && !tel.source.yt_video_id) {
@@ -503,6 +894,7 @@ class VideoLoaderModal {
           window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
         }
         this.setYouTubeProgressUI(false);
+        this.setFabState('done', 100, 'Loaded from Cloud Cache', '');
         this.activateNewMatchInWorkspace(matchId, tel);
         const rCnt = (tel.rallies || []).length;
         const sCnt = (tel.rallies || []).reduce((a, r) => a + ((r.shots || []).length), 0);
@@ -521,9 +913,10 @@ class VideoLoaderModal {
       if (!startData.job_id) {
         const errMsg = startData.error || 'Server did not return a job ID.';
         setBtnsDisabled(false);
-        this.setYouTubeProgressUI(true, 100, '❌ YouTube Import Error', errMsg, true);
-        this.setStatusPill(`❌ ${errMsg}`, false);
-        this.showBanner('❌ YouTube Import Error', errMsg, 100, false);
+        this.setFabState('error', 100, 'YouTube Import Error', errMsg);
+        this.setYouTubeProgressUI(true, 100, 'YouTube Import Error', 'Error', true);
+        this.setStatusPill(errMsg, false);
+        this.showBanner('YouTube Import Error', errMsg, 100, false);
         return;
       }
 
@@ -531,17 +924,19 @@ class VideoLoaderModal {
       const isCloudAsync = startData.mode === 'cloud_async';
       if (isCloudAsync) {
         this.close();
-        this.hasSwitchedToNewMatch = false;
-        this.lastStreamedRallyCount = -1;
+        setBtnsDisabled(false);
         this.pendingVideoSrc = '';
         const switchReadyBtn = document.getElementById('btn-banner-switch-ready');
         if (switchReadyBtn) switchReadyBtn.classList.add('hidden');
-        this.showBanner(
-          '☁️ Cloud CV Runner Starting...',
-          `Downloading 1080p YouTube (${startData.video_id}) & running TrackNetV3 + 3D physics in the cloud (~60–90s)...`,
-          8,
-          true
-        );
+        this.saveActiveCloudJob({
+          job_id: jobId,
+          video_id: startData.video_id || '',
+          match_id: startData.match_id || `yt_${startData.video_id || ''}`,
+          url: rawUrl,
+          started_at: Date.now()
+        });
+        this.startCloudJobPolling(jobId, startData.video_id || '', startData.match_id || '');
+        return;
       }
 
       const pollStatus = async () => {
@@ -2304,6 +2699,12 @@ class VideoLoaderModal {
 
   stopActiveAnalysis() {
     this.hideSyncLock();
+    this.saveActiveCloudJob(null);
+    if (this._ytPollTimer) {
+      clearInterval(this._ytPollTimer);
+      this._ytPollTimer = null;
+    }
+    this.setFabState('idle');
     try { localStorage.removeItem('hawkview_active_job'); } catch (e) {}
     if (!this.activeJobMatchId) {
       if (this.bannerEl) this.bannerEl.classList.add('hidden');

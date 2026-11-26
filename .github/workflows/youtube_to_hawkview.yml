@@ -35,6 +35,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Notify Cloud Runner Booted (7.5%)
+        env:
+          HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
+        run: |
+          curl -fsS --max-time 10 -X POST "${{ inputs.callback_url }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Hawkview-Secret: $HAWKVIEW_CALLBACK_SECRET" \
+            -d "{\"job_id\":\"${{ inputs.job_id }}\",\"match_id\":\"${{ inputs.match_id }}\",\"video_id\":\"${{ inputs.video_id }}\",\"status\":\"running\",\"stage\":\"Cloud Runner Ready\",\"percent\":7.5,\"message\":\"Cloud Linux worker booted; loading CV runtime...\"}" || true
+
       - name: Checkout Hawkview
         uses: actions/checkout@v4
 
@@ -69,6 +78,15 @@ jobs:
           python3 -m pip install --quiet --index-url https://download.pytorch.org/whl/cpu torch
           python3 -m pip install --quiet opencv-python-headless numpy scipy onnxruntime rtmlib pytesseract pillow
 
+      - name: Notify Dependencies Loaded (13.5%)
+        env:
+          HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
+        run: |
+          curl -fsS --max-time 10 -X POST "${{ inputs.callback_url }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Hawkview-Secret: $HAWKVIEW_CALLBACK_SECRET" \
+            -d "{\"job_id\":\"${{ inputs.job_id }}\",\"match_id\":\"${{ inputs.match_id }}\",\"video_id\":\"${{ inputs.video_id }}\",\"status\":\"running\",\"stage\":\"Connecting to Cloud GPU\",\"percent\":13.5,\"message\":\"CV runtime ready; downloading YouTube stream & provisioning GPU...\"}" || true
+
       - name: Prepare Encrypted Cloud Secrets (YouTube Cookies + Google Colab Blackwell Token)
         env:
           YOUTUBE_COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES_B64 }}
@@ -101,6 +119,16 @@ jobs:
             --max-rallies "${{ inputs.max_rallies }}" \
             --callback-url "${{ inputs.callback_url }}" \
             $COOKIES_ARG
+
+      - name: Report Unexpected Workflow Crash
+        if: failure()
+        env:
+          HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
+        run: |
+          curl -fsS --max-time 10 -X POST "${{ inputs.callback_url }}" \
+            -H "Content-Type: application/json" \
+            -H "X-Hawkview-Secret: $HAWKVIEW_CALLBACK_SECRET" \
+            -d "{\"job_id\":\"${{ inputs.job_id }}\",\"match_id\":\"${{ inputs.match_id }}\",\"video_id\":\"${{ inputs.video_id }}\",\"status\":\"error\",\"stage\":\"Cloud Runner Error\",\"percent\":100,\"error\":\"Cloud runner stopped before completing 3D reconstruction. Tap Convert to retry.\",\"error_code\":\"workflow_failed\"}" || true
 
       - name: Cleanup Temporary Secrets & Verify Zero Active Colab VMs
         if: always()

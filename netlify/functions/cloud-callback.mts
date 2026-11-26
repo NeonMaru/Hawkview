@@ -75,6 +75,11 @@ export default async (req: Request, _context: Context) => {
     await matchesStore.setJSON("system:colab_quota", body.colab_quota);
   }
 
+  // Do not let a generic workflow_failed fallback clobber an already-recorded specific error
+  if (prev.status === "error" && body.error_code === "workflow_failed") {
+    return Response.json({ ok: true, job_id: jobId, status: prev.status, preserved_error: true });
+  }
+
   const nextPct = typeof body.percent === "number"
     ? Math.max(Number(prev.percent || 0), body.percent)
     : Number(prev.percent || 10);
@@ -90,8 +95,8 @@ export default async (req: Request, _context: Context) => {
     message: body.message || prev.message || "",
     rallies_completed: nextRallies,
     rallies_total: typeof body.rallies_total === "number" ? body.rallies_total : prev.rallies_total || 0,
-    error: body.error ?? null,
-    error_code: body.error_code ?? null,
+    error: body.error ?? prev.error ?? null,
+    error_code: body.error_code ?? prev.error_code ?? null,
     updated_at: Date.now() / 1000,
   };
 

@@ -394,6 +394,8 @@ class HawkviewCacheStore {
         ? ` · ⇄ ${mm.compilation_warning.swap_count} Side Swap${mm.compilation_warning.swap_count > 1 ? 's' : ''}`
         : '';
       metaEl.textContent = `${vsText} · ${rCnt} Rallies${swapWarn}`;
+      const sheetNameEl = document.getElementById('sheet-active-match-name');
+      if (sheetNameEl) sheetNameEl.textContent = vsText;
     }
 
     ['topbar-match-select', 'video-mobile-match-select', 'sheet-match-select'].forEach((selId) => {
@@ -505,6 +507,73 @@ class HawkviewCacheStore {
         matchSelect.value = currentVal;
       }
     });
+
+    this.renderMatchLibraryModal(matches, currentVal);
+  }
+
+  renderMatchLibraryModal(matches = [], activeId = null) {
+    const userListEl = document.getElementById('library-user-matches');
+    const demoListEl = document.getElementById('library-demo-matches');
+    const demoCountEl = document.getElementById('library-demo-count');
+    if (!userListEl || !demoListEl) return;
+
+    const currentId = activeId || window.HAWKVIEW_ACTIVE_MATCH_KEY || '';
+    const userMatches = [];
+    const demoMatches = [];
+    matches.forEach((m) => {
+      if (!m || !m.match_id) return;
+      if (m.cloud_blob || String(m.match_id).startsWith('yt_')) {
+        userMatches.push(m);
+      } else {
+        demoMatches.push(m);
+      }
+    });
+
+    const buildCard = (m) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      const isActive = m.match_id === currentId;
+      btn.className = `hv-library-item${isActive ? ' active' : ''}`;
+      const rawLabel = m.label || m.match_id;
+      const cleanTitle = rawLabel.replace(/\s*\([^)]*\)\s*$/, '').trim();
+      const subParts = [];
+      if (m.rallies_count) subParts.push(`${m.rallies_count} rallies`);
+      if (m.shots_count) subParts.push(`${m.shots_count} shots`);
+      const subStr = subParts.length > 0 ? subParts.join(' · ') : (m.tournament || '3D Telemetry');
+
+      btn.innerHTML = `
+        <span class="hv-library-item-main">
+          <span class="hv-library-item-title"></span>
+          <span class="hv-library-item-sub"></span>
+        </span>
+        <span class="hv-library-item-tag">${isActive ? 'Active' : 'Watch'}</span>
+      `;
+      btn.querySelector('.hv-library-item-title').textContent = cleanTitle;
+      btn.querySelector('.hv-library-item-sub').textContent = subStr;
+      btn.addEventListener('click', async () => {
+        const libModal = document.getElementById('match-library-modal');
+        if (libModal) libModal.classList.add('hidden');
+        await this.switchActiveMatch(m.match_id, true);
+        if (Array.isArray(this.serverMatches)) {
+          this.renderMatchLibraryModal(this.serverMatches, m.match_id);
+        }
+      });
+      return btn;
+    };
+
+    userListEl.innerHTML = '';
+    if (userMatches.length === 0) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12px; color:var(--muted); padding:8px 4px;';
+      empty.textContent = 'No converted YouTube matches yet. Tap the floating YouTube bubble to convert one.';
+      userListEl.appendChild(empty);
+    } else {
+      userMatches.forEach((m) => userListEl.appendChild(buildCard(m)));
+    }
+
+    demoListEl.innerHTML = '';
+    demoMatches.forEach((m) => demoListEl.appendChild(buildCard(m)));
+    if (demoCountEl) demoCountEl.textContent = String(demoMatches.length);
   }
 
   async switchActiveMatch(matchId, persist = true) {
@@ -958,6 +1027,28 @@ class ThumbStatsQuickSheet {
     if (this.handBtn) {
       this.handBtn.addEventListener('click', () => {
         this.applyThumbSide(this.thumbSide === 'left' ? 'right' : 'left', true);
+      });
+    }
+
+    // Wire Separate Match Library Window (#match-library-modal)
+    const openLibBtn = document.getElementById('btn-open-match-library');
+    const closeLibBtn = document.getElementById('btn-close-match-library');
+    const libModal = document.getElementById('match-library-modal');
+    if (openLibBtn && libModal) {
+      openLibBtn.addEventListener('click', () => {
+        this.closeSheet();
+        if (window.cacheStoreInstance && Array.isArray(window.cacheStoreInstance.serverMatches)) {
+          window.cacheStoreInstance.renderMatchLibraryModal(window.cacheStoreInstance.serverMatches);
+        }
+        libModal.classList.remove('hidden');
+      });
+    }
+    if (closeLibBtn && libModal) {
+      closeLibBtn.addEventListener('click', () => libModal.classList.add('hidden'));
+    }
+    if (libModal) {
+      libModal.addEventListener('click', (e) => {
+        if (e.target === libModal) libModal.classList.add('hidden');
       });
     }
 

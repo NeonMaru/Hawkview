@@ -436,26 +436,19 @@
         <span class="hv-stats-sheet-pill"></span>
       </div>
 
-      <!-- Mobile-First Control Dock: Clean 2-Row Core + Collapsible Secondary Controls -->
+      <!-- Clean Stats Sheet Header: Active Match + Separate Library Window Trigger -->
       <div class="hv-sheet-control-dock">
-        <div class="hv-scd-yt-row">
-          <input id="sheet-yt-url" type="url" class="hv-input hv-scd-yt-input" placeholder="Paste YouTube link...">
-          <button id="btn-sheet-yt-go" type="button" class="hv-btn hv-btn-primary hv-scd-yt-btn">
-            Convert
+        <div class="hv-scd-primary-row">
+          <div id="sheet-active-match-name" class="hv-scd-active-match">Loading match...</div>
+          <button id="btn-open-match-library" type="button" class="hv-btn hv-scd-load-btn" title="Browse your converted matches & pre-rendered demos">
+            Matches
           </button>
           <button id="btn-close-stats-sheet" type="button" class="hv-btn hv-scd-close-btn" aria-label="Close menu" title="Close menu">
             ✕
           </button>
         </div>
-
-        <div class="hv-scd-primary-row">
-          <select id="sheet-match-select" class="hv-select hv-scd-match-select" title="Switch active match">
-            <option value="yt_qdedPFFAJlI">Loading Cloud Matches...</option>
-          </select>
-          <button id="btn-sheet-load-mp4" type="button" class="hv-btn hv-scd-load-btn" title="Rally count options or local MP4 upload">
-            More
-          </button>
-        </div>
+        <!-- Hidden sync select kept for backward compatibility with cache-store -->
+        <select id="sheet-match-select" class="hidden" aria-hidden="true" tabindex="-1"></select>
 
         <details class="hv-sheet-controls-drawer">
           <summary class="hv-sheet-controls-summary">
@@ -681,18 +674,72 @@
     </div>
   </div>
 
+  <!-- ========================================================================
+       SEPARATE MATCH LIBRARY WINDOW (Your Converted Matches + Pre-Rendered Demos)
+       ======================================================================== -->
+  <div id="match-library-modal" class="hv-modal-backdrop hidden" role="dialog" aria-modal="true" aria-label="Match Library">
+    <div class="hv-modal-card hv-library-modal-card">
+      <div class="hv-panel-header" style="margin-bottom:8px;">
+        <div>
+          <h2 class="hv-panel-title" style="font-size:16px; color:var(--text); text-transform:none; letter-spacing:-0.02em;">
+            Match Library
+          </h2>
+          <div style="font-size:12px; color:var(--muted); margin-top:2px;">
+            Switch between your cloud-converted YouTube matches or explore pre-rendered demos.
+          </div>
+        </div>
+        <button id="btn-close-match-library" type="button" class="hv-btn" aria-label="Close library" style="min-height:36px; min-width:36px; padding:4px 10px; border-radius:10px;">✕</button>
+      </div>
+
+      <div class="hv-library-section">
+        <div class="hv-library-section-title">Your Converted YouTube Matches</div>
+        <div id="library-user-matches" class="hv-library-list"></div>
+      </div>
+
+      <details id="library-prerendered-details" class="hv-library-prerendered">
+        <summary class="hv-library-prerendered-summary">
+          <span>Pre-Rendered Demo Matches</span>
+          <span id="library-demo-count" class="hv-library-count tabular-nums">0</span>
+        </summary>
+        <div id="library-demo-matches" class="hv-library-list" style="margin-top:8px;"></div>
+      </details>
+    </div>
+  </div>
+
+  <!-- ========================================================================
+       DRAGGABLE FLOATING YOUTUBE -> 3D CONVERTER BUBBLE (AnyaTinerary-Style)
+       - Carryable anywhere on screen, snaps to nearest edge
+       - Auto-fades to low opacity (~14%) when idle; wakes on touch/hover/conversion
+       - Outer rotating SVG progress ring + 2-decimal live % (e.g. 03.54%)
+       ======================================================================== -->
+  <button id="hv-yt-fab" type="button" class="hv-yt-fab" aria-label="Convert YouTube to 3D" title="Tap to convert a YouTube match to 3D · Drag anywhere to move">
+    <svg class="hv-yt-fab-ring" viewBox="0 0 64 64" aria-hidden="true">
+      <circle class="hv-yt-fab-track" cx="32" cy="32" r="28"></circle>
+      <circle id="hv-yt-fab-fill" class="hv-yt-fab-fill" cx="32" cy="32" r="28"></circle>
+      <circle class="hv-yt-fab-spinner" cx="32" cy="32" r="28"></circle>
+    </svg>
+    <span class="hv-yt-fab-core">
+      <svg id="hv-yt-fab-icon" class="hv-yt-fab-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <polygon points="9 7 18 12 9 17 9 7" fill="currentColor" stroke="none"></polygon>
+        <rect x="2.5" y="4.5" width="19" height="15" rx="4"></rect>
+      </svg>
+      <span id="hv-yt-fab-pct" class="hv-yt-fab-pct tabular-nums hidden">0.00%</span>
+      <span id="hv-yt-fab-sub" class="hv-yt-fab-sub">YouTube</span>
+    </span>
+  </button>
+
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=4.10"></script>
-  <script src="js/cache-store.js?v=4.10"></script>
-  <script src="js/three-viewport.js?v=4.10"></script>
-  <script src="js/shot-explorer.js?v=4.10"></script>
-  <script src="js/filter-bar.js?v=4.10"></script>
-  <script src="js/player-card.js?v=4.10"></script>
-  <script src="js/rally-deck.js?v=4.10"></script>
-  <script src="js/analytics-cards.js?v=4.10"></script>
-  <script src="js/broadcast-player.js?v=4.10"></script>
-  <script src="js/anti-lag-modal.js?v=4.10"></script>
-  <script src="js/video-loader-modal.js?v=4.10"></script>
-  <script src="js/app.js?v=4.10"></script>
+  <script src="js/telemetry-data.js?v=4.11"></script>
+  <script src="js/cache-store.js?v=4.11"></script>
+  <script src="js/three-viewport.js?v=4.11"></script>
+  <script src="js/shot-explorer.js?v=4.11"></script>
+  <script src="js/filter-bar.js?v=4.11"></script>
+  <script src="js/player-card.js?v=4.11"></script>
+  <script src="js/rally-deck.js?v=4.11"></script>
+  <script src="js/analytics-cards.js?v=4.11"></script>
+  <script src="js/broadcast-player.js?v=4.11"></script>
+  <script src="js/anti-lag-modal.js?v=4.11"></script>
+  <script src="js/video-loader-modal.js?v=4.11"></script>
+  <script src="js/app.js?v=4.11"></script>
 </body>
 </html>

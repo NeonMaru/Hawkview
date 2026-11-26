@@ -890,11 +890,17 @@ canvas {
     white-space: nowrap;
     flex-shrink: 0;
   }
+  .hv-court-filter-pill {
+    display: none !important;
+  }
   #court-mode-counter {
     font-size: 9.5px;
     padding: 1px 6px;
     white-space: nowrap;
     flex-shrink: 0;
+  }
+  .hv-live-banner {
+    display: none !important;
   }
   .hv-court-legend {
     display: none !important;
@@ -2610,6 +2616,307 @@ canvas {
    - Slide 1 is .hv-analytics-slide-a (Coverage KDE + Serve)
    - Slide 2 is .hv-analytics-slide-b (Rally Endings + Smash Attack)
    - Slide 3 is #rally-deck-container (Rally Deck & Shot Breakdown) */
+/* Explicit carousel slide ordering — overrides mobile grid order: 3/4/5 so all 4 tabs match 1:1! */
+.hv-stats-carousel > #player-card-container {
+  order: 0 !important;
+}
+.hv-stats-carousel .hv-analytics-slide-a {
+  order: 1 !important;
+}
+.hv-stats-carousel .hv-analytics-slide-b {
+  order: 2 !important;
+}
+.hv-stats-carousel > #rally-deck-container {
+  order: 3 !important;
+}
+
+.hv-scd-active-match {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.01em;
+}
+
+/* ============================================================================
+   SEPARATE MATCH LIBRARY WINDOW (#match-library-modal)
+   ============================================================================ */
+.hv-library-modal-card {
+  max-width: 520px;
+  max-height: 84vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hv-library-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.hv-library-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hv-library-item {
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.hv-library-item:hover {
+  border-color: var(--shot-winner);
+  background: var(--hover-bg);
+}
+
+.hv-library-item:active {
+  transform: scale(0.985);
+}
+
+.hv-library-item.active {
+  border-color: var(--shot-winner);
+  background: rgba(37, 99, 235, 0.10);
+}
+
+.hv-library-item-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.hv-library-item-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hv-library-item-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.hv-library-item-tag {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+
+.hv-library-item.active .hv-library-item-tag {
+  background: var(--shot-winner);
+  border-color: var(--shot-winner);
+  color: #ffffff;
+}
+
+.hv-library-prerendered {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: var(--surface-subtle);
+}
+
+.hv-library-prerendered-summary {
+  list-style: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  min-height: 30px;
+}
+
+.hv-library-prerendered-summary::-webkit-details-marker {
+  display: none;
+}
+
+.hv-library-count {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 1px 8px;
+  border-radius: 999px;
+}
+
+/* ============================================================================
+   DRAGGABLE FLOATING YOUTUBE -> 3D CONVERTER BUBBLE (#hv-yt-fab)
+   - Carryable anywhere; auto-fades to 0.14 opacity when idle
+   - Rotating outer SVG progress ring + 2-decimal percentage (e.g. 03.54%)
+   ============================================================================ */
+.hv-yt-fab {
+  position: fixed;
+  top: 120px;
+  right: 12px;
+  z-index: 1100;
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.88);
+  color: #f8fafc;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.32);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  opacity: 0.94;
+  transition: opacity 0.45s ease, transform 0.18s cubic-bezier(0.23, 1, 0.32, 1), left 0.24s cubic-bezier(0.23, 1, 0.32, 1), top 0.24s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.hv-yt-fab.is-dragging {
+  cursor: grabbing;
+  transition: none !important;
+  opacity: 1 !important;
+  transform: scale(1.06);
+}
+
+.hv-yt-fab.is-idle:not(.is-converting):not(.is-error):not(.is-done) {
+  opacity: 0.14;
+}
+
+.hv-yt-fab:hover,
+.hv-yt-fab:focus-visible,
+.hv-yt-fab.is-converting,
+.hv-yt-fab.is-error,
+.hv-yt-fab.is-done {
+  opacity: 1 !important;
+}
+
+.hv-yt-fab-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  pointer-events: none;
+}
+
+.hv-yt-fab-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 3.2;
+}
+
+.hv-yt-fab-fill {
+  fill: none;
+  stroke: #3b82f6;
+  stroke-width: 3.6;
+  stroke-linecap: round;
+  stroke-dasharray: 175.93;
+  stroke-dashoffset: 175.93;
+  transition: stroke-dashoffset 0.18s linear, stroke 0.2s ease;
+}
+
+.hv-yt-fab.is-done .hv-yt-fab-fill {
+  stroke: #22c55e;
+}
+
+.hv-yt-fab.is-error .hv-yt-fab-fill {
+  stroke: #ef4444;
+  stroke-dashoffset: 0 !important;
+}
+
+.hv-yt-fab-spinner {
+  fill: none;
+  stroke: rgba(147, 197, 253, 0.9);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-dasharray: 26 150;
+  transform-origin: 32px 32px;
+  opacity: 0;
+}
+
+.hv-yt-fab.is-converting .hv-yt-fab-spinner {
+  opacity: 1;
+  animation: hvFabOrbit 1.35s linear infinite;
+}
+
+@keyframes hvFabOrbit {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.hv-yt-fab-core {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  pointer-events: none;
+  line-height: 1.05;
+}
+
+.hv-yt-fab-icon {
+  color: #60a5fa;
+}
+
+.hv-yt-fab-pct {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.02em;
+}
+
+.hv-yt-fab-sub {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgba(226, 232, 240, 0.86);
+  text-transform: uppercase;
+}
+
+.hv-yt-fab.is-error .hv-yt-fab-sub {
+  color: #fca5a5;
+}
+
+.hv-yt-fab.is-done .hv-yt-fab-sub {
+  color: #86efac;
+}
+
 .hv-stats-carousel > #player-card-container,
 .hv-stats-carousel .hv-analytics-slide,
 .hv-stats-carousel > #rally-deck-container {

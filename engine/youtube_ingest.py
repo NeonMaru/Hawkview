@@ -191,7 +191,7 @@ def download_youtube_video(
     out_mp4 = f"assets/uploads/yt_{video_id}.mp4"
     out_template = f"assets/uploads/yt_{video_id}.%(ext)s"
 
-    def _run_ytdlp_attempt(extra_args: list, fmt_str: str) -> Tuple[int, list]:
+    def _run_ytdlp_attempt(extra_args: list, fmt_str: str, use_cookies: bool = True) -> Tuple[int, list]:
         cmd = [
             ytdlp_bin,
             "--no-playlist",
@@ -204,7 +204,8 @@ def download_youtube_video(
             cmd.extend(["--js-runtimes", "deno", "--remote-components", "ejs:github"])
         elif shutil.which("node"):
             cmd.extend(["--js-runtimes", "node", "--remote-components", "ejs:github"])
-        cmd.extend(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
+        if use_cookies:
+            cmd.extend(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
         cmd.extend(extra_args)
         cmd.extend([
             "-f",
@@ -270,20 +271,30 @@ def download_youtube_video(
     primary_fmt = (
         "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/"
         "bestvideo[height<=1080]+bestaudio/"
-        "best[height<=1080]/best"
+        "bestvideo[height<=1080]/best[height<=1080]/best"
     )
-    rc, recent_lines = _run_ytdlp_attempt([], primary_fmt)
+    has_cookies = bool(_resolve_cookie_args(cookies_file=cookies_file, cookies_browser=cookies_browser))
+    rc, recent_lines = _run_ytdlp_attempt([], primary_fmt, use_cookies=has_cookies)
 
-    # Fallback: if cookies/IP caused web client format restriction, retry with broader player clients & video-only/best
+    # Fallback 1: If cookies were rotated/expired or web client failed, retry COOKIE-FREE via android_vr/ios/tv_embedded
     if rc != 0 or not os.path.exists(out_mp4) or os.path.getsize(out_mp4) < 50_000:
-        tail_low = "\n".join(recent_lines[-15:]).lower()
-        if "requested format is not available" in tail_low or "only images are available" in tail_low:
-            if progress_cb:
-                progress_cb("Retrying YouTube Stream", 9.0, "Retrying with fallback YouTube player client...")
-            rc, recent_lines = _run_ytdlp_attempt(
-                ["--extractor-args", "youtube:player_client=tv,web,android_vr"],
-                "bestvideo[height<=1080]/best[height<=1080]/best",
-            )
+        if progress_cb:
+            progress_cb("Retrying YouTube Stream", 9.0, "Switching to cookie-free mobile/TV YouTube client...")
+        rc, recent_lines = _run_ytdlp_attempt(
+            ["--extractor-args", "youtube:player_client=android_vr,ios,tv_embedded"],
+            "bestvideo[vcodec^=avc1][height<=1080]/bestvideo[height<=1080]/best[height<=1080]/best",
+            use_cookies=False,
+        )
+
+    # Fallback 2: Broad client fallback (tv, mweb, web) without cookies
+    if rc != 0 or not os.path.exists(out_mp4) or os.path.getsize(out_mp4) < 50_000:
+        if progress_cb:
+            progress_cb("Retrying YouTube Stream (Alt)", 11.0, "Trying secondary YouTube player client...")
+        rc, recent_lines = _run_ytdlp_attempt(
+            ["--extractor-args", "youtube:player_client=tv,mweb,web"],
+            "bestvideo[height<=1080]/best[height<=1080]/best",
+            use_cookies=False,
+        )
 
     joined_tail = "\n".join(recent_lines[-15:])
 
