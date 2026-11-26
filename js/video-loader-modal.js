@@ -296,11 +296,20 @@ class VideoLoaderModal {
     if (!this.modal) return;
     this.modal.classList.remove('hidden');
 
-    // Load current active video into the calibration preview if not already loaded
-    const currentSrc = (this.player && this.player.videoElement && this.player.videoElement.getAttribute('src')) || 'assets/LZJvPopov.mp4';
-    if (!this.previewVideo.getAttribute('src')) {
+    // Reset stale progress bar / completed toast so the modal opens calm & clean
+    if (!this._ytPollTimer && !this.isUploading) {
+      this.setYouTubeProgressUI(false);
+      this.setStatusPill('Cached links open in ~1s · New links run automatically on Cloud GPU', true);
+    }
+    if (this.bannerEl && !this.activePollTimer && !this._ytPollTimer) {
+      this.bannerEl.classList.add('hidden');
+    }
+
+    // Only load a local MP4 preview if an actual local video src exists (prevents 404 on Netlify cloud)
+    const currentSrc = this.player && this.player.videoElement ? this.player.videoElement.getAttribute('src') : null;
+    if (currentSrc && !this.previewVideo.getAttribute('src')) {
       this.loadServerVideoIntoPreview(currentSrc, 15.0);
-    } else {
+    } else if (this.previewVideo.getAttribute('src')) {
       this.drawCalibrationCanvas();
     }
   }
@@ -493,18 +502,19 @@ class VideoLoaderModal {
           window.cacheStoreInstance.saveMatchTelemetry(matchId, tel);
           window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
         }
+        this.setYouTubeProgressUI(false);
         this.activateNewMatchInWorkspace(matchId, tel);
         const rCnt = (tel.rallies || []).length;
         const sCnt = (tel.rallies || []).reduce((a, r) => a + ((r.shots || []).length), 0);
         this.showBanner(
-          '✅ Instant 3D Match Loaded from Cloud Cache',
-          `${rCnt} rallies · ${sCnt} shots synced with YouTube player`,
+          'Loaded from Cloud Cache',
+          `${rCnt} rallies · ${sCnt} shots synced with YouTube`,
           100,
           false
         );
         setTimeout(() => {
-          if (this.bannerEl && !this.activePollTimer) this.bannerEl.classList.add('hidden');
-        }, 4500);
+          if (this.bannerEl && !this.activePollTimer && !this._ytPollTimer) this.bannerEl.classList.add('hidden');
+        }, 3200);
         return;
       }
 
@@ -2262,11 +2272,26 @@ class VideoLoaderModal {
   showBanner(stageText, detailText, pct, isRunning = true) {
     if (!this.bannerEl) return;
     this.bannerEl.classList.remove('hidden');
+    this.bannerEl.classList.toggle('is-complete', !isRunning);
     if (this.bannerStageEl) this.bannerStageEl.textContent = stageText;
     if (this.bannerDetailEl) this.bannerDetailEl.textContent = detailText;
     if (this.bannerFillEl) this.bannerFillEl.style.width = `${Math.max(2, Math.min(100, pct))}%`;
+    const trackEl = document.getElementById('lab-progress-track');
+    if (trackEl) trackEl.classList.toggle('hidden', !isRunning);
+    const etaPill = document.getElementById('lab-eta-pill');
+    if (etaPill) {
+      if (!isRunning) {
+        etaPill.classList.add('hidden');
+      } else if (etaPill.textContent && etaPill.textContent.trim().length > 0) {
+        etaPill.classList.remove('hidden');
+      }
+    }
+    const switchReadyBtn = document.getElementById('btn-banner-switch-ready');
+    if (switchReadyBtn && !isRunning && this.hasSwitchedToNewMatch) {
+      switchReadyBtn.classList.add('hidden');
+    }
     if (this.bannerStopBtn) {
-      this.bannerStopBtn.textContent = isRunning ? '⏹ Stop & Keep Rallies' : '✕ Dismiss';
+      this.bannerStopBtn.textContent = isRunning ? 'Stop' : 'Dismiss';
       this.bannerStopBtn.onclick = () => {
         if (isRunning) {
           this.stopActiveAnalysis();

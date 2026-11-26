@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('hawkview_theme', theme);
     } catch (e) {}
     if (themeBtn) {
-      themeBtn.textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+      themeBtn.textContent = theme === 'dark' ? 'Light' : 'Dark';
     }
     window.dispatchEvent(new CustomEvent('hawkview:themeChanged', { detail: { theme } }));
   }

@@ -597,8 +597,12 @@ class HawkviewCacheStore {
       }
       if (textEl) textEl.textContent = labelText;
       if (wrapEl) wrapEl.title = tooltip;
-      if (badgeEl) badgeEl.textContent = `⚡ Blackwell ${acc}`;
+      if (badgeEl) badgeEl.textContent = `Blackwell ${acc}`;
     });
+    const sheetCuSummary = document.getElementById('sheet-cu-summary');
+    if (sheetCuSummary) {
+      sheetCuSummary.textContent = `Blackwell ${acc} · ${Math.round(avail).toLocaleString()} CU`;
+    }
   }
 
   renderEtaStatmeter(etaObj, isRunning = true) {
@@ -716,7 +720,7 @@ class ThumbStatsQuickSheet {
       document.body.classList.toggle('orb-dock-right', this.thumbSide === 'right');
     }
     if (this.handBtn) {
-      this.handBtn.textContent = this.thumbSide === 'left' ? '⇄ Left Thumb' : '⇄ Right Thumb';
+      this.handBtn.textContent = this.thumbSide === 'left' ? 'Left Hand' : 'Right Hand';
     }
     if (save) {
       try {
@@ -1012,7 +1016,7 @@ class ThumbStatsQuickSheet {
     if (sheetThemeBtn) {
       const syncSheetThemeText = () => {
         const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-        sheetThemeBtn.textContent = isDark ? '☀ Light' : '☾ Dark';
+        sheetThemeBtn.textContent = isDark ? 'Light Mode' : 'Dark Mode';
       };
       syncSheetThemeText();
       window.addEventListener('hawkview:themeChanged', syncSheetThemeText);

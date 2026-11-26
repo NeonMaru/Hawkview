@@ -85,49 +85,40 @@
       </div>
 
       <button id="btn-topbar-load-mp4" class="hv-btn" title="Open YouTube converter, scope options, or local MP4 calibration">
-        YouTube / MP4
+        More / MP4
       </button>
       <button id="btn-analyze-clip" class="hv-btn" title="View live server diagnostics, upload throughput, error logs & pipeline telemetry">
-        🩺 Server Logs &amp; Info
+        Logs
       </button>
       <button id="btn-theme-toggle" class="hv-btn" title="Toggle Light / Dark theme">
-        ☾ Dark
+        Dark
       </button>
     </div>
   </header>
 
   <!-- ========================================================================
-       NON-BLOCKING LIVE ANALYSIS PROGRESS BANNER (Streams Rallies 1-by-1)
+       NON-BLOCKING LIVE ANALYSIS TOAST (Clean Floating Card, Zero Overlap)
        ======================================================================== -->
   <div id="live-analysis-banner" class="hv-live-banner hidden" role="status" aria-live="polite">
     <div class="hv-live-banner-row">
       <div class="hv-live-banner-info">
         <span class="hv-live-pulse"></span>
-        <strong id="lab-stage-text">STAGE 3: Reconstructing 3D Trajectories...</strong>
-        <span id="lab-detail-text" class="hv-live-detail">Streaming rallies live into the 3D court as they finish</span>
-        <span id="lab-eta-pill" class="hv-badge hv-badge-continue tabular-nums">⏱ ETA 35s left · ⚡ Blackwell G4</span>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-        <button id="btn-banner-switch-ready" type="button" class="hv-btn hv-btn-primary hidden" style="padding:3px 10px; font-size:11.5px; background:#16a34a; border-color:#16a34a;">
-          ✅ New Match Ready — Switch to New Video &amp; 3D Court
-        </button>
-        <div id="banner-cu-statmeter" class="hv-statmeter" title="Remaining Google Colab Compute Units">
-          <span id="banner-cu-acc" class="hv-statmeter-badge">Blackwell G4</span>
-          <div class="hv-statmeter-col">
-            <div class="hv-statmeter-label">
-              <span id="banner-cu-text">Syncing CU...</span>
-            </div>
-            <div class="hv-statmeter-track">
-              <div id="banner-cu-fill" class="hv-statmeter-fill" style="width:100%; background:#16a34a;"></div>
-            </div>
-          </div>
+        <div class="hv-live-banner-copy">
+          <strong id="lab-stage-text">Processing 3D Trajectories</strong>
+          <span id="lab-detail-text" class="hv-live-detail">Streaming rallies as they finish</span>
         </div>
-        <button id="btn-stop-live-analysis" type="button" class="hv-btn" style="padding:3px 10px; font-size:11px;">
-          ⏹ Stop &amp; Keep Rallies
+      </div>
+      <div class="hv-live-banner-actions">
+        <span id="lab-eta-pill" class="hv-badge hv-badge-continue tabular-nums hidden"></span>
+        <button id="btn-banner-switch-ready" type="button" class="hv-btn hv-btn-primary hidden" style="height:28px; padding:0 10px; font-size:11.5px;">
+          Switch Match
+        </button>
+        <button id="btn-stop-live-analysis" type="button" class="hv-btn" style="height:28px; padding:0 10px; font-size:11.5px;">
+          Dismiss
         </button>
       </div>
     </div>
-    <div class="hv-live-progress-track">
+    <div id="lab-progress-track" class="hv-live-progress-track">
       <div id="lab-progress-fill" class="hv-live-progress-fill" style="width:12%;"></div>
     </div>
   </div>
@@ -198,11 +189,11 @@
               <div class="hv-court-mode-bar">
                 <button id="mode-btn-playback" class="hv-btn active" title="Follow rally playback (last 4 shots with fade)">Playback</button>
                 <button id="mode-btn-explorer" class="hv-btn" title="Show all matching shots across the match">Explorer</button>
-                <span id="explorer-shot-count-badge" class="hv-badge">R1: 1 / 4 shots</span>
-                <button id="btn-toggle-players" type="button" class="hv-btn active" title="Show or hide 3D player markers on the court">👤 Players</button>
-                <button id="btn-court-gyro-mode" type="button" class="hv-btn hv-court-gyro-pill active" title="Hold finger anywhere + tilt phone past 5.5° deadzone to orbit 3D court (Tap to cycle Hold / Free / Off)">🧭 Hold-Gyro</button>
-                <button id="btn-court-filter-pill" type="button" class="hv-btn hv-court-filter-pill" title="Toggle shot filters drawer">⚡ Filters</button>
-                <button id="btn-clear-3d-clutter" type="button" class="hv-btn hidden" title="Clear all filters and return to clean rally playback">✕ Clear</button>
+                <span id="explorer-shot-count-badge" class="hv-badge">R1: 1 / 4</span>
+                <button id="btn-toggle-players" type="button" class="hv-btn active" title="Show or hide 3D player markers on the court">Players</button>
+                <button id="btn-court-gyro-mode" type="button" class="hv-btn hv-court-gyro-pill active" title="Hold finger anywhere + tilt phone past 5.5° deadzone to orbit 3D court (Tap to cycle Hold / Free / Off)">Gyro</button>
+                <button id="btn-court-filter-pill" type="button" class="hv-btn hv-court-filter-pill" title="Toggle shot filters drawer">Filters</button>
+                <button id="btn-clear-3d-clutter" type="button" class="hv-btn hidden" title="Clear all filters and return to clean rally playback">Clear</button>
               </div>
 
               <div class="hv-court-legend">
@@ -445,72 +436,64 @@
         <span class="hv-stats-sheet-pill"></span>
       </div>
 
-      <!-- Mobile-First Control Dock: #1 YouTube URL Converter, then Match Switcher & Secondary Controls -->
+      <!-- Mobile-First Control Dock: Clean 2-Row Core + Collapsible Secondary Controls -->
       <div class="hv-sheet-control-dock">
-        <div class="hv-scd-yt-row" style="display:flex; gap:6px; align-items:center; width:100%; margin-bottom:8px;">
-          <input id="sheet-yt-url" type="url" class="hv-input" style="flex:1; min-height:44px; font-size:14px; padding:8px 12px; border-radius:8px;" placeholder="Paste BWF YouTube link...">
-          <button id="btn-sheet-yt-go" type="button" class="hv-btn hv-btn-primary" style="min-height:44px; padding:0 14px; font-size:13px; font-weight:700; white-space:nowrap; border-radius:8px;">
-            Convert 3D
+        <div class="hv-scd-yt-row">
+          <input id="sheet-yt-url" type="url" class="hv-input hv-scd-yt-input" placeholder="Paste YouTube link...">
+          <button id="btn-sheet-yt-go" type="button" class="hv-btn hv-btn-primary hv-scd-yt-btn">
+            Convert
           </button>
-          <button id="btn-close-stats-sheet" type="button" class="hv-btn hv-scd-close-btn" style="min-height:44px; min-width:44px;" title="Close control & stats sheet">
+          <button id="btn-close-stats-sheet" type="button" class="hv-btn hv-scd-close-btn" aria-label="Close menu" title="Close menu">
             ✕
           </button>
         </div>
 
         <div class="hv-scd-primary-row">
-          <select id="sheet-match-select" class="hv-select hv-scd-match-select" style="min-height:40px;" title="Switch active match">
+          <select id="sheet-match-select" class="hv-select hv-scd-match-select" title="Switch active match">
             <option value="yt_qdedPFFAJlI">Loading Cloud Matches...</option>
           </select>
-          <button id="btn-sheet-load-mp4" type="button" class="hv-btn hv-scd-load-btn" style="min-height:40px;" title="Options, rally count, or local MP4 calibration">
-            Options / MP4
+          <button id="btn-sheet-load-mp4" type="button" class="hv-btn hv-scd-load-btn" title="Rally count options or local MP4 upload">
+            More
           </button>
         </div>
 
-        <div class="hv-scd-secondary-row">
-          <div id="sheet-cu-statmeter" class="hv-statmeter hv-scd-statmeter" title="Google Colab Blackwell G4 Compute Units Remaining">
-            <span id="sheet-cu-acc" class="hv-statmeter-badge">Blackwell G4</span>
-            <div class="hv-statmeter-col">
-              <div class="hv-statmeter-label">
-                <span id="sheet-cu-text">Syncing CU...</span>
-              </div>
-              <div class="hv-statmeter-track">
-                <div id="sheet-cu-fill" class="hv-statmeter-fill" style="width:100%; background:#16a34a;"></div>
+        <details class="hv-sheet-controls-drawer">
+          <summary class="hv-sheet-controls-summary">
+            <span>Controls &amp; Settings</span>
+            <span id="sheet-cu-summary" class="hv-sheet-cu-summary tabular-nums">Cloud GPU</span>
+          </summary>
+          <div class="hv-sheet-controls-body">
+            <div id="sheet-cu-statmeter" class="hv-statmeter hv-scd-statmeter" title="Google Colab Blackwell G4 Compute Units Remaining">
+              <span id="sheet-cu-acc" class="hv-statmeter-badge">Blackwell G4</span>
+              <div class="hv-statmeter-col">
+                <div class="hv-statmeter-label">
+                  <span id="sheet-cu-text">Syncing CU...</span>
+                </div>
+                <div class="hv-statmeter-track">
+                  <div id="sheet-cu-fill" class="hv-statmeter-fill" style="width:100%; background:#16a34a;"></div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <div class="hv-scd-quick-pills">
-            <button id="btn-sheet-gyro" type="button" class="hv-btn hv-scd-pill" title="Cycle Gyro 3D Orbit mode: Hold-to-Tilt (5.5° deadzone) / Always-On / Off">🧭 Gyro: Hold</button>
-            <button id="btn-sheet-filters" type="button" class="hv-btn hv-scd-pill" title="Open shot filters">⚡ Filters</button>
-            <button id="btn-sheet-mute" type="button" class="hv-btn hv-scd-pill" title="Toggle broadcast audio">🔊 Audio</button>
-            <button id="btn-sheet-pipeline" type="button" class="hv-btn hv-scd-pill" title="View pipeline telemetry & accuracy">📊 Pipeline</button>
-            <button id="btn-sheet-theme" type="button" class="hv-btn hv-scd-pill" title="Toggle Light / Dark theme">☾ Theme</button>
-            <button id="btn-stats-sheet-hand" type="button" class="hv-btn hv-scd-pill" title="Dock thumb orb to Left or Right corner for one-handed reach">
-              ⇄ Right Thumb
-            </button>
+            <div class="hv-scd-quick-pills">
+              <button id="btn-sheet-gyro" type="button" class="hv-btn hv-scd-pill" title="Cycle Gyro 3D Orbit mode: Hold / Free / Off">Gyro: Hold</button>
+              <button id="btn-sheet-filters" type="button" class="hv-btn hv-scd-pill" title="Open shot filters">Filters</button>
+              <button id="btn-sheet-mute" type="button" class="hv-btn hv-scd-pill" title="Toggle broadcast audio">Audio</button>
+              <button id="btn-sheet-pipeline" type="button" class="hv-btn hv-scd-pill" title="View pipeline telemetry & accuracy">Diagnostics</button>
+              <button id="btn-sheet-theme" type="button" class="hv-btn hv-scd-pill" title="Toggle Light / Dark theme">Dark Mode</button>
+              <button id="btn-stats-sheet-hand" type="button" class="hv-btn hv-scd-pill" title="Dock thumb button to Left or Right corner">Right Hand</button>
+            </div>
           </div>
-        </div>
+        </details>
       </div>
 
       <div class="hv-stats-sheet-header">
-        <div class="hv-stats-dots-nav" role="tablist" aria-label="Swipeable stat pages">
-          <button type="button" class="hv-stat-dot-pill active" data-goto-slide="0">
-            <span class="hv-dot-indicator">●</span> 1. Speeds &amp; 3×3
-          </button>
-          <button type="button" class="hv-stat-dot-pill" data-goto-slide="1">
-            <span class="hv-dot-indicator">○</span> 2. Heatmap &amp; Serve
-          </button>
-          <button type="button" class="hv-stat-dot-pill" data-goto-slide="2">
-            <span class="hv-dot-indicator">○</span> 3. Attack &amp; Endings
-          </button>
-          <button type="button" class="hv-stat-dot-pill" data-goto-slide="3">
-            <span class="hv-dot-indicator">○</span> 4. Rallies
-          </button>
+        <div class="hv-stats-dots-nav" role="tablist" aria-label="Match stat views">
+          <button type="button" class="hv-stat-dot-pill active" data-goto-slide="0" role="tab">Speeds</button>
+          <button type="button" class="hv-stat-dot-pill" data-goto-slide="1" role="tab">Court</button>
+          <button type="button" class="hv-stat-dot-pill" data-goto-slide="2" role="tab">Attack</button>
+          <button type="button" class="hv-stat-dot-pill" data-goto-slide="3" role="tab">Rallies</button>
         </div>
-      </div>
-
-      <div class="hv-stats-swipe-hint">
-        <span>← Swipe left / right with one thumb · Remembers your last viewed stat page →</span>
       </div>
 
       <!-- Horizontal 1-Screen CSS Scroll-Snap Carousel (4 Pages: Speeds · Heatmap · Attack · Rallies) -->
@@ -545,67 +528,67 @@
        ======================================================================== -->
   <div id="video-loader-modal" class="hv-modal-backdrop hidden">
     <div class="hv-modal-card hv-calib-modal-card">
-      <div class="hv-panel-header">
+      <div class="hv-panel-header" style="margin-bottom:4px;">
         <div>
-          <h2 class="hv-panel-title" style="font-size:15px; color:var(--text); text-transform:none; letter-spacing:-0.02em;">
-            Convert BWF YouTube Match to 3D
+          <h2 class="hv-panel-title" style="font-size:16px; color:var(--text); text-transform:none; letter-spacing:-0.02em;">
+            Convert YouTube to 3D
           </h2>
           <div style="font-size:12px; color:var(--muted); margin-top:2px;">
-            Paste any BWF YouTube link for automatic Blackwell G4 GPU court calibration &amp; 3D shuttle tracking
+            Paste a BWF YouTube link for automatic cloud 3D tracking.
           </div>
         </div>
-        <button id="btn-close-video-loader" type="button" class="hv-btn" style="min-height:36px; min-width:36px; padding:4px 10px;">✕</button>
+        <button id="btn-close-video-loader" type="button" class="hv-btn" aria-label="Close" style="min-height:36px; min-width:36px; padding:4px 10px; border-radius:10px;">✕</button>
       </div>
 
-      <!-- PRIMARY #1: YOUTUBE URL AUTO-CONVERTER (Mobile-First, 44px Touch Targets) -->
-      <div id="calib-drop-zone" class="hv-calib-dropzone" style="flex-direction:column; align-items:stretch; gap:10px; padding:14px;">
-        <div style="display:flex; flex-direction:column; gap:8px; width:100%;">
-          <label for="calib-youtube-url" style="font-size:12px; font-weight:700; color:var(--text); letter-spacing:-0.01em;">
-            1. Paste BWF YouTube Link
+      <!-- PRIMARY #1: YOUTUBE URL AUTO-CONVERTER (Mobile-First, Single Primary CTA) -->
+      <div id="calib-drop-zone" class="hv-calib-dropzone" style="flex-direction:column; align-items:stretch; gap:10px; padding:14px; border-radius:12px;">
+        <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
+          <label for="calib-youtube-url" style="font-size:12px; font-weight:600; color:var(--muted);">
+            YouTube Link
           </label>
-          <input id="calib-youtube-url" type="url" class="hv-input" style="width:100%; min-height:44px; font-size:14px; padding:10px 12px; border-radius:8px;" placeholder="https://youtu.be/hiUDiIaQjxA or youtube.com/watch?v=...">
+          <input id="calib-youtube-url" type="url" class="hv-input" style="width:100%; min-height:44px; font-size:14px; padding:10px 12px; border-radius:10px;" placeholder="https://youtu.be/... or youtube.com/watch?v=...">
           <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-            <select id="calib-max-rallies" class="hv-select" style="flex:1; min-width:180px; min-height:44px; font-size:13px; border-radius:8px;" title="How many rallies to reconstruct in 3D">
-              <option value="3">Quick Preview — First 3 Rallies</option>
-              <option value="6" selected>Recommended — First 6 Rallies (Blackwell G4)</option>
-              <option value="10">Extended — First 10 Rallies (Blackwell G4)</option>
-              <option value="0">Full Match — All Rallies (Blackwell G4)</option>
+            <select id="calib-max-rallies" class="hv-select" style="flex:1; min-width:170px; min-height:44px; font-size:13px; border-radius:10px;" title="How many rallies to reconstruct in 3D">
+              <option value="3">First 3 Rallies (Quick)</option>
+              <option value="6" selected>First 6 Rallies (Recommended)</option>
+              <option value="10">First 10 Rallies</option>
+              <option value="0">Full Match</option>
             </select>
-            <button id="btn-yt-auto-convert" type="button" class="hv-btn hv-btn-primary" style="flex:1; min-width:170px; min-height:44px; font-size:13.5px; font-weight:700; border-radius:8px; white-space:nowrap;" title="Auto-download 1080p, calibrate 12 court lines, and stream 3D rallies on Blackwell G4">
-              Convert YouTube to 3D
-            </button>
-            <button id="btn-yt-preview" type="button" class="hv-btn" style="min-height:44px; padding:0 12px; font-size:12.5px; border-radius:8px; white-space:nowrap;" title="Download & inspect 6-point court calibration before starting">
-              Preview Court
+            <button id="btn-yt-auto-convert" type="button" class="hv-btn hv-btn-primary" style="flex:1; min-width:170px; min-height:44px; font-size:14px; font-weight:600; border-radius:10px; white-space:nowrap;">
+              Convert to 3D
             </button>
           </div>
         </div>
 
         <div id="calib-upload-progress-wrap" class="hidden" style="width:100%; margin-top:2px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:11.5px; font-weight:600; color:var(--text); margin-bottom:4px;">
-            <span id="calib-upload-progress-label">Connecting to Hawkview Cloud...</span>
+            <span id="calib-upload-progress-label">Checking cloud cache...</span>
             <span id="calib-upload-progress-text" class="tabular-nums" style="color:var(--shot-continue);">0%</span>
           </div>
-          <div style="width:100%; height:6px; border-radius:999px; background:rgba(148,163,184,0.22); overflow:hidden;">
+          <div style="width:100%; height:5px; border-radius:999px; background:rgba(148,163,184,0.22); overflow:hidden;">
             <div id="calib-upload-progress-fill" style="width:0%; height:100%; border-radius:999px; background:#2563eb; transition:width 0.15s ease;"></div>
           </div>
         </div>
 
-        <span id="calib-status-pill" class="hv-calib-status" style="font-size:12px;">
-          Cached YouTube links open in ~1s · New links run automatically on Blackwell G4 Cloud GPU
+        <span id="calib-status-pill" class="hv-calib-status" style="font-size:11.5px; color:var(--muted);">
+          Cached links open in ~1s · New links run automatically on Cloud GPU
         </span>
       </div>
 
-      <!-- SECONDARY #2: LOCAL MP4 UPLOAD & MANUAL 6-POINT COURT CALIBRATION (Collapsed by default on mobile/desktop) -->
-      <details id="calib-advanced-local-section" style="margin-top:10px; border:1px solid var(--border); border-radius:10px; padding:10px 12px; background:var(--surface-subtle);">
-        <summary style="cursor:pointer; font-size:12.5px; font-weight:700; color:var(--text); list-style:none; display:flex; align-items:center; justify-content:space-between; min-height:36px;">
-          <span>2. Local MP4 Upload &amp; Manual Court Calibration (Optional)</span>
+      <!-- SECONDARY #2: LOCAL MP4 UPLOAD & MANUAL 6-POINT COURT CALIBRATION (Collapsed by default) -->
+      <details id="calib-advanced-local-section" style="margin-top:6px; border:1px solid var(--border); border-radius:12px; padding:10px 14px; background:var(--surface-subtle);">
+        <summary style="cursor:pointer; font-size:12.5px; font-weight:600; color:var(--text); list-style:none; display:flex; align-items:center; justify-content:space-between; min-height:36px;">
+          <span>Local MP4 &amp; Manual Calibration</span>
           <span style="font-size:11px; font-weight:500; color:var(--muted);">Expand</span>
         </summary>
 
         <div style="margin-top:10px; display:flex; flex-direction:column; gap:10px;">
           <div class="hv-calib-dropzone-left" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-            <button id="btn-calib-pick-file" type="button" class="hv-btn" style="min-height:40px;">
+            <button id="btn-calib-pick-file" type="button" class="hv-btn" style="min-height:40px; border-radius:10px;">
               Choose Local MP4 / MOV
+            </button>
+            <button id="btn-yt-preview" type="button" class="hv-btn" style="min-height:40px; border-radius:10px;" title="Download & inspect 6-point court calibration before starting">
+              Preview YouTube Court
             </button>
             <input id="calib-file-input" type="file" accept="video/mp4,video/quicktime,video/webm" style="display:none;">
             <span id="calib-active-filename" class="hv-calib-filename tabular-nums" style="font-size:11.5px; color:var(--muted);">
@@ -699,17 +682,17 @@
   </div>
 
   <!-- Application Scripts -->
-  <script src="js/telemetry-data.js?v=4.8"></script>
-  <script src="js/cache-store.js?v=4.8"></script>
-  <script src="js/three-viewport.js?v=4.8"></script>
-  <script src="js/shot-explorer.js?v=4.8"></script>
-  <script src="js/filter-bar.js?v=4.8"></script>
-  <script src="js/player-card.js?v=4.8"></script>
-  <script src="js/rally-deck.js?v=4.8"></script>
-  <script src="js/analytics-cards.js?v=4.8"></script>
-  <script src="js/broadcast-player.js?v=4.8"></script>
-  <script src="js/anti-lag-modal.js?v=4.8"></script>
-  <script src="js/video-loader-modal.js?v=4.8"></script>
-  <script src="js/app.js?v=4.8"></script>
+  <script src="js/telemetry-data.js?v=4.9"></script>
+  <script src="js/cache-store.js?v=4.9"></script>
+  <script src="js/three-viewport.js?v=4.9"></script>
+  <script src="js/shot-explorer.js?v=4.9"></script>
+  <script src="js/filter-bar.js?v=4.9"></script>
+  <script src="js/player-card.js?v=4.9"></script>
+  <script src="js/rally-deck.js?v=4.9"></script>
+  <script src="js/analytics-cards.js?v=4.9"></script>
+  <script src="js/broadcast-player.js?v=4.9"></script>
+  <script src="js/anti-lag-modal.js?v=4.9"></script>
+  <script src="js/video-loader-modal.js?v=4.9"></script>
+  <script src="js/app.js?v=4.9"></script>
 </body>
 </html>

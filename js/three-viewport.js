@@ -928,23 +928,23 @@ class ThreeCourtViewer {
 
   updateGyroButtonsUI() {
     const modeLabels = {
-      hold: '🧭 Hold-Gyro',
-      always: '🧭 Free-Gyro',
-      off: '🧭 Gyro Off'
+      hold: 'Gyro',
+      always: 'Gyro: Free',
+      off: 'Gyro: Off'
     };
     const sheetLabels = {
-      hold: '🧭 Gyro: Hold',
-      always: '🧭 Gyro: Free',
-      off: '🧭 Gyro: Off'
+      hold: 'Gyro: Hold',
+      always: 'Gyro: Free',
+      off: 'Gyro: Off'
     };
     const courtBtn = document.getElementById('btn-court-gyro-mode');
     if (courtBtn) {
-      courtBtn.textContent = modeLabels[this.gyroMode] || '🧭 Hold-Gyro';
+      courtBtn.textContent = modeLabels[this.gyroMode] || 'Gyro';
       courtBtn.classList.toggle('active', this.gyroMode !== 'off');
     }
     const sheetBtn = document.getElementById('btn-sheet-gyro');
     if (sheetBtn) {
-      sheetBtn.textContent = sheetLabels[this.gyroMode] || '🧭 Gyro: Hold';
+      sheetBtn.textContent = sheetLabels[this.gyroMode] || 'Gyro: Hold';
       sheetBtn.classList.toggle('active', this.gyroMode !== 'off');
     }
   }
@@ -1400,7 +1400,7 @@ class ThreeCourtViewer {
     const toggleBtn = document.getElementById('btn-toggle-players');
     if (toggleBtn) {
       toggleBtn.classList.toggle('active', this.showPlayerMarkers);
-      toggleBtn.textContent = this.showPlayerMarkers ? '👤 Players' : '👤 Players: Off';
+      toggleBtn.textContent = this.showPlayerMarkers ? 'Players' : 'Players: Off';
       toggleBtn.setAttribute('aria-pressed', this.showPlayerMarkers ? 'true' : 'false');
     }
     if (persist) {
