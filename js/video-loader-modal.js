@@ -524,17 +524,20 @@ class VideoLoaderModal {
 
     if (this._fabTicker) { clearInterval(this._fabTicker); this._fabTicker = null; }
 
-    if (mode === 'done') {
+    if (mode === 'done' || mode === 'cached') {
       fab.classList.add('is-done');
       this._fabDisplayPct = 100;
       this._fabTargetPct = 100;
       if (this.fabIconEl) this.fabIconEl.classList.add('hidden');
-      if (this.fabPctEl) this.fabPctEl.classList.remove('hidden');
-      if (this.fabSubEl) this.fabSubEl.textContent = 'Done';
-      this._renderFabProgressRing(100);
+      if (this.fabPctEl) {
+        this.fabPctEl.classList.remove('hidden');
+        this.fabPctEl.textContent = mode === 'cached' ? 'Cached' : '100.00%';
+      }
+      if (this.fabSubEl) this.fabSubEl.textContent = mode === 'cached' ? 'Instant' : 'Done';
+      if (this.fabFillEl) this.fabFillEl.style.strokeDashoffset = '0.00';
       this._fabDoneTimer = setTimeout(() => {
-        if (this._fabMode === 'done') this.setFabState('idle');
-      }, 4500);
+        if (this._fabMode === 'done' || this._fabMode === 'cached') this.setFabState('idle');
+      }, mode === 'cached' ? 2600 : 4500);
       return;
     }
 
@@ -894,7 +897,7 @@ class VideoLoaderModal {
           window.cacheStoreInstance.updateTopbarHeader(matchId, tel);
         }
         this.setYouTubeProgressUI(false);
-        this.setFabState('done', 100, 'Loaded from Cloud Cache', '');
+        this.setFabState('cached', 100, 'Loaded from Cloud Cache', '');
         this.activateNewMatchInWorkspace(matchId, tel);
         const rCnt = (tel.rallies || []).length;
         const sCnt = (tel.rallies || []).reduce((a, r) => a + ((r.shots || []).length), 0);

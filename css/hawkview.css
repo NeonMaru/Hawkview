@@ -2846,7 +2846,14 @@ canvas {
   stroke-linecap: round;
   stroke-dasharray: 175.93;
   stroke-dashoffset: 175.93;
-  transition: stroke-dashoffset 0.18s linear, stroke 0.2s ease;
+  opacity: 0;
+  transition: stroke-dashoffset 0.18s linear, stroke 0.2s ease, opacity 0.2s ease;
+}
+
+.hv-yt-fab.is-converting .hv-yt-fab-fill,
+.hv-yt-fab.is-done .hv-yt-fab-fill,
+.hv-yt-fab.is-error .hv-yt-fab-fill {
+  opacity: 1;
 }
 
 .hv-yt-fab.is-done .hv-yt-fab-fill {
