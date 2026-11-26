@@ -235,11 +235,13 @@ class AnalyticsCards {
             </tbody>
           </table>
 
-          <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--surface-subtle); border:1px solid var(--border); border-radius:6px; padding:6px;">
+          <div class="hv-kde-box" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--surface-subtle); border:1px solid var(--border); border-radius:8px; padding:8px;">
+            <div id="coverage-kde-top-label" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700; color:var(--text); margin-bottom:4px; letter-spacing:0.01em;"></div>
             <canvas id="coverage-kde-canvas" width="260" height="130" style="width:100%; height:130px; display:block;"></canvas>
-            <div style="font-size:10px; color:var(--muted); margin-top:4px; width:100%; display:flex; justify-content:space-between;">
+            <div id="coverage-kde-bottom-label" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700; color:var(--text); margin-top:4px; letter-spacing:0.01em;"></div>
+            <div style="font-size:10px; color:var(--muted); margin-top:5px; width:100%; display:flex; justify-content:space-between;">
               <span>Top-down BWF KDE foot density</span>
-              <span>13.40 m × 6.10 m</span>
+              <span id="coverage-kde-dims">6.10 m × 13.40 m</span>
             </div>
           </div>
         </div>
@@ -427,20 +429,91 @@ class AnalyticsCards {
     const courtLine = (style.getPropertyValue('--court-line') || '#2b2f36').trim();
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const cssW = canvas.clientWidth || 260;
-    const cssH = canvas.clientHeight || 130;
+    const isVertical = window.innerWidth <= 859;
+    const targetCssH = isVertical ? 286 : 130;
+    canvas.style.height = `${targetCssH}px`;
+
+    const cssW = canvas.clientWidth || (isVertical ? 260 : 260);
+    const cssH = targetCssH;
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     ctx.scale(dpr, dpr);
 
-    // Draw horizontal top-down BWF court (length 13.40m along X, width 6.10m along Y)
-    const padX = 12;
-    const padY = 8;
+    // Resolve Far (y >= 6.70m, TOP on vertical) vs Near (y < 6.70m, BOTTOM on vertical) player names
+    const telemetry = window.HAWKVIEW_TELEMETRY;
+    const players = (telemetry && telemetry.players) || {};
+    const playerEntries = Object.entries(players);
+    let farName = '';
+    let nearName = '';
+    if (playerEntries.length >= 2) {
+      const scored = playerEntries.map(([pid, pObj]) => {
+        const fp = (pObj && pObj.computed && pObj.computed.foot_positions) || [];
+        let avgY = null;
+        if (fp.length > 0) {
+          let sumY = 0;
+          for (let i = 0; i < fp.length; i++) sumY += Number(fp[i][1] || 0);
+          avgY = sumY / fp.length;
+        }
+        const meta = (pObj && pObj.metadata) || {};
+        const displayName = meta.name || pid;
+        const endHint = String(meta.end || meta.side || '').toLowerCase();
+        return { pid, displayName, avgY, endHint };
+      });
+      if (scored[0].avgY !== null && scored[1].avgY !== null) {
+        scored.sort((a, b) => b.avgY - a.avgY);
+        farName = scored[0].displayName;
+        nearName = scored[1].displayName;
+      } else if (scored[0].endHint === 'far' || scored[1].endHint === 'near') {
+        farName = scored[0].displayName;
+        nearName = scored[1].displayName;
+      } else {
+        nearName = scored[0].displayName;
+        farName = scored[1].displayName;
+      }
+    } else if (playerEntries.length === 1) {
+      const meta = (playerEntries[0][1] && playerEntries[0][1].metadata) || {};
+      nearName = meta.name || playerEntries[0][0];
+    }
+
+    const topLabelEl = document.getElementById('coverage-kde-top-label');
+    const bottomLabelEl = document.getElementById('coverage-kde-bottom-label');
+    const dimsEl = document.getElementById('coverage-kde-dims');
+    if (dimsEl) dimsEl.textContent = isVertical ? '6.10 m × 13.40 m' : '13.40 m × 6.10 m';
+    if (isVertical) {
+      if (topLabelEl) {
+        topLabelEl.style.display = farName ? 'flex' : 'none';
+        topLabelEl.innerHTML = farName
+          ? `<span style="font-size:9.5px; font-weight:700; color:var(--shot-winner); background:rgba(37,99,235,0.12); padding:1px 6px; border-radius:999px;">FAR</span><span>${farName}</span>`
+          : '';
+      }
+      if (bottomLabelEl) {
+        bottomLabelEl.style.display = nearName ? 'flex' : 'none';
+        bottomLabelEl.innerHTML = nearName
+          ? `<span style="font-size:9.5px; font-weight:700; color:var(--shot-continue); background:rgba(95,174,58,0.14); padding:1px 6px; border-radius:999px;">NEAR</span><span>${nearName}</span>`
+          : '';
+      }
+    } else {
+      if (topLabelEl) {
+        topLabelEl.style.display = (nearName || farName) ? 'flex' : 'none';
+        topLabelEl.style.justifyContent = 'space-between';
+        topLabelEl.innerHTML = `<span>${nearName ? `NEAR · ${nearName}` : ''}</span><span>${farName ? `${farName} · FAR` : ''}</span>`;
+      }
+      if (bottomLabelEl) {
+        bottomLabelEl.style.display = 'none';
+        bottomLabelEl.innerHTML = '';
+      }
+    }
+
+    // Compute court box: vertical (6.10m W x 13.40m H) on mobile; horizontal (13.40m W x 6.10m H) on desktop
+    const padX = isVertical ? 14 : 12;
+    const padY = 6;
     const availW = cssW - padX * 2;
     const availH = cssH - padY * 2;
-    const scale = Math.min(availW / 13.40, availH / 6.10);
-    const courtW = 13.40 * scale;
-    const courtH = 6.10 * scale;
+    const scale = isVertical
+      ? Math.min(availW / 6.10, availH / 13.40)
+      : Math.min(availW / 13.40, availH / 6.10);
+    const courtW = (isVertical ? 6.10 : 13.40) * scale;
+    const courtH = (isVertical ? 13.40 : 6.10) * scale;
     const ox = (cssW - courtW) / 2;
     const oy = (cssH - courtH) / 2;
 
@@ -449,10 +522,7 @@ class AnalyticsCards {
     ctx.fillRect(ox, oy, courtW, courtH);
 
     // Collect foot positions from telemetry
-    const telemetry = window.HAWKVIEW_TELEMETRY;
-    const players = (telemetry && telemetry.players) || {};
     const pts = [];
-
     Object.entries(players).forEach(([pid, pObj]) => {
       if (this.kdeFilterPlayer !== 'ALL' && this.kdeFilterPlayer !== pid) return;
       const fp = (pObj && pObj.computed && pObj.computed.foot_positions) || [];
@@ -461,33 +531,31 @@ class AnalyticsCards {
       }
     });
 
-    // Compute 2D KDE grid (gridX along 13.40m length, gridY along 6.10m width)
+    // Compute 2D KDE grid (gy along 13.40m length, gx along 6.10m width)
     if (pts.length > 0) {
-      const gx = 44;
-      const gy = 20;
-      const grid = new Float32Array(gx * gy);
+      const nLen = 44; // along 13.40m court length (y)
+      const nWid = 20; // along 6.10m court width (x)
+      const grid = new Float32Array(nLen * nWid);
       const sigma = 0.65; // meters
       const inv2Sigma2 = 1.0 / (2.0 * sigma * sigma);
 
-      // Accumulate Gaussian kernels
       for (let i = 0; i < pts.length; i++) {
         const cx = pts[i][0]; // 0..6.10
         const cy = pts[i][1]; // 0..13.40
-        const ixCenter = Math.floor((cy / 13.40) * gx);
-        const iyCenter = Math.floor((cx / 6.10) * gy);
-        const radX = 4;
-        const radY = 4;
+        const ilCenter = Math.floor((cy / 13.40) * nLen);
+        const iwCenter = Math.floor((cx / 6.10) * nWid);
+        const rad = 4;
 
-        for (let dy = -radY; dy <= radY; dy++) {
-          const iy = iyCenter + dy;
-          if (iy < 0 || iy >= gy) continue;
-          const cellX = ((iy + 0.5) / gy) * 6.10;
-          for (let dx = -radX; dx <= radX; dx++) {
-            const ix = ixCenter + dx;
-            if (ix < 0 || ix >= gx) continue;
-            const cellY = ((ix + 0.5) / gx) * 13.40;
+        for (let dw = -rad; dw <= rad; dw++) {
+          const iw = iwCenter + dw;
+          if (iw < 0 || iw >= nWid) continue;
+          const cellX = ((iw + 0.5) / nWid) * 6.10;
+          for (let dl = -rad; dl <= rad; dl++) {
+            const il = ilCenter + dl;
+            if (il < 0 || il >= nLen) continue;
+            const cellY = ((il + 0.5) / nLen) * 13.40;
             const d2 = (cx - cellX) * (cx - cellX) + (cy - cellY) * (cy - cellY);
-            grid[iy * gx + ix] += Math.exp(-d2 * inv2Sigma2);
+            grid[iw * nLen + il] += Math.exp(-d2 * inv2Sigma2);
           }
         }
       }
@@ -498,13 +566,12 @@ class AnalyticsCards {
       }
 
       if (maxVal > 0) {
-        const cellW = courtW / gx;
-        const cellH = courtH / gy;
-        for (let iy = 0; iy < gy; iy++) {
-          for (let ix = 0; ix < gx; ix++) {
-            const norm = grid[iy * gx + ix] / maxVal;
+        const cellW = isVertical ? (courtW / nWid) : (courtW / nLen);
+        const cellH = isVertical ? (courtH / nLen) : (courtH / nWid);
+        for (let iw = 0; iw < nWid; iw++) {
+          for (let il = 0; il < nLen; il++) {
+            const norm = grid[iw * nLen + il] / maxVal;
             if (norm < 0.06) continue;
-            // Clean blue -> amber -> red thermal map without neon glow
             let r, g, b;
             if (norm < 0.5) {
               const t = norm * 2;
@@ -519,7 +586,16 @@ class AnalyticsCards {
             }
             const alpha = Math.min(0.78, 0.18 + norm * 0.62);
             ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(2)})`;
-            ctx.fillRect(ox + ix * cellW, oy + iy * cellH, Math.ceil(cellW), Math.ceil(cellH));
+            if (isVertical) {
+              // Vertical: x left->right, y bottom->top (Far y=13.40 at top, Near y=0 at bottom)
+              const px = ox + iw * cellW;
+              const py = oy + (nLen - 1 - il) * cellH;
+              ctx.fillRect(px, py, Math.ceil(cellW), Math.ceil(cellH));
+            } else {
+              const px = ox + il * cellW;
+              const py = oy + iw * cellH;
+              ctx.fillRect(px, py, Math.ceil(cellW), Math.ceil(cellH));
+            }
           }
         }
       }
@@ -527,12 +603,13 @@ class AnalyticsCards {
 
     // Draw BWF Court Lines on top
     ctx.strokeStyle = courtLine;
-    ctx.lineWidth = 1.1;
+    ctx.lineWidth = 1.15;
 
-    const toPx = (courtY, courtX) => [
-      ox + (courtY / 13.40) * courtW,
-      oy + (courtX / 6.10) * courtH
-    ];
+    const toPx = (courtY, courtX) => (
+      isVertical
+        ? [ox + (courtX / 6.10) * courtW, oy + ((13.40 - courtY) / 13.40) * courtH]
+        : [ox + (courtY / 13.40) * courtW, oy + (courtX / 6.10) * courtH]
+    );
 
     // Outer boundary
     ctx.strokeRect(ox, oy, courtW, courtH);

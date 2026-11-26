@@ -284,19 +284,21 @@ class ThreeCourtViewer {
   updateOrthoFrustum(width, height) {
     if (!this.orthoCamera) return;
     const aspect = (width || 760) / (height || 430);
-    // Fit 13.40m length (Z) and 6.10m width (X) with clean margin for embedded top/bottom HUDs
-    const minHalfZ = 8.4;
-    const minHalfX = 4.2;
+    // Fit 13.40m length (Z) + Far/Near baseline nameplates with headroom under the top mode bar
+    const isNarrow = (width || 760) < 520;
+    const minHalfZ = isNarrow ? 9.6 : 8.9;
+    const minHalfX = 4.3;
     let halfH = minHalfZ;
     let halfW = halfH * aspect;
     if (halfW < minHalfX) {
       halfW = minHalfX;
       halfH = halfW / aspect;
     }
+    const topHeadroom = isNarrow ? 0.65 : 0.35;
     this.orthoCamera.left = -halfW;
     this.orthoCamera.right = halfW;
-    this.orthoCamera.top = halfH;
-    this.orthoCamera.bottom = -halfH;
+    this.orthoCamera.top = halfH + topHeadroom;
+    this.orthoCamera.bottom = -halfH + topHeadroom * 0.35;
     this.orthoCamera.updateProjectionMatrix();
   }
 
