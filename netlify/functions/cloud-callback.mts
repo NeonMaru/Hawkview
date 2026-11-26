@@ -75,14 +75,20 @@ export default async (req: Request, _context: Context) => {
     await matchesStore.setJSON("system:colab_quota", body.colab_quota);
   }
 
+  const nextPct = typeof body.percent === "number"
+    ? Math.max(Number(prev.percent || 0), body.percent)
+    : Number(prev.percent || 10);
+  const nextRallies = typeof body.rallies_completed === "number"
+    ? Math.max(Number(prev.rallies_completed || 0), body.rallies_completed)
+    : Number(prev.rallies_completed || 0);
   const updatedJob = {
     ...prev,
     mode: "cloud_async",
     status: body.status || prev.status || "running",
     stage: body.stage || prev.stage || "Processing in Cloud...",
-    percent: typeof body.percent === "number" ? body.percent : prev.percent || 10,
+    percent: nextPct,
     message: body.message || prev.message || "",
-    rallies_completed: typeof body.rallies_completed === "number" ? body.rallies_completed : prev.rallies_completed || 0,
+    rallies_completed: nextRallies,
     rallies_total: typeof body.rallies_total === "number" ? body.rallies_total : prev.rallies_total || 0,
     error: body.error ?? null,
     error_code: body.error_code ?? null,

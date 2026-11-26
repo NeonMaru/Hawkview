@@ -166,11 +166,17 @@ def main():
             f"{near_name} vs {far_name} ({mtype}) · Court RMSE {cal_prev.get('line_sample_rmse_px', '?')}px — launching {backend_label}...",
         )
 
+        rallies_done_state = [0]
+
         def on_pipe_progress(stage: str, pct: float, msg: str):
+            # Only report pre-rally progress during GPU offload; once rallies start streaming, on_rally_ready owns progress
+            if rallies_done_state[0] > 0 or stage.startswith("RALLY ") or stage.startswith("COMPLETE"):
+                return
             mapped = 42.0 + 0.14 * float(pct)  # 42% -> 56% during Colab GPU offload
-            notify("running", stage, min(56.0, mapped), msg)
+            notify("running", stage, min(56.0, mapped), msg, rallies_completed=rallies_done_state[0])
 
         def on_rally_ready(tel_contract: dict, r_done: int, r_total: int, msg: str):
+            rallies_done_state[0] = max(rallies_done_state[0], int(r_done))
             tel_contract.setdefault("source", {})["yt_video_id"] = dl["video_id"]
             tel_contract["source"]["yt_url"] = dl["canonical_url"]
             tel_contract["source"]["compute_backend"] = backend_choice

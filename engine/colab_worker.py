@@ -213,11 +213,13 @@ def try_provision_blackwell_session(
                 f"Requesting cloud accelerator --gpu {gpu} on deuschanz@gmail.com...",
             )
         try:
+            # Fast 22s timeout for G4/A100 so regional capacity waits immediately fall through to fast L4/T4
+            gpu_timeout = 22.0 if gpu in ("G4", "A100") else 45.0
             proc = subprocess.run(
                 [colab_bin, "new", "-s", session_name, "--gpu", gpu],
                 capture_output=True,
                 text=True,
-                timeout=45.0,
+                timeout=gpu_timeout,
             )
             if proc.returncode == 0:
                 print(f"[Blackwell Worker] Allocated Google Colab --gpu {gpu} session={session_name}", flush=True)
