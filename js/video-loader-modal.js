@@ -852,7 +852,7 @@ class VideoLoaderModal {
       if (this._fabLastDetail) this.setStatusPill(this._fabLastDetail, true);
     } else if (!this._ytPollTimer && !this.isUploading) {
       this.setYouTubeProgressUI(false);
-      this.setStatusPill('Cached links open in ~1s · New links run automatically on Cloud GPU', true);
+      this.setStatusPill('Upload any MP4 from your phone or paste a cached YouTube link · Runs on Cloud GPU', true);
     }
     if (this.bannerEl && !this.activePollTimer && !this._ytPollTimer) {
       this.bannerEl.classList.add('hidden');
