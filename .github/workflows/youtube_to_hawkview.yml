@@ -125,10 +125,12 @@ jobs:
         env:
           HAWKVIEW_CALLBACK_SECRET: ${{ secrets.HAWKVIEW_CALLBACK_SECRET }}
         run: |
-          curl -fsS --max-time 10 -X POST "${{ inputs.callback_url }}" \
-            -H "Content-Type: application/json" \
-            -H "X-Hawkview-Secret: $HAWKVIEW_CALLBACK_SECRET" \
-            -d "{\"job_id\":\"${{ inputs.job_id }}\",\"match_id\":\"${{ inputs.match_id }}\",\"video_id\":\"${{ inputs.video_id }}\",\"status\":\"error\",\"stage\":\"Cloud Runner Error\",\"percent\":100,\"error\":\"Cloud runner stopped before completing 3D reconstruction. Tap Convert to retry.\",\"error_code\":\"workflow_failed\"}" || true
+          if [ ! -f /tmp/worker_reported_error ]; then
+            curl -fsS --max-time 10 -X POST "${{ inputs.callback_url }}" \
+              -H "Content-Type: application/json" \
+              -H "X-Hawkview-Secret: $HAWKVIEW_CALLBACK_SECRET" \
+              -d "{\"job_id\":\"${{ inputs.job_id }}\",\"match_id\":\"${{ inputs.match_id }}\",\"video_id\":\"${{ inputs.video_id }}\",\"status\":\"error\",\"stage\":\"Cloud Runner Error\",\"percent\":100,\"error\":\"Cloud runner stopped before completing 3D reconstruction. Tap Convert to retry.\",\"error_code\":\"workflow_failed\"}" || true
+          fi
 
       - name: Cleanup Temporary Secrets & Verify Zero Active Colab VMs
         if: always()

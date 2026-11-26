@@ -247,9 +247,13 @@ def main():
             flush=True,
         )
     except YouTubeIngestError as yexc:
+        try:
+            open("/tmp/worker_reported_error", "w").write(str(yexc))
+        except Exception:
+            pass
         notify(
             "error",
-            "YouTube Import Blocked",
+            "YouTube Session Required",
             100.0,
             str(yexc),
             error=str(yexc),
@@ -259,6 +263,10 @@ def main():
     except Exception as exc:
         tb = traceback.format_exc()
         print(tb, flush=True)
+        try:
+            open("/tmp/worker_reported_error", "w").write(str(exc))
+        except Exception:
+            pass
         notify(
             "error",
             "Cloud CV Worker Error",

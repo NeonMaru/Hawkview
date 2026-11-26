@@ -302,9 +302,8 @@ def download_youtube_video(
         lower_tail = joined_tail.lower()
         if "sign in to confirm" in lower_tail or "not a bot" in lower_tail or "cookies-from-browser" in lower_tail:
             raise YouTubeIngestError(
-                "YouTube requires a signed-in session on this IP ('Sign in to confirm you're not a bot'). "
-                "Drop an exported `cookies.txt` into the Hawkview folder (or start server.py with "
-                "`HAWKVIEW_YTDLP_COOKIES_BROWSER=chrome`), or upload the MP4 file directly.",
+                "YouTube session cookies expired on the cloud runner (YouTube rotated the browser session). "
+                "Refresh YOUTUBE_COOKIES_B64 from a fresh closed Chrome Incognito window.",
                 error_code="youtube_auth_required",
             )
         if "private video" in lower_tail or "video unavailable" in lower_tail:
