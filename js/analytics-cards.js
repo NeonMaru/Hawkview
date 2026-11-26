@@ -216,7 +216,7 @@ class AnalyticsCards {
             </div>
           </div>
 
-          <table class="hv-table" style="margin-bottom:8px;">
+          <table class="hv-table hv-coverage-table-desktop" style="margin-bottom:8px;">
             <thead>
               <tr>
                 <th>Player</th>
@@ -235,11 +235,15 @@ class AnalyticsCards {
             </tbody>
           </table>
 
-          <div class="hv-kde-box" style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; background:var(--surface-subtle); border:1px solid var(--border); border-radius:8px; padding:8px;">
-            <div id="coverage-kde-top-label" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700; color:var(--text); margin-bottom:4px; letter-spacing:0.01em;"></div>
-            <canvas id="coverage-kde-canvas" width="260" height="130" style="width:100%; height:130px; display:block;"></canvas>
-            <div id="coverage-kde-bottom-label" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; font-size:11px; font-weight:700; color:var(--text); margin-top:4px; letter-spacing:0.01em;"></div>
-            <div style="font-size:10px; color:var(--muted); margin-top:5px; width:100%; display:flex; justify-content:space-between;">
+          <div class="hv-kde-box">
+            <div id="coverage-kde-top-label" class="hv-kde-desktop-labels"></div>
+            <div class="hv-kde-split-row">
+              <div class="hv-kde-canvas-col">
+                <canvas id="coverage-kde-canvas" width="260" height="130" style="width:100%; height:130px; display:block;"></canvas>
+              </div>
+              <div id="coverage-kde-side-stats" class="hv-kde-side-stats"></div>
+            </div>
+            <div style="font-size:10px; color:var(--muted); margin-top:6px; width:100%; display:flex; justify-content:space-between;">
               <span>Top-down BWF KDE foot density</span>
               <span id="coverage-kde-dims">6.10 m × 13.40 m</span>
             </div>
@@ -430,83 +434,109 @@ class AnalyticsCards {
 
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const isVertical = window.innerWidth <= 859;
-    const targetCssH = isVertical ? 286 : 130;
+    const targetCssH = isVertical ? 264 : 130;
     canvas.style.height = `${targetCssH}px`;
 
-    const cssW = canvas.clientWidth || (isVertical ? 260 : 260);
+    const cssW = canvas.clientWidth || (isVertical ? 132 : 260);
     const cssH = targetCssH;
     canvas.width = Math.round(cssW * dpr);
     canvas.height = Math.round(cssH * dpr);
     ctx.scale(dpr, dpr);
 
-    // Resolve Far (y >= 6.70m, TOP on vertical) vs Near (y < 6.70m, BOTTOM on vertical) player names
+    // Resolve Far (y >= 6.70m, TOP half) vs Near (y < 6.70m, BOTTOM half) player objects & stats
     const telemetry = window.HAWKVIEW_TELEMETRY;
+    const rallies = (telemetry && telemetry.rallies) || [];
     const players = (telemetry && telemetry.players) || {};
     const playerEntries = Object.entries(players);
-    let farName = '';
-    let nearName = '';
+    const buildSideInfo = (pid, pObj) => {
+      const fp = (pObj && pObj.computed && pObj.computed.foot_positions) || [];
+      let avgY = null;
+      if (fp.length > 0) {
+        let sumY = 0;
+        for (let i = 0; i < fp.length; i++) sumY += Number(fp[i][1] || 0);
+        avgY = sumY / fp.length;
+      }
+      const comp = (pObj && pObj.computed) || {};
+      const dist = typeof comp.distance_m === 'number' ? `${comp.distance_m.toFixed(1)} m` : '—';
+      const avgRally = typeof comp.avg_rally_distance_m === 'number'
+        ? `${comp.avg_rally_distance_m.toFixed(1)} m`
+        : (typeof comp.distance_m === 'number' && rallies.length > 0
+            ? `${(comp.distance_m / rallies.length).toFixed(1)} m`
+            : '—');
+      const meta = (pObj && pObj.metadata) || {};
+      const displayName = meta.name || pid;
+      const endHint = String(meta.end || meta.side || '').toLowerCase();
+      return { pid, displayName, avgY, endHint, dist, avgRally };
+    };
+
+    let farInfo = null;
+    let nearInfo = null;
     if (playerEntries.length >= 2) {
-      const scored = playerEntries.map(([pid, pObj]) => {
-        const fp = (pObj && pObj.computed && pObj.computed.foot_positions) || [];
-        let avgY = null;
-        if (fp.length > 0) {
-          let sumY = 0;
-          for (let i = 0; i < fp.length; i++) sumY += Number(fp[i][1] || 0);
-          avgY = sumY / fp.length;
-        }
-        const meta = (pObj && pObj.metadata) || {};
-        const displayName = meta.name || pid;
-        const endHint = String(meta.end || meta.side || '').toLowerCase();
-        return { pid, displayName, avgY, endHint };
-      });
+      const scored = playerEntries.map(([pid, pObj]) => buildSideInfo(pid, pObj));
       if (scored[0].avgY !== null && scored[1].avgY !== null) {
         scored.sort((a, b) => b.avgY - a.avgY);
-        farName = scored[0].displayName;
-        nearName = scored[1].displayName;
+        farInfo = scored[0];
+        nearInfo = scored[1];
       } else if (scored[0].endHint === 'far' || scored[1].endHint === 'near') {
-        farName = scored[0].displayName;
-        nearName = scored[1].displayName;
+        farInfo = scored[0];
+        nearInfo = scored[1];
       } else {
-        nearName = scored[0].displayName;
-        farName = scored[1].displayName;
+        nearInfo = scored[0];
+        farInfo = scored[1];
       }
     } else if (playerEntries.length === 1) {
-      const meta = (playerEntries[0][1] && playerEntries[0][1].metadata) || {};
-      nearName = meta.name || playerEntries[0][0];
+      nearInfo = buildSideInfo(playerEntries[0][0], playerEntries[0][1]);
     }
 
     const topLabelEl = document.getElementById('coverage-kde-top-label');
-    const bottomLabelEl = document.getElementById('coverage-kde-bottom-label');
+    const sideStatsEl = document.getElementById('coverage-kde-side-stats');
     const dimsEl = document.getElementById('coverage-kde-dims');
     if (dimsEl) dimsEl.textContent = isVertical ? '6.10 m × 13.40 m' : '13.40 m × 6.10 m';
+
     if (isVertical) {
-      if (topLabelEl) {
-        topLabelEl.style.display = farName ? 'flex' : 'none';
-        topLabelEl.innerHTML = farName
-          ? `<span style="font-size:9.5px; font-weight:700; color:var(--shot-winner); background:rgba(37,99,235,0.12); padding:1px 6px; border-radius:999px;">FAR</span><span>${farName}</span>`
-          : '';
-      }
-      if (bottomLabelEl) {
-        bottomLabelEl.style.display = nearName ? 'flex' : 'none';
-        bottomLabelEl.innerHTML = nearName
-          ? `<span style="font-size:9.5px; font-weight:700; color:var(--shot-continue); background:rgba(95,174,58,0.14); padding:1px 6px; border-radius:999px;">NEAR</span><span>${nearName}</span>`
-          : '';
+      if (topLabelEl) topLabelEl.style.display = 'none';
+      if (sideStatsEl) {
+        sideStatsEl.style.display = 'flex';
+        const makeHalfCard = (info, sideTag, accentBg, accentFg) => {
+          if (!info) return '<div class="hv-kde-side-card"></div>';
+          const isAct = this.kdeFilterPlayer === info.pid;
+          return `
+            <button type="button" class="hv-kde-side-card ${isAct ? 'active' : ''}" data-kde-side-pid="${info.pid}">
+              <span class="hv-kde-side-badge" style="background:${accentBg}; color:${accentFg};">${sideTag}</span>
+              <span class="hv-kde-side-name">${info.displayName}</span>
+              <span class="hv-kde-side-dist tabular-nums">${info.dist}</span>
+              <span class="hv-kde-side-avg tabular-nums">${info.avgRally} / rally</span>
+            </button>
+          `;
+        };
+        sideStatsEl.innerHTML =
+          makeHalfCard(farInfo, 'FAR', 'rgba(37,99,235,0.14)', 'var(--shot-winner)') +
+          makeHalfCard(nearInfo, 'NEAR', 'rgba(95,174,58,0.16)', 'var(--shot-continue)');
+        sideStatsEl.querySelectorAll('[data-kde-side-pid]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            const pid = btn.getAttribute('data-kde-side-pid');
+            this.kdeFilterPlayer = this.kdeFilterPlayer === pid ? 'ALL' : pid;
+            try { localStorage.setItem('hawkview_last_kde_player', this.kdeFilterPlayer); } catch (e) {}
+            this.render();
+          });
+        });
       }
     } else {
-      if (topLabelEl) {
-        topLabelEl.style.display = (nearName || farName) ? 'flex' : 'none';
-        topLabelEl.style.justifyContent = 'space-between';
-        topLabelEl.innerHTML = `<span>${nearName ? `NEAR · ${nearName}` : ''}</span><span>${farName ? `${farName} · FAR` : ''}</span>`;
+      if (sideStatsEl) {
+        sideStatsEl.style.display = 'none';
+        sideStatsEl.innerHTML = '';
       }
-      if (bottomLabelEl) {
-        bottomLabelEl.style.display = 'none';
-        bottomLabelEl.innerHTML = '';
+      if (topLabelEl) {
+        const nName = nearInfo ? nearInfo.displayName : '';
+        const fName = farInfo ? farInfo.displayName : '';
+        topLabelEl.style.display = (nName || fName) ? 'flex' : 'none';
+        topLabelEl.innerHTML = `<span>${nName ? `NEAR · ${nName}` : ''}</span><span>${fName ? `${fName} · FAR` : ''}</span>`;
       }
     }
 
     // Compute court box: vertical (6.10m W x 13.40m H) on mobile; horizontal (13.40m W x 6.10m H) on desktop
-    const padX = isVertical ? 14 : 12;
-    const padY = 6;
+    const padX = isVertical ? 4 : 12;
+    const padY = 4;
     const availW = cssW - padX * 2;
     const availH = cssH - padY * 2;
     const scale = isVertical
